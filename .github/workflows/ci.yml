@@ -62,16 +62,16 @@ jobs:
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref }}
-          name: Release ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
+          tag: ${{ github.ref_name }}  # Extract only the tag name
+          name: Release ${{ github.ref_name }}  # Use the correct tag name
           body: |
-            Release notes for FitOSC version ${{ github.ref }}
+            Release notes for FitOSC version ${{ github.ref_name }}
             
             - **Without runtime**: Framework-dependent deployment.
             - **With runtime**: Self-contained deployment.
           draft: false
           prerelease: false
-          files: |
+          assets: |
             ./FitOSC/output/no-runtime/*  # Files for framework-dependent build
             ./FitOSC/output/with-runtime/*  # Files for self-contained build
