@@ -49,6 +49,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Extract Tag
+        id: extract_tag
+        run: echo "##[set-output name=TAG;]${GITHUB_REF##*/}" # Extracts only the tag part
+
       - name: Download artifact (without runtime)
         uses: actions/download-artifact@v3
         with:
@@ -63,10 +67,10 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
-          tag: ${{ github.ref_name }}  # Extract only the tag name
-          name: Release ${{ github.ref_name }}  # Use the correct tag name
+          tag: ${{ steps.extract_tag.outputs.TAG }}  # Use the extracted tag
+          name: Release ${{ steps.extract_tag.outputs.TAG }}  # Use the extracted tag for release name
           body: |
-            Release notes for FitOSC version ${{ github.ref_name }}
+            Release notes for FitOSC version ${{ steps.extract_tag.outputs.TAG }}
             
             - **Without runtime**: Framework-dependent deployment.
             - **With runtime**: Self-contained deployment.
