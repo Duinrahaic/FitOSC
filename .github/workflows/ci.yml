@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*' # Trigger on version tag pushes
+  workflow_dispatch: # Enables manual triggering
 
 jobs:
   build:
