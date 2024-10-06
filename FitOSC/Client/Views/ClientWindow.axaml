@@ -1,0 +1,57 @@
+<Window
+    x:Class="FitOSC.Client.Views.ClientWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:blazor="clr-namespace:FitOSC.Client.Views;assembly=FitOSC"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:FitOSC.Client.ViewModels"
+    xmlns:client="clr-namespace:FitOSC"
+    xmlns:client1="clr-namespace:FitOSC.Client"
+    Title="FitOSC"
+    Icon="/Assets/icon.ico"
+    Width="660"
+    Height="720"
+    MinWidth="660"
+    MinHeight="720"
+    d:DesignHeight="1080"
+    d:DesignWidth="1920"
+    x:DataType="vm:ClientWindowViewModel"
+    CanResize="True"
+    SizeToContent="Manual"
+    mc:Ignorable="d">
+
+    <Design.DataContext>
+        <vm:ClientWindowViewModel />
+    </Design.DataContext>
+
+    <DockPanel>
+
+
+        <Grid
+            Margin="0"
+            ClipToBounds="True"
+            ShowGridLines="False">
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Panel
+                Name="PanelView"
+                Grid.Row="0"
+                Background="Black">
+                <client1:BlazorWebView
+                    Name="WebView"
+                    HostPage="index.html"
+                    RootComponents="{DynamicResource rootComponents}"
+                    Services="{DynamicResource services}"
+                    ZoomFactor="0"
+                >
+                </client1:BlazorWebView>
+            </Panel>
+            
+        </Grid>
+    </DockPanel>
+</Window>

@@ -1,0 +1,19 @@
+﻿<div class="app-info-item">
+    <div class="app-info-item-title">
+        @Title
+    </div>
+    <div class="app-info-item-value">
+        @Value
+    </div>
+    <div class="app-info-item-unit">
+        @Unit
+    </div>
+</div>
+
+@code{
+
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public string Unit { get; set; } = string.Empty;
+
+}

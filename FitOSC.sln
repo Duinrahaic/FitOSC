@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitOSC", "FitOSC\FitOSC.csproj", "{53787F59-1C29-47BA-B4DD-2ACCFD8A7EDF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitOSC.Shared", "FitOSC.Shared\FitOSC.Shared.csproj", "{38F1B41A-ECAD-4728-A610-22129327B1F3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitOSC.Web", "FitOSC.Web\FitOSC.Web.csproj", "{A971361C-FE71-4260-A7FC-785FF0887EE5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{53787F59-1C29-47BA-B4DD-2ACCFD8A7EDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53787F59-1C29-47BA-B4DD-2ACCFD8A7EDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53787F59-1C29-47BA-B4DD-2ACCFD8A7EDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53787F59-1C29-47BA-B4DD-2ACCFD8A7EDF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{38F1B41A-ECAD-4728-A610-22129327B1F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{38F1B41A-ECAD-4728-A610-22129327B1F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{38F1B41A-ECAD-4728-A610-22129327B1F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{38F1B41A-ECAD-4728-A610-22129327B1F3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A971361C-FE71-4260-A7FC-785FF0887EE5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A971361C-FE71-4260-A7FC-785FF0887EE5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A971361C-FE71-4260-A7FC-785FF0887EE5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A971361C-FE71-4260-A7FC-785FF0887EE5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

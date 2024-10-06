@@ -1,0 +1,130 @@
+﻿@page "/"
+@inject IBluetoothNavigator Bt
+@inject OscService Osc
+@using Blazor.Bluetooth
+@using FitOSC.Shared.Utilities
+@using FitOSC.Shared.Interfaces
+@using FitOSC.Shared.Components.UI
+@using FitOSC.Shared.Services
+
+@using Blazored.LocalStorage
+
+@inject ILocalStorageService LocalStorage
+@inject ConfigService ConfigService
+
+<SettingsModal @ref="SettingsModal" OnClose="OnSettingsClose"/>
+
+
+<div class="app-center">
+
+    <div class="app-header-title">Fit OSC</div>
+    
+    
+    @if (_device == null && !_noDeviceMode)
+    {
+        <div class="app-controls-container">
+            <div class="app-controls">
+                <button @onclick="RequestDevice"> Connect To Device</button>
+            </div>
+            <div class="app-divider">
+                <div>Or</div>
+            </div>
+            <div class="app-controls">
+                <button @onclick="NoDeviceMode"> No Device Mode</button>
+            </div>
+        </div>
+
+
+
+    }
+    else
+    {
+
+        <div class="app-controls">
+            @if (!_noDeviceMode)
+            {
+                <button @onclick="Start"> <i class="oi oi-media-play"></i></button>
+                <button @onclick="Stop"> <i class="oi oi-media-stop"></i></button>
+                <button @onclick="Pause"> <i class="oi oi-media-pause"></i></button>
+                <button @onclick="SendReset"> <i class="oi oi-power-standby"></i></button>
+            }
+            <button @onclick="DisconnectDevice"> <i class="oi oi-action-undo fa-rotate-90"></i></button>
+            <button class="@(_walk ? "enabled" : "disabled")" @onclick="ToggleWalking"> <i class="bi bi-person-walking"></i></button>
+        </div>
+        <div class="app-info">
+            <AppInfoItem Title="Calories" Value="@($"{_liveData.Kcal}")" Unit="kCals"/>
+            @if (_config.IsMetric)
+            {
+                <AppInfoItem Title="Distance" Value="@((_liveData.Distance / 1000).ToString("F2"))" Unit="Kilometers"/>
+            }
+            else
+            {
+                <AppInfoItem Title="Distance" Value="@($"{DataConversion.ConvertKilometersToMiles(_liveData.Distance / 1000):F2}")" Unit="Miles"/>
+            }
+            <AppInfoItem Title="Duration" Value="@($"{DataConversion.ConvertSecondsToTime(_liveData.ElapsedTime)}")" Unit=""/>
+        </div>
+        <div class="app-info">
+            <div class="app-info-item">
+                <button class="circle-button  @(_decreaseSpeed ? "interacted" : string.Empty)" @onclick="DecreaseSpeed">
+                    <i class="oi oi-minus"></i>
+                </button>
+            </div>
+            <div class="app-info-item">
+                @if (_config.IsMetric)
+                {
+                    <AppInfoItem Title="Speed" Value="@($"{_liveData.Speed:F1}")" Unit="KPH"/>
+                }
+                else
+                {
+                    <AppInfoItem Title="Speed" Value="@($"{DataConversion.ConvertKphToMph(_liveData.Speed):F1}")" Unit="MPH"/>
+                }
+            </div>
+
+            <div class="app-info-item">
+                <button class="circle-button @(_increaseSpeed ? "interacted" : string.Empty)" @onclick="IncreaseSpeed">
+                    <i class="oi oi-plus"></i>
+                </button>
+            </div>
+        </div>
+
+
+        <div class="app-info">
+            <div class="app-info-item">
+                <button class="circle-button" @onclick="DecreaseMaxSpeed">
+                    <i class="oi oi-minus"></i>
+                </button>
+            </div>
+            <div class="app-info-item">
+                @if (_config.IsMetric)
+                {
+                    <AppInfoItem Title="Max Speed" Value="@($"{_config.UserMaxSpeed:F1}")" Unit="KPH"/>
+                }
+                else
+                {
+                    <AppInfoItem Title="Max Speed" Value="@($"{DataConversion.ConvertKphToMph(_config.UserMaxSpeed):F1}")" Unit="MPH"/>
+                }
+            </div>
+
+            <div class="app-info-item">
+                <button class="circle-button" @onclick="IncreaseMaxSpeed">
+                    <i class="oi oi-plus"></i>
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="app-config-container">
+        <div class="app-config-item" @onclick="OpenSettings">
+            <i class="fa-solid fa-cog"/>
+            <label>Config</label>
+        </div>
+        
+    </div>
+        
+
+    <div class="app-support-container">
+        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/dev-icon.png" Uri="https://x.com/Duinrahaic" Label="Twitter" />
+        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/github-mark-white.png" Uri="https://github.com/duinrahaic" Label="Github" />
+        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/kofi-logo-white.png" Uri="https://ko-fi.com/duinrahaic" Label="Ko-Fi" />
+    </div>
+</div>

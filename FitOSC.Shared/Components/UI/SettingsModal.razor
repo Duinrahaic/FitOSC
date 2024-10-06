@@ -1,0 +1,104 @@
+﻿@using FitOSC.Shared.Config
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using FitOSC.Shared.Services
+@using System.ComponentModel.DataAnnotations
+@inject OscService Osc
+@inject ConfigService Config
+
+<div class="app-modal-container @(_open ? "open" : string.Empty )">
+    <div class="app-modal-background" @onclick="HideModal"></div>
+    <div class="app-modal">
+        <div class="app-modal-header">
+            <div class="app-modal-header-title">
+                Settings
+            </div>
+            <div class="app-modal-header-close">
+                <i class="fa-solid fa-xmark" @onclick="HideModal"></i>
+            </div>
+        </div>
+        <div class="app-modal-body">
+            <EditForm Model="_config" OnInvalidSubmit="OnInvalidSubmit" OnValidSubmit="OnValidSubmit" id="settings">
+                <DataAnnotationsValidator />
+                <div class="app-modal-body-content">
+                    @if (!OperatingSystem.IsBrowser())
+                    {
+                        <div class="app-modal-body-content-item">
+                            <label for="osc-listen-port">OSC Listen Port</label>
+                            <InputNumber id="osc-listen-port" @bind-Value="@_config.OscListenerPort"/>
+                            <ValidationMessage For="() => _config.OscListenerPort"/>
+                        </div>
+                        <div class="app-modal-body-content-item">
+                            <label for="osc-sender-port">OSC Sending Port</label>
+                            <InputNumber id="osc-sender-port" @bind-Value="@_config.OscSenderPort"/>
+                            <ValidationMessage For="() => _config.OscSenderPort"/>
+                        </div>
+                    }
+                    <div class="app-modal-body-content-item">
+                        <label for="is-metric">Use Metric Units</label>
+                        <InputCheckbox id="is-metric" @bind-Value="@_config.IsMetric"/>
+                        <ValidationMessage For="() => _config.IsMetric"/>
+                    </div>
+                    <div class="app-modal-body-content-item">
+                        <label for="equipment-min-speed">Equipment Min Speed</label>
+                        <InputNumber id="equipment-min-speed" @bind-Value="@_config.EquipmentMinSpeed"/>
+                        <ValidationMessage For="() => _config.EquipmentMinSpeed"/>
+                    </div>
+                    <div class="app-modal-body-content-item">
+                        <label for="equipment-max-speed">Equipment Max Speed</label>
+                        <InputNumber id="equipment-max-speed" @bind-Value="@_config.EquipmentMaxSpeed"/>
+                        <ValidationMessage For="() => _config.EquipmentMaxSpeed"/>
+                    </div>
+                    <div class="app-modal-body-content-item">
+                        <label for="equipment-max-speed">Increment Amount</label>
+                        <InputNumber id="equipment-max-speed" @bind-Value="@_config.IncrementAmount"/>
+                        <ValidationMessage For="() => _config.IncrementAmount"/>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+        <div class="app-modal-footer">
+            <button type="submit" form="settings">Save</button>
+        </div>
+    </div>
+</div>
+
+
+
+
+@code
+{
+    [Parameter] public EventCallback OnClose { get; set; }
+    
+    private FitOscConfig _config = new FitOscConfig();
+    
+    private bool _open = false;
+
+    public async Task OpenModal()
+    {
+        _config = await Config.GetConfig();
+
+        _open = true; 
+    }
+    
+    private async Task OnInvalidSubmit(EditContext ctx)
+    {
+        await Task.CompletedTask;
+    }
+    
+    private async Task OnValidSubmit(EditContext ctx)
+    {
+        await Config.SaveConfig(_config);
+        await Osc.RestartService();
+        _open = false;
+        OnClose.InvokeAsync();
+    }
+    
+
+    public async Task HideModal()
+    {
+        _open = false;
+        OnClose.InvokeAsync();
+    } 
+}
