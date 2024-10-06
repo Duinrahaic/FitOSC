@@ -51,7 +51,7 @@ jobs:
 
       - name: Extract Tag
         id: extract_tag
-        run: echo "##[set-output name=TAG;]${GITHUB_REF##*/}" # Extracts only the tag part
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV  # Extract tag and set as env var
 
       - name: Download artifact (without runtime)
         uses: actions/download-artifact@v3
@@ -67,10 +67,10 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
-          tag: ${{ steps.extract_tag.outputs.TAG }}  # Use the extracted tag
-          name: Release ${{ steps.extract_tag.outputs.TAG }}  # Use the extracted tag for release name
+          tag: ${{ env.TAG }}  # Use the extracted tag
+          name: Release ${{ env.TAG }}  # Use the extracted tag for release name
           body: |
-            Release notes for FitOSC version ${{ steps.extract_tag.outputs.TAG }}
+            Release notes for FitOSC version ${{ env.TAG }}
             
             - **Without runtime**: Framework-dependent deployment.
             - **With runtime**: Self-contained deployment.
