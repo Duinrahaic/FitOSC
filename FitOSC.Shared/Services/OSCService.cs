@@ -50,6 +50,11 @@ public class OscService : IDisposable
 
         try
         {
+            if (OperatingSystem.IsBrowser())
+            {
+                return;
+            }
+            
             _config = await _configService.GetConfig();
 
             _sender = new UDPSender("127.0.0.1", _config.OscSenderPort);
@@ -72,7 +77,6 @@ public class OscService : IDisposable
 
     public void SetWalkingSpeed(decimal speed)
     {
-        SendMessage("/input/Run", speed != 0m);
         float vertical = (float)Math.Clamp(speed,-1,1);
         SendMessage("/input/Vertical", vertical);
     }
@@ -84,8 +88,8 @@ public class OscService : IDisposable
  
     public void SendMessage(string address, params object?[]? args)
     {
-        
-        
+        if(OperatingSystem.IsBrowser())
+            return;
         if (string.IsNullOrEmpty(address))
             throw new NullReferenceException("address cannot be null or empty");
         if (args == null)

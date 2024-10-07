@@ -4,7 +4,11 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using FitOSC.Shared.Services
 @using System.ComponentModel.DataAnnotations
-@inject OscService Osc
+
+@if (!OperatingSystem.IsBrowser())
+{
+    @inject OscService Osc
+}
 @inject ConfigService Config
 
 <div class="app-modal-container @(_open ? "open" : string.Empty )">
@@ -90,7 +94,10 @@
     private async Task OnValidSubmit(EditContext ctx)
     {
         await Config.SaveConfig(_config);
-        await Osc.RestartService();
+        @if (!OperatingSystem.IsBrowser())
+        {
+            await Osc.RestartService();
+        }
         _open = false;
         OnClose.InvokeAsync();
     }

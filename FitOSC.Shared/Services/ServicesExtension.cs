@@ -10,11 +10,7 @@ public static class ServicesExtension
 {
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
-        // if webassmebly 
-        if (!OperatingSystem.IsBrowser())
-        {
-            services.AddScoped<OscService>();
-        }
+        services.AddScoped<OscService>();
         services.AddBluetoothNavigator();
         services.AddBlazoredLocalStorage();
         services.AddScoped<ConfigService>();
