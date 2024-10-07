@@ -69,7 +69,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
           tag: ${{ env.TAG }}  # Use the extracted tag
           name: Release ${{ env.TAG }}  # Use the extracted tag for release name
-          body: |
+          body: | 
             Release notes for FitOSC version ${{ env.TAG }}
             
             - **Without runtime**: Framework-dependent deployment.
