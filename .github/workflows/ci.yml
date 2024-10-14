@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v3
@@ -49,7 +49,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Extract Tag
       id: extract_tag
@@ -77,6 +77,13 @@ jobs:
         cd ./FitOSC/output/with-runtime
         tar -czf ../../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
 
+    - name: Update CHANGELOG
+      id: changelog
+      uses: requarks/changelog-action@v1
+      with:
+        token: ${{ github.token }}
+        tag: ${{ github.ref_name }}
+
 
     - name: Create GitHub Release
       uses: ncipollo/release-action@v1.14.0
@@ -89,6 +96,7 @@ jobs:
           
           - **Without runtime**: Framework-dependent deployment.
           - **With runtime**: Self-contained deployment (includes .exe).
+          ${{ steps.changelog.outputs.changes }}
         draft: false
         prerelease: false
         artifacts: |
