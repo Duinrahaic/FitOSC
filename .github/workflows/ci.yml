@@ -20,12 +20,12 @@ jobs:
           dotnet-version: '8.0.x' # Adjust based on the .NET version you are using
 
       # Build without runtime (Framework-dependent)
-      - name: Build FitOSC without runtime
+      - name: Build FitOSC without runtime (Framework-dependent)
         working-directory: ./FitOSC
-        run: dotnet publish --configuration Release --output ./output/no-runtime --no-self-contained
+        run: dotnet publish --configuration Release --output ./output/no-runtime --no-self-contained --runtime win-x64
 
-      # Build with runtime (Self-contained)
-      - name: Build FitOSC with runtime
+      # Build with runtime (Self-contained, will create .exe)
+      - name: Build FitOSC with runtime (Self-contained)
         working-directory: ./FitOSC
         run: dotnet publish --configuration Release --output ./output/with-runtime --self-contained --runtime win-x64
 
@@ -38,44 +38,57 @@ jobs:
       - name: Upload release artifact (with runtime)
         uses: actions/upload-artifact@v3
         with:
-          name: fitosc-with-runtime # Name the artifact for the runtime version
-          path: ./FitOSC/output/with-runtime # Path to runtime build
+          name: fitosc-with-runtime # Name the artifact for the runtime version (contains .exe)
+          path: ./FitOSC/output/with-runtime # Path to runtime build (contains .exe)
 
   deploy:
     needs: build
     runs-on: windows-latest # Ensure deploy job also runs on Windows
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Extract Tag
-        id: extract_tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV  # Extract tag and set as env var
+    - name: Extract Tag
+      id: extract_tag
+      run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV  # Extract tag and set as env var
 
-      - name: Download artifact (without runtime)
-        uses: actions/download-artifact@v3
-        with:
-          name: fitosc-no-runtime
+    - name: Download artifact (without runtime)
+      uses: actions/download-artifact@v3
+      with:
+        name: fitosc-no-runtime
+        path: ./FitOSC/output/no-runtime
 
-      - name: Download artifact (with runtime)
-        uses: actions/download-artifact@v3
-        with:
-          name: fitosc-with-runtime
+    - name: Download artifact (with runtime)
+      uses: actions/download-artifact@v3
+      with:
+        name: fitosc-with-runtime
+        path: ./FitOSC/output/with-runtime
 
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
-          tag: ${{ env.TAG }}  # Use the extracted tag
-          name: Release ${{ env.TAG }}  # Use the extracted tag for release name
-          body: | 
-            Release notes for FitOSC version ${{ env.TAG }}
-            
-            - **Without runtime**: Framework-dependent deployment.
-            - **With runtime**: Self-contained deployment.
-          draft: false
-          prerelease: false
-          assets: |
-            ./FitOSC/output/no-runtime/*  # Files for framework-dependent build
-            ./FitOSC/output/with-runtime/*  # Files for self-contained build
+    - name: Zip framework-dependent build (without runtime)
+      run: |
+        cd ./FitOSC/output/no-runtime
+        tar -czf ../../fitosc-no-runtime.zip *  # Create a zip archive of the folder contents
+
+    - name: Zip self-contained build (with runtime)
+      run: |
+        cd ./FitOSC/output/with-runtime
+        tar -czf ../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
+
+    - name: Create GitHub Release
+      uses: ncipollo/release-action@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
+        tag: ${{ env.TAG }}  # Use the extracted tag
+        name: Release ${{ env.TAG }}  # Use the extracted tag for release name
+        body: |
+          Release notes for FitOSC version ${{ env.TAG }}
+          
+          - **Without runtime**: Framework-dependent deployment.
+          - **With runtime**: Self-contained deployment (includes .exe).
+        draft: false
+        prerelease: false
+        assets: |
+          ./fitosc-no-runtime.zip  # Zip file for framework-dependent build
+          ./fitosc-with-runtime.zip  # Zip file for self-contained build
+

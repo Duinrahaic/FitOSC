@@ -1,25 +1,32 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
     <PropertyGroup>
         <TargetFramework>net8.0-windows</TargetFramework>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <OutputType>WinExe</OutputType>
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <PackageIcon>icon.ico</PackageIcon>
+        <PublishSingleFile>true</PublishSingleFile>
     </PropertyGroup>
+    <PropertyGroup>
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+    </PropertyGroup>
+
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
         <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
     <ItemGroup>
-        <Compile Remove="DawnCache\**"/>
-        <Compile Remove="GPUCache\**"/>
-        <Content Remove="DawnCache\**"/>
-        <Content Remove="GPUCache\**"/>
-        <EmbeddedResource Remove="DawnCache\**"/>
-        <EmbeddedResource Remove="GPUCache\**"/>
-        <None Remove="DawnCache\**"/>
-        <None Remove="GPUCache\**"/>
+        <Compile Remove="DawnCache\**" />
+        <Compile Remove="GPUCache\**" />
+        <Content Remove="DawnCache\**" />
+        <Content Remove="GPUCache\**" />
+        <EmbeddedResource Remove="DawnCache\**" />
+        <EmbeddedResource Remove="GPUCache\**" />
+        <None Remove="DawnCache\**" />
+        <None Remove="GPUCache\**" />
         <Compile Update="App.axaml.cs">
             <DependentUpon>App.axaml</DependentUpon>
             <SubType>Code</SubType>
@@ -40,21 +47,21 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.4" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="8.0.5" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="8.0.40" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="8.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="8.0.91" />
         
-        <PackageReference Include="Avalonia" Version="11.0.10" />
-        <PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
-        <PackageReference Include="Avalonia.ReactiveUI" Version="11.0.10" />
-        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.10" />
-        <PackageReference Include="Avalonia.Themes.Simple" Version="11.0.10" />
+        <PackageReference Include="Avalonia" Version="11.1.4" />
+        <PackageReference Include="Avalonia.Desktop" Version="11.1.4" />
+        <PackageReference Include="Avalonia.ReactiveUI" Version="11.1.4" />
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.4" />
+        <PackageReference Include="Avalonia.Themes.Simple" Version="11.1.4" />
         <PackageReference Include="Serilog.Sinks.Async" Version="2.0.0" />
-        <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+        <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
         <TrimmableAssembly Include="Avalonia.Themes.Fluent" />
         <TrimmableAssembly Include="Avalonia.Themes.Default" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.0.10"/>
+        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.1.4" />
     </ItemGroup>
     <ItemGroup>
       <None Remove="Assets\icon.ico" />
@@ -115,8 +122,9 @@
       <_ContentIncludedByDefault Remove="wwwroot\js\popper.min.js" />
     </ItemGroup>
     <ItemGroup>
-      <Reference Include="CoreOSC">
-        <HintPath>..\FitOSC.Shared\Lib\CoreOSC.dll</HintPath>
-      </Reference>
+      <ContentWithTargetPath Include="OpenVR\openvr_api.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <TargetPath>openvr_api.dll</TargetPath>
+      </ContentWithTargetPath>
     </ItemGroup>
 </Project>

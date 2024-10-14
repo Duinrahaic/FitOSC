@@ -12,13 +12,17 @@ body{
   display: flex;
   height: 100vh;
   user-select: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   .app-center{
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
 	align-items: center;
-	width: 100%;
+	width: min(100%, 800px);
 	margin-outside: auto;
+	margin-top: 3rem;
 
 	.app-header-title {
 	  font-size: 120px;
@@ -161,6 +165,9 @@ body{
 	  border-radius: 8px;
 	  user-select: none;
 	  justify-content: space-evenly;
+	  position: relative;
+	 
+	  
 	  .app-info-item{
 		display: flex;
 		flex-direction: column;
@@ -416,6 +423,63 @@ body{
 
 		}
 	  }
+	}
+  }
+}
+
+@function interpolate-color($value) {
+  @return linear-gradient(to right, #4caf50 calc(#{$value} * 100%), #ddd calc(#{$value} * 100%));
+}
+
+.app-trim-container{
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1rem;
+  background: $theme-color-shadow;
+  padding: 8px 30px;
+  width: 60%;
+  border-radius: 8px;
+  margin-top: 1rem;
+
+
+  label{
+	white-space: nowrap;
+	min-width: 5ch;
+  }
+}
+
+.trim-pot {
+  min-width: 200px;
+  position: relative;
+  display: flex;
+  flex-grow: 1;
+
+  .trim-slider {
+	width: 100%;
+	height: 10px;
+	border-radius: 5px;
+	outline: none;
+
+	// Use the data-value attribute to set the --value custom property
+	&[data-value] {
+	  --value: attr(data-value number);
+
+	  // Apply the background based on the --value custom property
+	  background: interpolate-color(var(--value));
+	}
+
+	// Style the thumb (the knob that the user drags)
+	&::-webkit-slider-thumb {
+	  -webkit-appearance: none;
+	  appearance: none;
+	  width: 25px;
+	  height: 25px;
+	  background-color: #333;
+	  border-radius: 50%;
+	  cursor: pointer;
+	  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 	}
   }
 }
