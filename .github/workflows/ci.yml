@@ -70,12 +70,12 @@ jobs:
     - name: Zip framework-dependent build (without runtime)
       run: |
         cd ./FitOSC/output/no-runtime
-        tar -czf ../../fitosc-no-runtime.zip *  # Create a zip archive of the folder contents
+        tar -czf ../../../fitosc-no-runtime.zip *  # Create a zip archive of the folder contents
 
     - name: Zip self-contained build (with runtime)
       run: |
         cd ./FitOSC/output/with-runtime
-        tar -czf ../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
+        tar -czf ../../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
 
 
     - name: Create GitHub Release
