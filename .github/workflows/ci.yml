@@ -81,7 +81,7 @@ jobs:
 
 
     - name: Create GitHub Release
-      uses: ncipollo/release-action@v1
+      uses: ncipollo/release-action@v1.14.0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
         tag: ${{ env.TAG }}  # Use the extracted tag
@@ -93,7 +93,7 @@ jobs:
           - **With runtime**: Self-contained deployment (includes .exe).
         draft: false
         prerelease: false
-        assets: |
+        artifacts: |
           ./fitosc-no-runtime.zip  # Zip file for framework-dependent build
           ./fitosc-with-runtime.zip  # Zip file for self-contained build
 
