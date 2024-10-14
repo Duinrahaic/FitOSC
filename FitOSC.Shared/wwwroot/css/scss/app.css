@@ -10,14 +10,18 @@ body {
   display: flex;
   height: 100vh;
   user-select: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 .app .app-center {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  width: 100%;
+  width: min(100%, 800px);
   margin-outside: auto;
+  margin-top: 3rem;
 }
 .app .app-center .app-header-title {
   font-size: 120px;
@@ -144,6 +148,7 @@ body {
   border-radius: 8px;
   user-select: none;
   justify-content: space-evenly;
+  position: relative;
 }
 .app .app-center .app-info .app-info-item {
   display: flex;
@@ -365,6 +370,50 @@ body {
 }
 .app-modal-container .app-modal .app-modal-footer button:hover:not(:disabled) {
   background: #0077ea;
+}
+
+.app-trim-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1rem;
+  background: #1f1f1f;
+  padding: 8px 30px;
+  width: 60%;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+.app-trim-container label {
+  white-space: nowrap;
+  min-width: 5ch;
+}
+
+.trim-pot {
+  min-width: 200px;
+  position: relative;
+  display: flex;
+  flex-grow: 1;
+}
+.trim-pot .trim-slider {
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  outline: none;
+}
+.trim-pot .trim-slider[data-value] {
+  --value: attr(data-value number);
+  background: linear-gradient(to right, #4caf50 calc(var(--value) * 100%), #ddd calc(var(--value) * 100%));
+}
+.trim-pot .trim-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 25px;
+  height: 25px;
+  background-color: #333;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
 /*# sourceMappingURL=app.css.map */

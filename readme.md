@@ -1,22 +1,16 @@
-﻿# FitOSC
+﻿
+<p align="center">
+  <img src="FitOSC.png" alt="Centered Image" >
+</p>
 
 FitOSC is a Bluetooth Low Energy (BLE)-enabled treadmill interface that connects your treadmill to your VRChat avatar, allowing you to control in-game actions while exercising. This application synchronizes treadmill movements with avatar parameters, creating an immersive workout experience in VRChat.
 
 ## Features
 
-- **BLE Connectivity**: FitOSC connects to your treadmill using BLE, ensuring a seamless, wireless experience.
-- **Real-Time VRChat Integration**: Control your VRChat avatar using treadmill actions, like speeding up, slowing down, or stopping.
-- **Customizable Avatar Parameters**: Exposes treadmill controls to VRChat's avatar system for in-game interaction.
-
-## Exposed VRChat Avatar Parameters
-
-- **TMC_SpeedUp**: Increases the treadmill speed when the argument is `true`.
-- **TMC_SlowDown**: Decreases the treadmill speed when the argument is `true`.
-- **TMC_Stop**: Stops the treadmill when the argument is `true`.
-- **TMC_Start**: Starts the treadmill when the argument is `true`.
-- **TMC_Pause**: Pauses the treadmill when the argument is `true`.
-- **TMC_Reset**: Sends a reset command to the treadmill when the argument is `true`.
-- **TMC_Walk**: Automatically triggers your avatar to walk when `true`, syncing the treadmill walking state with the avatar.
+- **FTMS Connectivity**: Connects to your treadmill via Bluetooth Low Energy (BLE)
+- **Avatar Integration**: Receives treadmill commands from your avatar
+- **OSC Query Support**: Automatically detects and connects to VRChat via OSC.
+- **SteamVR Integration**: Automatically keeps your avatar moving in the same when the treadmill is in use.
 
 ## How It Works
 
@@ -32,9 +26,10 @@ A demo application showcasing FitOSC in action is available at [fitosc.duinrahai
 
 ### Prerequisites
 
-- A treadmill with BLE support.
+- A treadmill with Bluetooth and FTMS support.
 - VRChat with OSC parameters enabled.
 - Windows or macOS operating system.
+- A compatible BLE adapter (if not built-in). [Recommended](https://www.amazon.com/TP-Link-Bluetooth-Receiver-Controller-UB500/dp/B09DMP6T22)
 
 ### Installation
 
@@ -49,21 +44,31 @@ A demo application showcasing FitOSC in action is available at [fitosc.duinrahai
 2. **Start VRChat**: FitOSC will automatically sync treadmill inputs with your avatar.
 3. Use the treadmill to control in-game actions such as walking, running, pausing, etc.
 
-### Treadmill Controls in VRChat
-
-- **TMC_SpeedUp**: Trigger this to increase the treadmill speed and your avatar’s running speed.
-- **TMC_SlowDown**: Decrease the treadmill and avatar speed.
-- **TMC_Stop**: Stop the treadmill and the avatar stops moving.
-- **TMC_Start**: Start the treadmill to make the avatar run.
-- **TMC_Pause**: Pause the treadmill and the avatar will stop.
-- **TMC_Reset**: Reset the treadmill.
-- **TMC_Walk**: Automatically make your avatar walk when toggled.
-
 ## Troubleshooting
 
 1. Ensure BLE is enabled and the treadmill is properly paired.
 2. Check that OSC is enabled in VRChat.
 3. View FitOSC log files for detailed troubleshooting information.
+
+## Exposed VRChat Avatar Parameters
+
+Below are the exposed VRChat avatar parameters that can be controlled using FitOSC. These parameters are can be setup in an unity as a VRChat menu, but if you'd like an easy installation for a menu, consider buying my prefab off of [booth](https://duinrahaic.booth.pm/) or support me on [patreon](wwww.pateron.com/duinrahaic).
+
+| **Command**        | **Type**  | **Control Type**  | **Description**                                                                                   |
+|--------------------|-----------|-------------------|---------------------------------------------------------------------------------------------------|
+| **TMC_SpeedUp**     | `bool`    | Button            | Increases the treadmill speed when the argument is `true`.                                        |
+| **TMC_SlowDown**    | `bool`    | Button            | Decreases the treadmill speed when the argument is `true`.                                        |
+| **TMC_Stop**        | `bool`    | Button            | Stops the treadmill when the argument is `true`.                                                  |
+| **TMC_Start**       | `bool`    | Button            | Starts the treadmill when the argument is `true`.                                                 |
+| **TMC_Pause**       | `bool`    | Button            | Pauses the treadmill when the argument is `true`.                                                 |
+| **TMC_Reset**       | `bool`    | Button            | Sends a reset command to the treadmill when the argument is `true`.                               |
+| **TMC_Walk**        | `bool`    | Button            | Automatically triggers your avatar to walk when `true`, syncing the treadmill walking state with the avatar. |
+| **TMC_WalkingTrim** | `float`   | Radial Puppet     | Finitely adjusts the walking speed of the avatar. (Default: 0.8)                                  |
+
+## Support
+
+For additional support, please consider joining my discord server [here](https://discord.gg/aZQfy6H9fA).
+
 
 ## License
 
@@ -71,4 +76,4 @@ FitOSC is licensed under the MIT License. Modify and distribute as needed.
 
 ---
 
-Take your fitness into the virtual world with FitOSC!
+### Take your fitness into the virtual world with FitOSC!

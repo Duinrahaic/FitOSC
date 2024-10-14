@@ -7,13 +7,14 @@ using FitOSC.Client.ViewModels;
 using FitOSC.Client.Views;
 using Application = Avalonia.Application;
 using FitOSC.Shared.Services;
+using Valve.VR;
 
 namespace FitOSC;
 
-public partial class App : Application
+public partial class App : Application, IDisposable
 {
-     public static IHost? AppHost { get; private set; }
-  
+    public static IHost? AppHost { get; private set; }
+    private IClassicDesktopStyleApplicationLifetime? _desktop;
 
     public override void Initialize()
     {
@@ -24,10 +25,10 @@ public partial class App : Application
     {
         if(ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.Startup += OnStartup;
-            desktop.Exit += Exit;
-            desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
-            desktop.MainWindow = new ClientWindow()
+            _desktop = desktop;
+            _desktop.Exit += Exit;
+            _desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+            _desktop.MainWindow = new ClientWindow()
             {
                 DataContext = new ClientWindowViewModel(),
             };
@@ -37,53 +38,18 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
     
-    private void OnStartup(object sender, ControlledApplicationLifetimeStartupEventArgs e)
-    {
-        TrayIcons? trayIcons = Resources["AppTrayIcon"] as TrayIcons;
-        
-        if(trayIcons == null)
-            return;
-
-        var trayIcon = trayIcons.FirstOrDefault();
-        if(trayIcon == null)
-            return;
-        var menu = trayIcon.Menu;
-        if(menu == null)
-            return;
-   
-        
-         
-        
-        var openWindowMenuItem = new NativeMenuItem("Open Client");
-        openWindowMenuItem.Click += OpenClientWindow;
-        menu.Add(openWindowMenuItem);
-        
-        menu.Add(new NativeMenuItem("-"));
-
-        var exitMenuItem = new NativeMenuItem("Exit");
-        exitMenuItem.Click += Exit;
-        menu.Add(exitMenuItem);
-
-        
-    }
 
     private void Exit(object? sender, EventArgs e)
     {
         // Exit the application
         System.Environment.Exit(0);
     }
-
-    private void OpenClientWindow(object? sender, EventArgs e)
-    {
-        var anotherWindow = new ClientWindow();
-        anotherWindow.Show();
-    }
     
 
     internal static void RunAvaloniaAppWithHosting(string[] args, Func<AppBuilder> buildAvaloniaApp)
     {
         var appBuilder = Host.CreateApplicationBuilder(args);
-        appBuilder.Logging.AddDebug();
+        //appBuilder.Logging.AddDebug();
         appBuilder.Services.AddWindowsFormsBlazorWebView();
         
         #if DEBUG
@@ -92,14 +58,15 @@ public partial class App : Application
         #endif
 
         appBuilder.Services.RegisterServices();
+        appBuilder.Services.RegisterHostedService<OpenVRService>();
 
         using var myApp = appBuilder.Build();
         AppHost = myApp;
-        myApp.Start();
         try
         {
-            buildAvaloniaApp()
-                .StartWithClassicDesktopLifetime(args);
+            AppHost.Start();
+
+            buildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         catch(Exception ex)
         {
@@ -110,7 +77,15 @@ public partial class App : Application
         }
         finally
         {
-            Task.Run(async () => await myApp.StopAsync()).GetAwaiter().GetResult();
+            //Task.Run(async () => await myApp.StopAsync()).GetAwaiter().GetResult();
         }
+    }
+
+    public void Dispose()
+    {
+        _desktop.Exit -= Exit;
+        _desktop = null;
+        AppHost?.Dispose();
+        AppHost = null;
     }
 }

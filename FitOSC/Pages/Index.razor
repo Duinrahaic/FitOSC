@@ -1,6 +1,7 @@
-﻿@page "/"
+﻿ @page "/"
 @inject IBluetoothNavigator Bt
 @inject OscService Osc
+@inject OpenVRService Ovr
 @using Blazor.Bluetooth
 @using FitOSC.Shared.Utilities
 @using FitOSC.Shared.Interfaces
@@ -8,6 +9,7 @@
 @using FitOSC.Shared.Services
 
 @using Blazored.LocalStorage
+@using Valve.VR
 
 @inject ILocalStorageService LocalStorage
 @inject ConfigService ConfigService
@@ -110,6 +112,12 @@
                     <i class="oi oi-plus"></i>
                 </button>
             </div>
+        </div>
+        
+        <div class="app-trim-container">
+            <label> Walking Trim</label>
+            <TrimPot TrimValue="_trimSpeed" TrimValueChanged="SetTrimSpeed"/>
+            <label> @_trimSpeed.ToString("P0")</label>
         </div>
     }
 

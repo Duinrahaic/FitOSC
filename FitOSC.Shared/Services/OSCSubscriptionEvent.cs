@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using CoreOSC;
+using LucHeart.CoreOSC;
 
 
 namespace FitOSC.Shared.Services;
