@@ -53,7 +53,7 @@ jobs:
 
     - name: Extract Tag
       id: extract_tag
-      run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV  # Extract tag and set as env var
+      run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV  # Extract tag and set as env var
 
     - name: Download artifact (without runtime)
       uses: actions/download-artifact@v3
