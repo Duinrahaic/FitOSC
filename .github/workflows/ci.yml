@@ -45,37 +45,37 @@ jobs:
     needs: build
     runs-on: windows-latest # Ensure deploy job also runs on Windows
 
+  
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
 
+        uses: actions/checkout@v3
+  
       - name: Extract Tag
+
         id: extract_tag
         run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV  # Extract tag and set as env var
-
+  
       - name: Download artifact (without runtime)
+
         uses: actions/download-artifact@v3
         with:
           name: fitosc-no-runtime
+          path: ./FitOSC/output/no-runtime
 
+  
       - name: Download artifact (with runtime)
         uses: actions/download-artifact@v3
         with:
           name: fitosc-with-runtime
-
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
-          tag: ${{ env.TAG }}  # Use the extracted tag
-          name: Release ${{ env.TAG }}  # Use the extracted tag for release name
-          body: |
-            Release notes for FitOSC version ${{ env.TAG }}
-            
-            - **Without runtime**: Framework-dependent deployment.
-            - **With runtime**: Self-contained deployment (includes .exe).
-          draft: false
-          prerelease: false
-          assets: |
-            ./FitOSC/output/no-runtime/*  # Files for framework-dependent build
-            ./FitOSC/output/with-runtime/*  # Files for self-contained build (including .exe)
+          path: ./FitOSC/output/with-runtime
+  
+      - name: Zip framework-dependent build (without runtime)
+        run: |
+          cd ./FitOSC/output/no-runtime
+          tar -czf ../../fitosc-no-runtime.zip *  # Create a zip archive of the folder contents
+  
+      - name: Zip self-contained build (with runtime)
+        run: |
+          cd ./FitOSC/output/with-runtime
+          tar -czf ../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
