@@ -5,23 +5,24 @@ using FitOSC.Shared.Components.UI;
 using FitOSC.Shared.Config;
 using FitOSC.Shared.Utilities;
 using FitOSC.Shared.Extensions;
+using Valve.VR;
 
 namespace FitOSC.Pages;
 
 public partial class Index : IDisposable
 {
-    
     private IDevice? _device;
     private IBluetoothRemoteGATTService? _treadmillService ;
     private IBluetoothRemoteGATTCharacteristic? _treadmillDataCharacteristic ;
     private IBluetoothRemoteGATTCharacteristic? _treadmillControlPoint;
     private IBluetoothRemoteGATTCharacteristic? _treadmillStatusCharacteristic;
     
-    private SettingsModal SettingsModal { get; set; }
+    private SettingsModal? SettingsModal { get; set; }
     
     private FtmsData _liveData = new();
     private bool _walk;
     private bool _noDeviceMode;
+    private decimal _trimSpeed = 0.8m; // Default to 80% of max speed
 
     private System.Timers.Timer? _noDeviceModeTimer = new(1000);
     private FitOscConfig _config = new();
@@ -34,73 +35,110 @@ public partial class Index : IDisposable
         {
             try
             {
-               // await Osc.Start();
-               // Osc.OnOscMessageReceived += OnOscMessageReceived;
-               // _config = await ConfigService.GetConfig();
+               Osc.Start();
+               Osc.OnOscMessageReceived += OnOscMessageReceived;
+               Ovr.OnDataUpdateReceived += OnOvrDataUpdateReceived;
+               _config = await ConfigService.GetConfig();
             }
-            catch{}
-
+            catch
+            {
+                // ignored
+            }
         }
+    }
+
+    private void OnOvrDataUpdateReceived(OpenVRDataEvent e)
+    {
+        if (_walk)
+        {
+            Osc.SetWalkingSpeed((_liveData.Speed / _config.UserMaxSpeed) * _trimSpeed);
+            Osc.SetHorizontalSpeed((decimal)e.HorizontalAdjustment * (_liveData.Speed / _config.UserMaxSpeed) * _trimSpeed);
+            
+            if (e.Turn != OpenVRTurn.None)
+            {
+                Osc.SetTurningSpeed(e.Turn == OpenVRTurn.Left ? -0.2f : 0.2f);
+            }
+            else 
+            {
+                Osc.SetTurningSpeed(0);
+            }
+        }
+        else
+        {
+            Osc.SetWalkingSpeed(0);
+            Osc.SetTurningSpeed(0);
+            Osc.SetHorizontalSpeed(0);
+        }
+
+        
+    }
+
+    private void SetTrimSpeed(decimal value)
+    {
+        _trimSpeed = Math.Clamp(value,0m,1m);
     }
     
     #region NoDeviceMode
     
     private void NoDeviceMode(){
         _noDeviceMode = true;
-        _lastUpdateTime = DateTime.Now;
         _noDeviceModeTimer = new System.Timers.Timer(TimeSpan.FromSeconds(1).TotalMilliseconds);
+        _liveData = new FtmsData();
         _noDeviceModeTimer.AutoReset = true;
         _noDeviceModeTimer.Elapsed +=  NoDeviceTimerUpdate;
         _noDeviceModeTimer.Start();
         StateHasChanged();
     }
    
-    private DateTime _lastUpdateTime = DateTime.Now;
     private async void NoDeviceTimerUpdate(object? sender, System.Timers.ElapsedEventArgs e)
     {
         _liveData.ElapsedTime++; // Increment duration every second
         // Calculate the distance for the current interval
         _liveData.Distance += DataConversion.ConvertSpeedToMetersPerSecond(_liveData.Speed);
-        
-        
-        if (_walk)
-        {
-            Osc.SetWalkingSpeed(_liveData.Speed / _config.UserMaxSpeed);
-            
-            if(_config.UserMaxSpeed < _liveData.Speed)
-            {
-                _liveData.Speed = _config.UserMaxSpeed;
-            }
-        }
-        else
-        {
-            Osc.SetWalkingSpeed(0);
-        }
+        SetSpeed();
         await InvokeAsync(StateHasChanged);
-
     }
     
    
 #endregion
    
     
-    private void SetMaxSpeed(decimal s = 0)
+    private async Task SetMaxSpeed(decimal s = 0)
     {
         var ms = Math.Clamp(s, _config.EquipmentMinSpeed, _config.EquipmentMaxSpeed);
         _config.UserMaxSpeed = ms;
-        ConfigService.SaveConfig(_config);
+        await ConfigService.SaveConfig(_config);
     }
-    private void IncreaseMaxSpeed() => SetMaxSpeed(_config.UserMaxSpeed + _config.IncrementAmount);
-    private void DecreaseMaxSpeed() => SetMaxSpeed(_config.UserMaxSpeed - _config.IncrementAmount);
-    
+    private async Task IncreaseMaxSpeed() => await SetMaxSpeed(_config.UserMaxSpeed + _config.IncrementAmount);
+    private async Task DecreaseMaxSpeed() => await SetMaxSpeed(_config.UserMaxSpeed - _config.IncrementAmount);
+    private void SetSpeed()
+    {
+        if(_config.UserMaxSpeed < _liveData.Speed)
+        {
+            if (_noDeviceMode)
+            {
+                _liveData.Speed = _config.UserMaxSpeed;
+            }
+            else
+            {
+                Task.Run(async () =>
+                {
+                    await _treadmillControlPoint.SetTargetSpeed(_config.UserMaxSpeed);
+                    await InvokeAsync(StateHasChanged);
+                });
+            }
+        }
+
+    }
     private bool _increaseSpeed;
     private bool _decreaseSpeed;
     private DateTime _lastInteraction = DateTime.MinValue;
     private readonly TimeSpan _interactionTimeout = TimeSpan.FromSeconds(1);
     private async void OnOscMessageReceived(OscSubscriptionEvent e)
     {
-        if (_device == null || _treadmillControlPoint == null ||
-            (DateTime.Now - _lastInteraction) <= _interactionTimeout) return;
+        if (DateTime.Now - _lastInteraction <= _interactionTimeout) return;
+        if(!e.Message.Address.Contains("TMC")) return;
+        
         if (e.Message.Address.Contains("TMC_SpeedUp"))
         {
             bool value = Convert.ToBoolean(e.Message.Arguments[0]);
@@ -148,6 +186,19 @@ public partial class Index : IDisposable
             if(value == false) return;
             await SendReset();
             await InvokeAsync(StateHasChanged);
+        }
+        else if (e.Message.Address.Contains("TMC_WalkingTrim"))
+        {
+            try
+            {
+                SetTrimSpeed(Convert.ToDecimal(e.Message.Arguments[0]));
+                await InvokeAsync(StateHasChanged);
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+                
         }
         else if (e.Message.Address.Contains("TMC_Walk"))
         {
@@ -263,13 +314,23 @@ public partial class Index : IDisposable
     }
     private async Task SendReset() => await _treadmillControlPoint.Reset();
     private void ToggleWalking(){
-        _walk = !_walk;
-        Osc.SetWakingState(_walk);
+        SetWalkingState(!_walk);
     }
     private void SetWalkingState(bool state)
     {
         if(state == _walk) return;
         _walk = state;
+        if (_walk)
+        {
+            Ovr.StartMonitoring();
+        }
+        else
+        {
+            Ovr.StopMonitoring();
+            Osc.SetWalkingSpeed(0);
+            Osc.SetTurningSpeed(0);
+            Osc.SetHorizontalSpeed(0);
+        }
         Osc.SetWakingState(_walk);
     }
     
@@ -318,25 +379,6 @@ public partial class Index : IDisposable
     private void HandleNotifications(byte[] value)
     {
         _liveData = FtmsCommands.ReadFtmsData(value);
-        
-        if (_walk)
-        {
-            Osc.SetWalkingSpeed(_liveData.Speed / _config.UserMaxSpeed);
-            
-            if(_config.UserMaxSpeed < _liveData.Speed)
-            {
-                Task.Run(async () =>
-                {
-                    await _treadmillControlPoint.SetTargetSpeed(_config.UserMaxSpeed);
-                    await InvokeAsync(StateHasChanged);
-                });
-            }
-        }
-        else
-        {
-            Osc.SetWalkingSpeed(0);
-        }
-        
         InvokeAsync(StateHasChanged);
     }
 
@@ -368,7 +410,7 @@ public partial class Index : IDisposable
         Console.WriteLine($"Advertisement Received - RSSI: {obj.Name}");
     }
 
-    private async Task DisconnectDevice()
+    private void DisconnectDevice()
     {
 
         _device?.Gatt.Disonnect();
@@ -381,6 +423,7 @@ public partial class Index : IDisposable
         _device = null;
         _noDeviceMode = false;
         _noDeviceModeTimer?.Dispose();
+        _noDeviceModeTimer = null;
 
     }
     
@@ -389,6 +432,8 @@ public partial class Index : IDisposable
     
     private async Task OpenSettings()
     {
+        if (SettingsModal == null)
+            return;
         await SettingsModal.OpenModal();
     }
     
@@ -397,13 +442,63 @@ public partial class Index : IDisposable
         _config = await ConfigService.GetConfig();
     }
     
-    public void Dispose()
+    private void ReleaseUnmanagedResources()
     {
-        Osc.OnOscMessageReceived -= OnOscMessageReceived;
-        _noDeviceModeTimer?.Dispose();
-        DisconnectDevice();
-        Osc.Stop();
+        if (_device != null)
+        {
+            _device.OnAdvertisementReceived -= DeviceOnOnAdvertisementReceived;
+        }
+        if (_treadmillDataCharacteristic != null)
+        {
+            _treadmillDataCharacteristic.OnRaiseCharacteristicValueChanged -= OnTreadmillDataChanged;
+        }
+        if (_treadmillControlPoint != null)
+        {
+            _treadmillControlPoint.OnRaiseCharacteristicValueChanged -= OnControlPointChanged;
+        }
+        if (_treadmillStatusCharacteristic != null)
+        {
+            _treadmillStatusCharacteristic.OnRaiseCharacteristicValueChanged -= OnTreadmillStatusChanged;
+        }
+
+        if (Osc != null)
+        {
+            Osc.OnOscMessageReceived -= OnOscMessageReceived;
+        }
+
+        if (Ovr != null)
+        {
+            Ovr.OnDataUpdateReceived -= OnOvrDataUpdateReceived;
+        }
+        
+        _device = null;
+        _treadmillService = null;
+        _treadmillDataCharacteristic = null;
+        _treadmillControlPoint = null;
+        _treadmillStatusCharacteristic = null;
+        SettingsModal = null;
     }
     
+    protected virtual void Dispose(bool disposing)
+    {
+        ReleaseUnmanagedResources();
+        if (disposing)
+        {
+            _noDeviceModeTimer?.Dispose();
+            Osc?.Dispose();
+            Ovr?.Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    ~Index()
+    {
+        Dispose(false);
+    }
     
 }

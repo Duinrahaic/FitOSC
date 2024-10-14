@@ -1,0 +1,22 @@
+﻿@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+
+<div class="trim-pot">
+    <input type="range" value="@TrimValue" data-value="@TrimValue" @onchange="OnTrimValueChanged" min="0" max="1" step="0.01" class="trim-slider">
+</div>
+
+@code {
+    [Parameter]
+    public decimal TrimValue { get; set; } = 0.8m;
+    
+    [Parameter]
+    public EventCallback<decimal> TrimValueChanged { get; set; }
+    
+    private async Task OnTrimValueChanged(ChangeEventArgs e)
+    {
+        TrimValue = Convert.ToDecimal(e.Value);
+        await TrimValueChanged.InvokeAsync(TrimValue);
+    }
+}

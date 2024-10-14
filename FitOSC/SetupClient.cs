@@ -25,7 +25,5 @@ public static class SetupClient
     private static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .LogToTrace()
-            //.UseManagedSystemDialogs()
             .UseReactiveUI();
  }

@@ -1,9 +1,10 @@
-﻿using CoreOSC;
-using Microsoft.Extensions.Hosting;
+﻿using System.Net;
+using LucHeart.CoreOSC;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using Blazored.LocalStorage;
-using FitOSC.Shared.Config;
+ using FitOSC.Shared.Config;
+using OscQueryLibrary;
+using OscQueryLibrary.Utils;
 
 namespace FitOSC.Shared.Services;
 
@@ -13,35 +14,39 @@ public class OscService : IDisposable
     public event OscSubscriptionEventHandler? OnOscMessageReceived;
 
     private readonly ILogger<OscService> _logger;
-    private UDPListener? _listener;
-    private UDPSender? _sender;
-    private CancellationTokenSource? _cts;
-    private ConfigService _configService;
-
-    private FitOscConfig _config = new FitOscConfig();
-    public OscService(IServiceProvider services) 
+    private readonly CancellationTokenSource? _cts;
+    private OscQueryServer? _server;
+    public OscService(ILogger<OscService> logger) 
     {
-        _logger = services.GetService<ILogger<OscService>>();
-        _configService = services.GetService<ConfigService>();
+        _logger = logger;
+        _cts = new CancellationTokenSource();
         _logger.LogInformation("Initialized OSCService");
+
     }
 
-    public async Task RestartService()
-    {
-        await Stop();
-        await Start();
+    public void RestartService()
+    {      
+        Stop();
+        Start();
     }
 
-    public async Task Stop()
+    public void Stop()
     {
-        _sender?.Close();
-        _listener?.Close();
-        _listener?.Dispose();
+        try
+        {
+            _server?.Dispose();
+            _server = null;
+            _connection?.Dispose();
+            _connection = null;
+        }catch(Exception ex)
+        {
+            _logger.LogError($"Error stopping OSC: {ex.Message}");
+        }
     }
  
-    public async Task Start()
+    public void Start()
     {
-        if(_sender != null || _listener != null)
+        if(_connection != null)
         {
             _logger.LogWarning("OSC Service already started");
             return;
@@ -55,11 +60,11 @@ public class OscService : IDisposable
                 return;
             }
             
-            _config = await _configService.GetConfig();
-
-            _sender = new UDPSender("127.0.0.1", _config.OscSenderPort);
-            _listener = new UDPListener(_config.OscListenerPort, (HandleOscPacket)Callback);
-            _logger.LogInformation($"OSC Initialized: Listening on {_config.OscListenerPort} and sending on {_config.OscSenderPort}");
+            
+            _server = new OscQueryServer("FitOSC", IPAddress.Loopback);
+            _server.FoundVrcClient += FoundVrcClient; // event on vrc discovery
+            _server.Start();
+            _logger.LogInformation($"OSC Query Server Started");
 
         }
         catch(Exception ex)
@@ -68,17 +73,90 @@ public class OscService : IDisposable
  
         }
     }
-    
-    void Callback(OscPacket packet)
-    {
-        var messageReceived = (OscMessage)packet;
-        OnOscMessageReceived?.Invoke(new OscSubscriptionEvent(messageReceived));
-    }
+    private CancellationTokenSource _loopCancellationToken = new CancellationTokenSource();
+    private OscQueryServer? _currentOscQueryServer = null;
+    private OscDuplex? _connection = null;
 
+    private Task FoundVrcClient(OscQueryServer oscQueryServer, IPEndPoint ipEndPoint)
+    {
+        _loopCancellationToken.Cancel();
+        _loopCancellationToken = new CancellationTokenSource();
+        _connection?.Dispose();
+        _connection = null;
+
+        _logger.LogInformation("Found VRC client at {EndPoint}", ipEndPoint);
+        _logger.LogInformation("Starting listening for VRC client at {Port}", oscQueryServer.OscReceivePort);
+        _connection = new OscDuplex(new IPEndPoint(ipEndPoint.Address, oscQueryServer.OscReceivePort), ipEndPoint);
+        _currentOscQueryServer = oscQueryServer;
+        
+        AppDomain.CurrentDomain.ProcessExit += (s, e) => Cleanup();
+        ErrorHandledTask.Run(ReceiverLoopAsync);
+        return Task.CompletedTask;
+    }
+    
+    private void Cleanup()
+    {
+        _currentOscQueryServer?.Dispose();
+        _currentOscQueryServer = null;
+        _connection?.Dispose();
+        _connection = null;
+    }
+    
+    private async Task ReceiverLoopAsync()
+    {
+        var currentCancellationToken = _loopCancellationToken.Token;
+        while (!currentCancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (_connection != null)
+                {
+                     
+                    OscMessage received = await _connection.ReceiveMessageAsync();
+                    if(received.Address.Contains("TMC"))
+                    {
+                        var message = received;
+                        _ = Task.Run(() => OnOscMessageReceived?.Invoke(new OscSubscriptionEvent(message)), currentCancellationToken);
+                    }
+                }
+                
+                
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error in receiver loop", e);
+            }
+        }
+    }
+    
+    private float currentVertical = 0;
     public void SetWalkingSpeed(decimal speed)
     {
         float vertical = (float)Math.Clamp(speed,-1,1);
-        SendMessage("/input/Vertical", vertical);
+        if(vertical == currentVertical)
+            return;
+        currentVertical = vertical;
+        SendMessage("/input/Vertical", currentVertical);
+    }
+    
+    private float currentHorizontal = 0;
+    public void SetHorizontalSpeed(decimal speed)
+    {
+        float horizontal = (float)Math.Clamp(speed,-1,1);
+        if(horizontal == currentHorizontal)
+            return;
+        currentHorizontal = horizontal;
+        SendMessage("/input/Horizontal", currentHorizontal);
+    }
+    
+    private float currentTurn = 0;
+    public void SetTurningSpeed(float speed)
+    {
+        float turn = (float)Math.Clamp(speed,-1.0,1.0);
+        if(turn == currentTurn)
+            return;
+        currentTurn = turn;
+        SendMessage("/input/LookHorizontal", currentTurn);
     }
     
     public void SetWakingState(bool walking)
@@ -86,7 +164,7 @@ public class OscService : IDisposable
         SendMessage("/avatar/parameters/TMC_Walk", walking);
     }
  
-    public void SendMessage(string address, params object?[]? args)
+    private void SendMessage(string address, params object?[]? args)
     {
         if(OperatingSystem.IsBrowser())
             return;
@@ -94,23 +172,50 @@ public class OscService : IDisposable
             throw new NullReferenceException("address cannot be null or empty");
         if (args == null)
             return;
+        if(_connection == null)
+            return;
+        
         var message = new OscMessage(address, args);
         try
         {
-            _sender?.Send(message);
+            _connection?.SendAsync(message);
         }
         catch (Exception ex)
         {
             _logger.LogError($"Error occurred while sending OSC message: {ex}");
         }
     }
-    
- 
+
+    private void ReleaseUnmanagedResources()
+    {
+        if (_server != null)
+        {
+            _server.FoundVrcClient -= FoundVrcClient; // event on vrc discovery
+        }
+
+    }
+
+    private void Dispose(bool disposing)
+    {
+        ReleaseUnmanagedResources();
+        if (disposing)
+        {
+            _cts?.Dispose();
+            _server?.Dispose();
+            _loopCancellationToken.Dispose();
+            _currentOscQueryServer?.Dispose();
+            _connection?.Dispose();
+        }
+    }
 
     public void Dispose()
     {
-        _sender?.Close();
-        _listener?.Close();
-        _listener?.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    ~OscService()
+    {
+        Dispose(false);
     }
 }

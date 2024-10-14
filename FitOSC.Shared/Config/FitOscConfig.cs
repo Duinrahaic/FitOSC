@@ -4,12 +4,6 @@ namespace FitOSC.Shared.Config;
 
 public class FitOscConfig
 {
-    [Required]
-    [Range(8000, 65535, ErrorMessage = "Port must be between 8000 and 65535")]
-    public int OscSenderPort { get; set; } = 9000;
-    [Required]
-    [Range(8000, 65535, ErrorMessage = "Port must be between 8000 and 65535")]
-    public int OscListenerPort { get; set; } = 9001;
     public bool IsMetric { get; set; } = false;
     public decimal UserMaxSpeed { get; set; } = 10m;
     
