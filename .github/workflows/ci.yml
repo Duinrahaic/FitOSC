@@ -89,7 +89,6 @@ jobs:
           
           - **Without runtime**: Framework-dependent deployment.
           - **With runtime**: Self-contained deployment (includes .exe).
-          ${{ steps.changelog.outputs.changes }}
         draft: false
         prerelease: false
         artifacts: |
