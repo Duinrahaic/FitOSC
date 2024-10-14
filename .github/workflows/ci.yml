@@ -92,7 +92,7 @@ jobs:
         draft: false
         prerelease: false
         artifacts: |
-          ./fitosc-no-runtime.zip  # Zip file for framework-dependent build
-          ./fitosc-with-runtime.zip  # Zip file for self-contained build
+          ./fitosc-no-runtime.zip
+          ./fitosc-with-runtime.zip
 
 
