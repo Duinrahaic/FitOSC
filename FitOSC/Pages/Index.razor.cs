@@ -38,7 +38,7 @@ public partial class Index : IDisposable
                Osc.Start();
                Osc.OnOscMessageReceived += OnOscMessageReceived;
                Ovr.OnDataUpdateReceived += OnOvrDataUpdateReceived;
-               _config = await ConfigService.GetConfig();
+               _config = await LocalStorage.GetConfig();
             }
             catch
             {
@@ -107,7 +107,7 @@ public partial class Index : IDisposable
     {
         var ms = Math.Clamp(s, _config.EquipmentMinSpeed, _config.EquipmentMaxSpeed);
         _config.UserMaxSpeed = ms;
-        await ConfigService.SaveConfig(_config);
+        await LocalStorage.SetConfig(_config);
     }
     private async Task IncreaseMaxSpeed() => await SetMaxSpeed(_config.UserMaxSpeed + _config.IncrementAmount);
     private async Task DecreaseMaxSpeed() => await SetMaxSpeed(_config.UserMaxSpeed - _config.IncrementAmount);
@@ -439,7 +439,7 @@ public partial class Index : IDisposable
     
     private async void OnSettingsClose()
     {
-        _config = await ConfigService.GetConfig();
+        _config = await LocalStorage.GetConfig();
     }
     
     private void ReleaseUnmanagedResources()

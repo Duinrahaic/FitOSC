@@ -1,15 +1,10 @@
 ﻿@page "/"
-@inject IBluetoothNavigator Bt
 @using Blazor.Bluetooth
-@using FitOSC.Shared.Utilities
-@using FitOSC.Shared.Interfaces
-@using FitOSC.Shared.Components.UI
-@using FitOSC.Shared.Services
-
 @using Blazored.LocalStorage
-
+@using FitOSC.Shared.Utilities
+@using FitOSC.Shared.Components.UI
 @inject ILocalStorageService LocalStorage
-@inject ConfigService ConfigService
+@inject IBluetoothNavigator Bt
 
 <SettingsModal @ref="SettingsModal" OnClose="OnSettingsClose"/>
 

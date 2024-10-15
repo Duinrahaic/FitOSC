@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "Brush Script MT";
+  src: url("../../css/fonts/brush-script-mt.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
 body {
   font-family: "Roboto", sans-serif;
   background-color: #2C2C2C;
@@ -28,7 +34,7 @@ body {
   padding: 8px;
   position: absolute;
   top: 20px;
-  font-family: Brush Script MT, Brush Script Std, cursive;
+  font-family: "Brush Script MT", cursive;
   background: linear-gradient(to right, #0077ff, #01c1ff);
   -webkit-background-clip: text;
   color: transparent; /* Ensures the gradient is visible */
@@ -274,7 +280,7 @@ body {
   background-color: rgba(0, 0, 0, 0.3); /* semi-transparent background */
   backdrop-filter: blur(2px); /* Adjust the blur intensity */
   cursor: pointer;
-  pointer-events: unset;
+  pointer-events: all;
 }
 .app-modal-container .app-modal {
   z-index: 101;
@@ -292,6 +298,7 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.5);
 }
 .app-modal-container .app-modal .app-modal-header .app-modal-header-close {
+  pointer-events: all;
   cursor: pointer;
 }
 .app-modal-container .app-modal .app-modal-header .app-modal-header-close:hover {
