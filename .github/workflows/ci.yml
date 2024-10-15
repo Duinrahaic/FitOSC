@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v3
@@ -49,11 +49,11 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Extract Tag
       id: extract_tag
-      run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV  # Extract tag and set as env var
+      run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV  # Extract tag and set as env var
 
     - name: Download artifact (without runtime)
       uses: actions/download-artifact@v3
@@ -70,18 +70,16 @@ jobs:
     - name: Zip framework-dependent build (without runtime)
       run: |
         cd ./FitOSC/output/no-runtime
-        tar -czf ../../fitosc-no-runtime.zip *  # Create a zip archive of the folder contents
-        ls -la
+        tar -czf ../../../fitosc-no-runtime.zip *  # Create a zip archive of the folder contents
 
     - name: Zip self-contained build (with runtime)
       run: |
         cd ./FitOSC/output/with-runtime
-        tar -czf ../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
-        ls -la
+        tar -czf ../../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
 
 
     - name: Create GitHub Release
-      uses: ncipollo/release-action@v1
+      uses: ncipollo/release-action@v1.14.0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
         tag: ${{ env.TAG }}  # Use the extracted tag
@@ -93,8 +91,8 @@ jobs:
           - **With runtime**: Self-contained deployment (includes .exe).
         draft: false
         prerelease: false
-        assets: |
-          ./fitosc-no-runtime.zip  # Zip file for framework-dependent build
-          ./fitosc-with-runtime.zip  # Zip file for self-contained build
+        artifacts: |
+          ./fitosc-no-runtime.zip
+          ./fitosc-with-runtime.zip
 
 
