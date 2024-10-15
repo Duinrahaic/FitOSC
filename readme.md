@@ -54,7 +54,7 @@ This is Chrome and Edge compatible.
 
 ## Exposed VRChat Avatar Parameters
 
-Below are the exposed VRChat avatar parameters that can be controlled using FitOSC. These parameters are can be setup in an unity as a VRChat menu, but if you'd like an easy installation for a menu, consider buying my prefab off of [booth](https://duinrahaic.booth.pm/) or support me on [patreon](wwww.pateron.com/duinrahaic).
+Below are the exposed VRChat avatar parameters that can be controlled using FitOSC. These parameters are can be setup in an unity as a VRChat menu, but if you'd like an easy installation for a menu, consider buying my prefab off of [booth](https://duinrahaic.booth.pm/items/6189333) or support me on [patreon](wwww.pateron.com/duinrahaic).
 
 | **Command**        | **Type**  | **Control Type**  | **Description**                                                                                   |
 |--------------------|-----------|-------------------|---------------------------------------------------------------------------------------------------|
