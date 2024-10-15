@@ -59,6 +59,7 @@ public partial class App : Application, IDisposable
 
         appBuilder.Services.RegisterServices();
         appBuilder.Services.RegisterHostedService<OpenVRService>();
+        appBuilder.Services.AddSingleton<OscService>();
 
         using var myApp = appBuilder.Build();
         AppHost = myApp;

@@ -10,10 +10,8 @@ public static class ServicesExtension
 {
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
-        services.AddSingleton<OscService>();
         services.AddBluetoothNavigator();
         services.AddBlazoredLocalStorage();
-        services.AddSingleton<ConfigService>();
         return services;
     }
     

@@ -1,8 +1,10 @@
-﻿@using FitOSC.Shared.Config
+﻿@using Blazored.LocalStorage
+@using FitOSC.Shared.Config
 @using Microsoft.AspNetCore.Components.Forms
-@using FitOSC.Shared.Services
+@using Microsoft.AspNetCore.Components.Web
 
-@inject ConfigService Config
+@inject ILocalStorageService LocalStorage
+
 
 <div class="app-modal-container @(_open ? "open" : string.Empty )">
     <div class="app-modal-background" @onclick="HideModal"></div>
@@ -11,12 +13,12 @@
             <div class="app-modal-header-title">
                 Settings
             </div>
-            <div class="app-modal-header-close">
-                <i class="fa-solid fa-xmark" @onclick="HideModal"></i>
+            <div class="app-modal-header-close"  @onclick="HideModal">
+                <i class="fa-solid fa-xmark"></i>
             </div>
         </div>
         <div class="app-modal-body">
-            <EditForm Model="_config" OnInvalidSubmit="OnInvalidSubmit" OnValidSubmit="OnValidSubmit" id="settings">
+            <EditForm Model="_config" OnValidSubmit="OnValidSubmit" id="settings">
                 <DataAnnotationsValidator />
                 <div class="app-modal-body-content">
                     <div class="app-modal-body-content-item">
@@ -56,32 +58,27 @@
     [Parameter] public EventCallback OnClose { get; set; }
     
     private FitOscConfig _config = new FitOscConfig();
-    
     private bool _open = false;
-
+    
     public async Task OpenModal()
     {
-        _config = await Config.GetConfig();
-
+        _config = await LocalStorage.GetConfig();
         _open = true; 
-    }
-    
-    private async Task OnInvalidSubmit(EditContext ctx)
-    {
-        await Task.CompletedTask;
     }
     
     private async Task OnValidSubmit(EditContext ctx)
     {
-        await Config.SaveConfig(_config);
+        await LocalStorage.SetConfig(_config);
         _open = false;
         await OnClose.InvokeAsync();
     }
-    
 
-    public async Task HideModal()
+
+    private async Task HideModal()
     {
         _open = false;
+        Console.WriteLine("Modal Closed");
+        this.StateHasChanged();
         await OnClose.InvokeAsync();
     } 
 }

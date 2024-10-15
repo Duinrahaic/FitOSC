@@ -1,5 +1,10 @@
 @import "_variables";
-
+@font-face {
+  font-family: 'Brush Script MT';
+  src: url('../../css/fonts/brush-script-mt.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
 body{
   	font-family: 'Roboto', sans-serif;
   	background-color: $theme-color-background;
@@ -29,7 +34,7 @@ body{
 	  padding: 8px;
 	  position: absolute;
 	  top: 20px;
-	  font-family: Brush Script MT, Brush Script Std, cursive;
+	  font-family: 'Brush Script MT', cursive;
 	  background: linear-gradient(to right,
 			  #0077ff,
 			  #01c1ff);
@@ -312,7 +317,7 @@ body{
 	background-color: rgba(0, 0, 0, 0.3); /* semi-transparent background */
 	backdrop-filter: blur(2px); /* Adjust the blur intensity */	
 	cursor: pointer;
-	pointer-events: unset;
+	pointer-events: all;
   }
   
   .app-modal {
@@ -330,6 +335,8 @@ body{
 	  border-bottom: 1px solid transparentize(white, 0.5);
 	  
 	  .app-modal-header-close{
+		pointer-events: all;
+
 		cursor: pointer;
 		&:hover {
 		  color: darken($theme-color-text, 10%);

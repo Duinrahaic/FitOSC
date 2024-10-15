@@ -22,6 +22,11 @@
     <ItemGroup>
         <Folder Include="wwwroot\" />
     </ItemGroup>
+    <ItemGroup>
+      <Content Update="wwwroot\css\fonts\brush-script-mt.ttf">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
 
 
 </Project>

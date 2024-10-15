@@ -82,11 +82,11 @@ public partial class Index : IDisposable
 #endregion
    
     
-    private void SetMaxSpeed(decimal s = 0)
+    private async Task SetMaxSpeed(decimal s = 0)
     {
         var ms = Math.Clamp(s, _config.EquipmentMinSpeed, _config.EquipmentMaxSpeed);
         _config.UserMaxSpeed = ms;
-        ConfigService.SaveConfig(_config);
+        await LocalStorage.SetConfig(_config);
     }
     private void IncreaseMaxSpeed() => SetMaxSpeed(_config.UserMaxSpeed + _config.IncrementAmount);
     private void DecreaseMaxSpeed() => SetMaxSpeed(_config.UserMaxSpeed - _config.IncrementAmount);
@@ -326,15 +326,13 @@ public partial class Index : IDisposable
     
     private async void OnSettingsClose()
     {
-        _config = await ConfigService.GetConfig();
+        _config = await LocalStorage.GetConfig();
     }
     
     public void Dispose()
     {
-        //Osc.OnOscMessageReceived -= OnOscMessageReceived;
         _noDeviceModeTimer?.Dispose();
         DisconnectDevice();
-        //Osc.Stop();
     }
     
     
