@@ -22,6 +22,8 @@ FitOSC is a Bluetooth Low Energy (BLE)-enabled treadmill interface that connects
 
 A demo application showcasing FitOSC in action is available at [fitosc.duinrahaic.app](https://fitosc.duinrahaic.app). Note that the web demo does **not** include OSC functionality. It is purely a demonstration of how the interface works with BLE-connected treadmills.
 
+This is Chrome and Edge compatible. 
+
 ## Getting Started
 
 ### Prerequisites
