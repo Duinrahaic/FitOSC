@@ -68,15 +68,13 @@ jobs:
         path: ./FitOSC/output/with-runtime
 
     - name: Zip framework-dependent build (without runtime)
+      shell: pwsh
       run: |
-        cd ./FitOSC/output/no-runtime
-        zip -r ../../../fitosc-no-runtime.zip *  # Create a zip archive of the folder contents
+        Compress-Archive -Path ./FitOSC/output/no-runtime/* -DestinationPath ../../../fitosc-no-runtime.zip
     - name: Zip self-contained build (with runtime)
+      shell: pwsh
       run: |
-        cd ./FitOSC/output/with-runtime
-        zip -r ../../../fitosc-with-runtime.zip *  # Create a zip archive of the folder contents
-
-
+        Compress-Archive -Path ./FitOSC/output/with-runtime/* -DestinationPath ../../../fitosc-with-runtime.zip
     - name: Create GitHub Release
       uses: ncipollo/release-action@v1.14.0
       with:
