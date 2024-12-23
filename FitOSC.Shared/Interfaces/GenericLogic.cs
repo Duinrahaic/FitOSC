@@ -132,7 +132,7 @@ public class GenericLogic(IDevice device) : BaseLogic(device)
         }
     }
 
-    public override async void Dispose(bool disposing)
+    protected override async void Dispose(bool disposing)
     {
         if (disposing)
         {

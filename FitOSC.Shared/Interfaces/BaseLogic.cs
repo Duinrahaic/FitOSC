@@ -215,10 +215,10 @@ public abstract class BaseLogic(IDevice device) : IDisposable
 
     
     
-    public virtual async Task<FitnessMachineFeatures> GetFeatures()
+    public virtual async Task<FitnessMachineFeatures?> GetFeatures()
     {
         await Task.CompletedTask;
-        return new FitnessMachineFeatures();
+        return null;
     }
     protected byte[] ConvertSpeed(decimal speed)
     {
@@ -301,14 +301,12 @@ public abstract class BaseLogic(IDevice device) : IDisposable
                 break;
         }
     }
-    
-    
-    
-    public virtual void Dispose(bool disposing)
+
+
+    protected virtual void Dispose(bool disposing)
     {
         if (disposing)
         {
-            // TODO release managed resources here
         }
     }
 

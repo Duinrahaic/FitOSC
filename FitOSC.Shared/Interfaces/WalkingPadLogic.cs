@@ -55,7 +55,25 @@ public class WalkingPadLogic(IDevice device) : BaseLogic(device)
         }
     }
 
-    public override async void Dispose(bool disposing)
+    public override async Task Start(decimal startSpeed, decimal maxSpeed)
+    {
+        do
+        {
+            await Task.Delay(4000);
+        }while (State != TreadmillState.Running);
+        await SetSpeed(startSpeed, maxSpeed); // setting speed starts walking pad
+    }
+
+    public override async Task Stop()
+    {
+        await base.Stop();
+        await SetSpeed(0, 0); // setting speed to 0 stops walking pad
+    }
+    
+    public override async Task SetSpeed(decimal speed, decimal maxSpeed) =>         
+        await (ControlPoint?.ExecuteCommand(0x02, ConvertSpeed(speed, maxSpeed)) ?? Task.CompletedTask);
+    
+    protected override async void Dispose(bool disposing)
     {
         if (disposing)
         {
