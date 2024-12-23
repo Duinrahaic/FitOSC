@@ -109,12 +109,14 @@ body{
 	  &.enabled{
 		background-color: #26b050;
 		&:hover:not(:disabled) {
+		  //noinspection CssInvalidFunction
 		  background-color: darken(#26b050, 10%) ;
 		}
 	  }
 	  &.disabled{
 		background-color: #b02626;
 		&:hover:not(:disabled) {
+		  //noinspection CssInvalidFunction
 		  background-color: darken(#b02626, 10%) ;
 		}
 	  }
@@ -134,6 +136,7 @@ body{
  
 	  }
 	  &:disabled {
+		//noinspection CssInvalidFunction
 		background-color: lighten($theme-color-primary, 10%); // Lighten the background color
 		cursor: default;
 		opacity: 0.6; // Dim the button to show it's disabled
@@ -143,11 +146,14 @@ body{
 	  }
 	  
 	  &:hover:not(:disabled) {
+		//noinspection CssInvalidFunction
 		background: darken($theme-color-primary, 10%);
 		&.enable{
+		  //noinspection CssInvalidFunction
 		  background-color: darken(#26b050, 10%) ;
 		}
 		&.disabled{
+		  //noinspection CssInvalidFunction
 		  background-color: darken(#b02626, 10%) ;
 		}
 	  }
@@ -192,6 +198,12 @@ body{
 		align-items: center;
 		gap: 12px;
 		
+		&.lastSession{
+		  .app-info-item-value{
+			color: $theme-color-primary;
+		  }
+		}
+		
 		button{
 		  margin: auto;
 		}
@@ -199,6 +211,7 @@ body{
 		
 		.app-info-item-title{
 		  margin: 2px;
+		  //noinspection CssInvalidFunction
 		  border-bottom: 1px solid transparentize(white, 0.5);
 		}
 		.app-info-item-value{
@@ -218,33 +231,50 @@ body{
 	position: absolute;
 	left: 0;
 	padding: 1rem;
-	scale: 0.8;
 	.app-config-item{
+	  height: 60px;
+	  width: 60px;
 
 	  display: flex;
 	  align-items: center;
 	  justify-content: center;
 	  border-radius: 50%;
 	  overflow: hidden;
-	  &:hover {
+	  background: $theme-color-shadow;
+	  
+	  &:disabled{
+		background: $theme-color-shadow;
+
+	  }
+	  
+	  
+	  &:hover:not(:disabled) {
+		background: $theme-color-shadow;
+
 		cursor: pointer;
 		label{
 		  transform: translateY(-60px);
 		  scale: 1;
-		  transition: transform 0.1s ease-in-out;
 		  transition: scale 0.1s ease-in-out;
+		  white-space: nowrap;
+		  
 		}
 	  }
+		.app-config-item-icon-background{
+		  width: 48px;
+		  height: 48px;
+		  background: $theme-color-shadow;
+		  display: flex;
+		  align-items: center;
+		  justify-content: center;
+		  i{
 
-	  i{
-		width: 48px;
-		height: 48px;
-		font-size: 48px;
-		z-index: 2;
-		padding: 12px;
-		background: $theme-color-shadow;
+			font-size: 32px;
+			z-index: 2;
 
-	  }
+		  }
+		}
+
 	  label{
 		position: absolute;
 		z-index: 0;
@@ -263,9 +293,9 @@ body{
 	position: absolute;
 	right: 0;
 	padding: 1rem;
-	scale: 0.8;
 	.app-support-item{
-
+	  height: 60px;
+	  width: 60px;
 	  display: flex;
 	  align-items: center;
 	  justify-content: center;
@@ -276,7 +306,6 @@ body{
 		label{
 		  transform: translateY(-60px);
 		  scale: 1;
-		  transition: transform 0.1s ease-in-out;
 		  transition: scale 0.1s ease-in-out;
 		}
 	  }
@@ -343,7 +372,8 @@ body{
 	  justify-content: space-between;
 	  align-items: center;
 	  padding: 8px 12px;
-	  font-size: 20px;
+	  font-size: 20px;		  
+	  //noinspection CssInvalidFunction
 	  border-bottom: 1px solid transparentize(white, 0.5);
 	  
 	  .app-modal-header-close{
@@ -351,72 +381,65 @@ body{
 
 		cursor: pointer;
 		&:hover {
+		  //noinspection CssInvalidFunction
 		  color: darken($theme-color-text, 10%);
 		}
 	  }
 	}
 	.app-modal-body{
-	  padding: 8px 12px;
 	  display: flex;
 	  flex-direction: column;
 	  gap: 4px;
 	  align-items: center;
-	  justify-content: center;
-	  .app-modal-body-content-item{
-		display: grid;
-		grid-template-columns: 150px 1fr; // Set fixed width for labels and flexible width for inputs
-		grid-gap: 14px; // Space between label and input
-		align-items: center; // Vertically align the label and input
-		padding: 4px 8px;
-		label {
-		  justify-self: end; // Align label to the right
-		  white-space: nowrap;
-		  
-		}
+	  justify-content: flex-start;
+	  height: 600px;
+	  overflow-y: auto;
+	  flex-grow:1;
+	  padding: 4px 12px;
+	  
+	  .app-modal-body-container{
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		align-items: center;
+		justify-content: flex-start;
+		width: 100%;
+	  }
+	  
+		.app-modal-body-content-item {
+		  display: flex;
+		  flex-direction: row;
+		  gap: 1rem;
+		  justify-content: space-between;
+		  align-items: center;
+		  width: 100%;
 
-		input {
-		  // Styles applied to all input elements
-		  padding: 5px;
-		  font-size: 16px;
-		  width: 100%; // Ensure inputs stretch to fill the container
-		  border: 1px solid $theme-color-shadow;
-		  border-radius: 4px;
-		  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
-		  background-color: transparentize($theme-color-shadow, 0.8);
-		  color: $theme-color-text;
-		  outline: none;
 
-		  // Specific styles for input[type="number"]
-		  &[type="number"] {
-			&:focus {
-			  border-color: $theme-color-primary;
-			  box-shadow: 0 0 5px 1px $theme-color-primary;
+		  label{
+			flex-grow: 1;
+		  }
+		  i{
+			font-size: 1.5rem;
+			&.fa-check-circle{
+			  color: #4caf50;
+			}
+			&.fa-circle-xmark{
+			  color: #dc0d0d;
 			}
 		  }
-
-		  // Styles for input[type="checkbox"]
-		  &[type="checkbox"] {
-			padding: 5px;
-			font-size: 16px;
-			width: auto; // Checkboxes should have auto width, not 100%
-			border: 1px solid $theme-color-shadow;
-			border-radius: 4px;
-			transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
-			accent-color: $theme-color-primary;
-			background-color: transparent;
-			justify-self: start; // Align checkbox to the left
-		  }
 		}
-
-
-
-		.validation-message {
-		  grid-column: span 2; // Make the validation message span both columns
-		  color: #dc0d0d;
-		  font-weight: bold;
-		  text-align: center;
+		
+	    #settings{
+		  display: flex;
+		  flex-direction: column;
+		  gap: 1rem;
+		  align-items: center;
+		  justify-content: flex-start;
+		  width: 100%;
 		}
-	  }
+	  
+
+	  
 	}
 	.app-modal-footer{
 	  display: flex;
@@ -424,6 +447,7 @@ body{
 	  justify-content: flex-end;
 	  align-items: center;
 	  padding: 8px 12px;
+	  //noinspection CssInvalidFunction
 	  border-top: 1px solid transparentize(white, 0.5);
 	  gap: 1rem;
 	  button{
@@ -438,6 +462,7 @@ body{
 		color: white;
 		
 		&:hover:not(:disabled) {
+		  //noinspection CssInvalidFunction
 		  background: darken($theme-color-primary, 10%);
 
 		}

@@ -11,7 +11,7 @@ using Valve.VR;
 
 namespace FitOSC;
 
-public partial class App : Application, IDisposable
+public class App : Application, IDisposable
 {
     public static IHost? AppHost { get; private set; }
     private IClassicDesktopStyleApplicationLifetime? _desktop;
@@ -41,15 +41,13 @@ public partial class App : Application, IDisposable
 
     private void Exit(object? sender, EventArgs e)
     {
-        // Exit the application
-        System.Environment.Exit(0);
+        Environment.Exit(0);
     }
     
 
     internal static void RunAvaloniaAppWithHosting(string[] args, Func<AppBuilder> buildAvaloniaApp)
     {
         var appBuilder = Host.CreateApplicationBuilder(args);
-        //appBuilder.Logging.AddDebug();
         appBuilder.Services.AddWindowsFormsBlazorWebView();
         
         #if DEBUG
@@ -71,21 +69,21 @@ public partial class App : Application, IDisposable
         }
         catch(Exception ex)
         {
-            var result = MessageBox.Show( ex.ToString(), "FitOSC Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Error);    
+            MessageBox.Show( ex.ToString(), "FitOSC Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Error);    
             Console.WriteLine(ex);
             Environment.Exit(0);
             
         }
-        finally
-        {
-            //Task.Run(async () => await myApp.StopAsync()).GetAwaiter().GetResult();
-        }
     }
+
 
     public void Dispose()
     {
-        _desktop.Exit -= Exit;
-        _desktop = null;
+        if (_desktop != null)
+        {
+            _desktop.Exit -= Exit;
+            _desktop = null;
+        }
         AppHost?.Dispose();
         AppHost = null;
     }

@@ -126,7 +126,7 @@ public partial class Index : IDisposable
 
             try
             {
-                _treadmillService = await _device.Gatt.GetPrimaryService(BluetoothServices.FitnessMachineService); // Fitness Machine Service
+                _treadmillService = await _device.Gatt.GetPrimaryService(BluetoothServices.FTMS); // Fitness Machine Service
                 _treadmillDataCharacteristic = await SubscribeToNotifications(BluetoothCharacteristic.TreadmillData, OnTreadmillDataChanged);
                 _treadmillControlPoint = await SubscribeToNotifications(BluetoothCharacteristic.FitnessMachineControlPoint, OnControlPointChanged);
                 _treadmillStatusCharacteristic = await SubscribeToNotifications(BluetoothCharacteristic.FitnessMachineStatus, OnTreadmillStatusChanged);

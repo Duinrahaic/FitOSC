@@ -1,0 +1,85 @@
+﻿@using Blazor.Bluetooth
+@using FitOSC.Shared.Extensions
+@using FitOSC.Shared.Interfaces
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@inject IBluetoothNavigator Bt
+ <div class="app-modal-container @(_open ? "open" : string.Empty )">
+    <div class="app-modal-background" @onclick="HideModal"></div>
+    <div class="app-modal">
+        <div class="app-modal-header">
+            <div class="app-modal-header-title">
+                Features
+            </div>
+            <div class="app-modal-header-close"  @onclick="HideModal">
+                <i class="fa-solid fa-xmark"></i>
+            </div>
+        </div>
+        <div class="app-modal-body">
+            <div class="app-modal-body-container">
+                @if (Device != null && _features != null)
+                {
+                @foreach (var feature in _features.ToDictionary())
+                {
+                <div class="app-modal-body-content-item">
+                    <label>@feature.Key</label>
+                    @if (feature.Value)
+                    {
+                    <i class="fa-solid fa-check-circle"></i>
+                    }
+                    else
+                    {
+                    <i class="fa-solid fa-circle-xmark"></i>
+                    }
+                </div>
+                }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+@code
+{
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public BaseLogic? Device { get; set; }
+    
+    FitnessMachineFeatures? _features = null;
+    
+    private bool _open = false;
+    
+    
+    
+    public async Task OpenModal()
+    {
+        if (Device == null)
+        {
+            _features = new FitnessMachineFeatures();
+        }
+        else
+        {
+            _features = await Device.GetFeatures();
+        }
+        _open = true;
+            
+    }
+    
+  
+
+    private async Task HideModal()
+    {
+        _features = null;
+        _open = false;
+        await OnClose.InvokeAsync();
+    }
+
+ 
+    
+ 
+    
+ 
+  
+}

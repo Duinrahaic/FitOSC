@@ -18,7 +18,7 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     private CancellationTokenSource? _cancellationTokenSource;
     private static (float yaw, float pitch, float roll)? _initialDirection = null;
     private bool _monitor = false;
-    
+    public bool IsMonitoring => _monitor;
     // Event for when data update is received
     public delegate void DataUpdateReceivedEventHandler(OpenVRDataEvent e);
     public event DataUpdateReceivedEventHandler? OnDataUpdateReceived;

@@ -44,6 +44,7 @@
             <SubType>Code</SubType>
         </Compile>
         <Compile Remove="Devices\FTMSDevice.cs" />
+        <Compile Remove="MainWindow.axaml.cs" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />

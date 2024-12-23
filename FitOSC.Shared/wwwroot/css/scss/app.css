@@ -170,6 +170,9 @@ body {
   align-items: center;
   gap: 12px;
 }
+.app .app-center .app-info .app-info-item.lastSession .app-info-item-value {
+  color: #1E90FF;
+}
 .app .app-center .app-info .app-info-item button {
   margin: auto;
 }
@@ -188,31 +191,41 @@ body {
   position: absolute;
   left: 0;
   padding: 1rem;
-  scale: 0.8;
 }
 .app .app-config-container .app-config-item {
+  height: 60px;
+  width: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   overflow: hidden;
+  background: #1f1f1f;
 }
-.app .app-config-container .app-config-item:hover {
+.app .app-config-container .app-config-item:disabled {
+  background: #1f1f1f;
+}
+.app .app-config-container .app-config-item:hover:not(:disabled) {
+  background: #1f1f1f;
   cursor: pointer;
 }
-.app .app-config-container .app-config-item:hover label {
+.app .app-config-container .app-config-item:hover:not(:disabled) label {
   transform: translateY(-60px);
   scale: 1;
-  transition: transform 0.1s ease-in-out;
   transition: scale 0.1s ease-in-out;
+  white-space: nowrap;
 }
-.app .app-config-container .app-config-item i {
+.app .app-config-container .app-config-item .app-config-item-icon-background {
   width: 48px;
   height: 48px;
-  font-size: 48px;
-  z-index: 2;
-  padding: 12px;
   background: #1f1f1f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app .app-config-container .app-config-item .app-config-item-icon-background i {
+  font-size: 32px;
+  z-index: 2;
 }
 .app .app-config-container .app-config-item label {
   position: absolute;
@@ -230,9 +243,10 @@ body {
   position: absolute;
   right: 0;
   padding: 1rem;
-  scale: 0.8;
 }
 .app .app-support-container .app-support-item {
+  height: 60px;
+  width: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -245,7 +259,6 @@ body {
 .app .app-support-container .app-support-item:hover label {
   transform: translateY(-60px);
   scale: 1;
-  transition: transform 0.1s ease-in-out;
   transition: scale 0.1s ease-in-out;
 }
 .app .app-support-container .app-support-item img {
@@ -312,55 +325,51 @@ body {
   color: #c7c7c7;
 }
 .app-modal-container .app-modal .app-modal-body {
-  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  height: 600px;
+  overflow-y: auto;
+  flex-grow: 1;
+  padding: 4px 12px;
+}
+.app-modal-container .app-modal .app-modal-body .app-modal-body-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 .app-modal-container .app-modal .app-modal-body .app-modal-body-content-item {
-  display: grid;
-  grid-template-columns: 150px 1fr;
-  grid-gap: 14px;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  justify-content: space-between;
   align-items: center;
-  padding: 4px 8px;
+  width: 100%;
 }
 .app-modal-container .app-modal .app-modal-body .app-modal-body-content-item label {
-  justify-self: end;
-  white-space: nowrap;
+  flex-grow: 1;
 }
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item input {
-  padding: 5px;
-  font-size: 16px;
-  width: 100%;
-  border: 1px solid #1f1f1f;
-  border-radius: 4px;
-  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
-  background-color: rgba(31, 31, 31, 0.2);
-  color: #E0E0E0;
-  outline: none;
+.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item i {
+  font-size: 1.5rem;
 }
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item input[type=number]:focus {
-  border-color: #1E90FF;
-  box-shadow: 0 0 5px 1px #1E90FF;
+.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item i.fa-check-circle {
+  color: #4caf50;
 }
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item input[type=checkbox] {
-  padding: 5px;
-  font-size: 16px;
-  width: auto;
-  border: 1px solid #1f1f1f;
-  border-radius: 4px;
-  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
-  accent-color: #1E90FF;
-  background-color: transparent;
-  justify-self: start;
-}
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item .validation-message {
-  grid-column: span 2;
+.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item i.fa-circle-xmark {
   color: #dc0d0d;
-  font-weight: bold;
-  text-align: center;
+}
+.app-modal-container .app-modal .app-modal-body #settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 .app-modal-container .app-modal .app-modal-footer {
   display: flex;

@@ -59,8 +59,6 @@ public class OscService : IDisposable
             {
                 return;
             }
-            
-            
             _server = new OscQueryServer("FitOSC", IPAddress.Loopback);
             _server.FoundVrcClient += FoundVrcClient; // event on vrc discovery
             _server.Start();
@@ -87,6 +85,7 @@ public class OscService : IDisposable
         _logger.LogInformation("Found VRC client at {EndPoint}", ipEndPoint);
         _logger.LogInformation("Starting listening for VRC client at {Port}", oscQueryServer.OscReceivePort);
         _connection = new OscDuplex(new IPEndPoint(ipEndPoint.Address, oscQueryServer.OscReceivePort), ipEndPoint);
+        
         _currentOscQueryServer = oscQueryServer;
         
         AppDomain.CurrentDomain.ProcessExit += (s, e) => Cleanup();
@@ -111,7 +110,6 @@ public class OscService : IDisposable
             {
                 if (_connection != null)
                 {
-                     
                     OscMessage received = await _connection.ReceiveMessageAsync();
                     if(received.Address.Contains("TMC"))
                     {
@@ -119,8 +117,6 @@ public class OscService : IDisposable
                         _ = Task.Run(() => OnOscMessageReceived?.Invoke(new OscSubscriptionEvent(message)), currentCancellationToken);
                     }
                 }
-                
-                
             }
             catch (Exception e)
             {

@@ -18,9 +18,9 @@
             </div>
         </div>
         <div class="app-modal-body">
-            <EditForm Model="_config" OnValidSubmit="OnValidSubmit" id="settings">
-                <DataAnnotationsValidator />
-                <div class="app-modal-body-content">
+            <div class="app-modal-body-container">
+                <EditForm Model="_config" OnValidSubmit="OnValidSubmit" id="settings">
+                    <DataAnnotationsValidator/>
                     <div class="app-modal-body-content-item">
                         <label for="is-metric">Use Metric Units</label>
                         <InputCheckbox id="is-metric" @bind-Value="@_config.IsMetric"/>
@@ -41,8 +41,14 @@
                         <InputNumber id="equipment-max-speed-add" @bind-Value="@_config.IncrementAmount"/>
                         <ValidationMessage For="() => _config.IncrementAmount"/>
                     </div>
-                </div>
-            </EditForm>
+                    <div class="app-modal-body-content-item">
+                        <label for="default-speed">Default Speed (kmh)</label>
+                        <InputNumber id="default-speed" @bind-Value="@_config.DefaultSpeed"/>
+                        <ValidationMessage For="() => _config.DefaultSpeed"/>
+                    </div>
+                </EditForm>
+            </div>
+     
         </div>
         <div class="app-modal-footer">
             <button type="submit" form="settings">Save</button>

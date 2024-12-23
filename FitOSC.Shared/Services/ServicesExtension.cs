@@ -12,6 +12,7 @@ public static class ServicesExtension
     {
         services.AddBluetoothNavigator();
         services.AddBlazoredLocalStorage();
+        services.AddSingleton<OscService>();
         return services;
     }
     

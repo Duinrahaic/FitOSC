@@ -1,14 +1,9 @@
 ﻿@inject IBluetoothNavigator Bt
 @inject OscService Osc
-@inject OpenVRService Ovr
 @using Blazor.Bluetooth
-@using FitOSC.Shared.Utilities
-@using FitOSC.Shared.Interfaces
 @using FitOSC.Shared.Components.UI
 @using FitOSC.Shared.Services
-
 @using Blazored.LocalStorage
-@using Valve.VR
 
 @inject ILocalStorageService LocalStorage
 
@@ -26,18 +21,23 @@
             <div class="app-controls">
                 <button @onclick="RequestDevice"> Connect To Device</button>
             </div>
-            <div class="app-divider">
-                <div>Or</div>
-            </div>
-            <div class="app-controls">
-                <button @onclick="NoDeviceMode"> No Device Mode</button>
-            </div>
+            @if (!OperatingSystem.IsBrowser())
+            {
+                <div class="app-divider">
+                    <div>Or</div>
+                </div>
+                <div class="app-controls">
+                    <button @onclick="NoDeviceMode"> No Device Mode</button>
+                </div>
+            }
         </div>
     }
     else
     {
         <InfoPanel @ref="@InfoPanel" 
-            Data="_liveData"
+                   Data="_liveData"
+                   LastSession="@_lastSession"
+                   
             @bind-Config="_config"
             FtmsLogic="_ftmsLogic"
             NoDeviceMode="_noDeviceMode"

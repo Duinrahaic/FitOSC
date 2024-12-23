@@ -1,8 +1,10 @@
-﻿@page "/"
+﻿
 @using Blazor.Bluetooth
 @using Blazored.LocalStorage
 @using FitOSC.Shared.Utilities
 @using FitOSC.Shared.Components.UI
+
+
 @inject ILocalStorageService LocalStorage
 @inject IBluetoothNavigator Bt
 
@@ -37,7 +39,7 @@
             <button class="@(_walk ? "enabled" : "disabled")" @onclick="ToggleWalking"> <i class="bi bi-person-walking"></i></button>
         </div>
         <div class="app-info">
-            <AppInfoItem Title="Calories" Value="@($"{_liveData.Kcal}")" Unit="kCals"/>
+            <AppInfoItem Title="Calories" Value="@($"{_liveData.Calories}")" Unit="kCals"/>
             @if (_config.IsMetric)
             {
                 <AppInfoItem Title="Distance" Value="@((_liveData.Distance / 1000).ToString("F2"))" Unit="Kilometers"/>
@@ -46,7 +48,7 @@
             {
                 <AppInfoItem Title="Distance" Value="@($"{DataConversion.ConvertKilometersToMiles(_liveData.Distance / 1000):F2}")" Unit="Miles"/>
             }
-            <AppInfoItem Title="Duration" Value="@($"{DataConversion.ConvertSecondsToTime(_liveData.ElapsedTime)}")" Unit=""/>
+            <AppInfoItem Title="ElapsedTime" Value="@($"{DataConversion.ConvertSecondsToTime(_liveData.ElapsedTime)}")" Unit=""/>
         </div>
         <div class="app-info">
             <div class="app-info-item">

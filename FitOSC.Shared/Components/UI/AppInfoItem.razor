@@ -1,4 +1,4 @@
-﻿<div class="app-info-item">
+﻿<div class="app-info-item @(IsLastSession ? "lastSession" : String.Empty)">
     <div class="app-info-item-title">
         @Title
     </div>
@@ -12,6 +12,7 @@
 
 @code{
 
+    [Parameter] public bool IsLastSession { get; set; } = false;
     [Parameter] public string Title { get; set; } = string.Empty;
     [Parameter] public string Value { get; set; } = string.Empty;
     [Parameter] public string Unit { get; set; } = string.Empty;

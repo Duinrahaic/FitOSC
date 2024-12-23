@@ -1,15 +1,17 @@
-﻿using Blazor.Bluetooth;
+﻿using System.Data;
+using Blazor.Bluetooth;
 using FitOSC.Shared.Interfaces;
 using FitOSC.Shared.Services;
 using FitOSC.Shared.Components.UI;
 using FitOSC.Shared.Config;
 using FitOSC.Shared.Utilities;
 using FitOSC.Shared.Extensions;
+using Microsoft.AspNetCore.Components;
 using Valve.VR;
 
-namespace FitOSC.Pages;
+namespace FitOSC.Shared.Pages;
 
-public partial class Index : IDisposable
+public sealed partial class MainPage : IDisposable
 {
     private SettingsModal? SettingsModal { get; set; }
     private TestModal? TestModal { get; set; }
@@ -23,6 +25,11 @@ public partial class Index : IDisposable
     private decimal _trimSpeed = 0.8m;
     private System.Timers.Timer? _noDeviceModeTimer = new(1000);
     private FitOscConfig _config = new();
+    private Session? _lastSession = null;
+    
+    [Parameter]
+    public EventCallback<bool> OnWalkingStateChanged { get; set; }
+    
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -34,10 +41,9 @@ public partial class Index : IDisposable
                 {
                     Osc.Start();
                     Osc.OnOscMessageReceived += OnOscMessageReceived;
-                    Ovr.OnDataUpdateReceived += OnOvrDataUpdateReceived;
                 }
-
                _config = await LocalStorage.GetConfig();
+               _lastSession = await LocalStorage.GetLastSession();
             }
             catch
             {
@@ -207,7 +213,7 @@ public partial class Index : IDisposable
 
 #region OpenVR
 
-private void OnOvrDataUpdateReceived(OpenVRDataEvent e)
+public void OnOvrDataUpdateReceived(OpenVRDataEvent e)
 {
     if (_walk)
     {
@@ -237,8 +243,8 @@ private void OnOvrDataUpdateReceived(OpenVRDataEvent e)
 
 #region General
     private async Task RequestDevice()
-    {
-            
+    {   
+        Console.WriteLine("Requesting Device");
         var options = new RequestDeviceOptions
         {
             Filters = [new Filter { Services = ["fitness_machine"] }]
@@ -257,9 +263,13 @@ private void OnOvrDataUpdateReceived(OpenVRDataEvent e)
             Console.WriteLine($"Device Name: {device.Name}, Device Id: {device.Id}");
             try
             {        
-                _ftmsLogic = new GenericLogic(device);
+                
+                _ftmsLogic = await BluetoothExtensions.IdentifyLogic(device);
+                if (null == _ftmsLogic) throw new Exception("Device not supported");
+                
                 _ftmsLogic.DataReceived += OnTreadmillDataChanged;
                 _ftmsLogic.TreadmillStateChanged += OnTreadmillStateChanged;
+                _ftmsLogic.LastSessionDataReceived += OnLastSessionDataReceived;
                 await _ftmsLogic.Connect();
             }
             catch (Exception ex)
@@ -271,22 +281,24 @@ private void OnOvrDataUpdateReceived(OpenVRDataEvent e)
         }
     }
 
+    private async void OnLastSessionDataReceived(object? sender, Session e)
+    {
+        await LocalStorage.SetLastSession(e);
+        _lastSession = await LocalStorage.GetLastSession();
+    }
+
     private void SetWalkingState(bool state)
     {
         if(state == _walk) return;
         _walk = state;
-        if (_walk)
+        if (!_walk)
         {
-            Ovr.StartMonitoring();
-        }
-        else
-        {
-            Ovr.StopMonitoring();
             Osc.SetWalkingSpeed(0);
             Osc.SetTurningSpeed(0);
             Osc.SetHorizontalSpeed(0);
         }
         Osc.SetWakingState(_walk);
+        OnWalkingStateChanged.InvokeAsync(_walk);
     }
 
 #endregion
@@ -324,23 +336,17 @@ private void OnOvrDataUpdateReceived(OpenVRDataEvent e)
         {
             Osc.OnOscMessageReceived -= OnOscMessageReceived;
         }
-
-        if (Ovr != null)
-        {
-            Ovr.OnDataUpdateReceived -= OnOvrDataUpdateReceived;
-        }
         
         SettingsModal = null;
     }
-    
-    protected virtual void Dispose(bool disposing)
+
+    private void Dispose(bool disposing)
     {
         ReleaseUnmanagedResources();
         if (disposing)
         {
             _noDeviceModeTimer?.Dispose();
             Osc?.Dispose();
-            Ovr?.Dispose();
         }
     }
 
@@ -350,7 +356,7 @@ private void OnOvrDataUpdateReceived(OpenVRDataEvent e)
         GC.SuppressFinalize(this);
     }
 
-    ~Index()
+    ~MainPage()
     {
         Dispose(false);
     }
