@@ -4,6 +4,10 @@ namespace FitOSC.Shared.Interfaces;
 
 public class WalkingPadLogic(IDevice device) : BaseLogic(device)
 {
+    /** 
+     *  Big thank you to my friend Raphiiko for providing the details for communicating the WalkingPad via Bluetooth.
+     */
+    
     protected override string LogicName { get; } = "WalkingPad Logic";
     protected override string ServiceUuid { get; } = BluetoothServices.WalkingMachine;
     protected override string FeaturesUuid { get; } = string.Empty; // None identified
