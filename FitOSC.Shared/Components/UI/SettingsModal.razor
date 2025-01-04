@@ -1,19 +1,16 @@
 ﻿@using Blazored.LocalStorage
 @using FitOSC.Shared.Config
-@using Microsoft.AspNetCore.Components.Forms
-@using Microsoft.AspNetCore.Components.Web
-
 @inject ILocalStorageService LocalStorage
 
 
-<div class="app-modal-container @(_open ? "open" : string.Empty )">
+<div class="app-modal-container @(_open ? "open" : string.Empty)">
     <div class="app-modal-background" @onclick="HideModal"></div>
     <div class="app-modal">
         <div class="app-modal-header">
             <div class="app-modal-header-title">
                 Settings
             </div>
-            <div class="app-modal-header-close"  @onclick="HideModal">
+            <div class="app-modal-header-close" @onclick="HideModal">
                 <i class="fa-solid fa-xmark"></i>
             </div>
         </div>
@@ -48,7 +45,7 @@
                     </div>
                 </EditForm>
             </div>
-     
+
         </div>
         <div class="app-modal-footer">
             <button type="submit" form="settings">Save</button>
@@ -57,21 +54,19 @@
 </div>
 
 
-
-
 @code
 {
     [Parameter] public EventCallback OnClose { get; set; }
-    
-    private FitOscConfig _config = new FitOscConfig();
+
+    private FitOscConfig _config = new();
     private bool _open = false;
-    
+
     public async Task OpenModal()
     {
         _config = await LocalStorage.GetConfig();
-        _open = true; 
+        _open = true;
     }
-    
+
     private async Task OnValidSubmit(EditContext ctx)
     {
         await LocalStorage.SetConfig(_config);
@@ -84,7 +79,7 @@
     {
         _open = false;
         Console.WriteLine("Modal Closed");
-        this.StateHasChanged();
+        StateHasChanged();
         await OnClose.InvokeAsync();
-    } 
+    }
 }

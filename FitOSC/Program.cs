@@ -1,10 +1,8 @@
-﻿using Avalonia;
-using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace FitOSC;
 
-class Program
+internal class Program
 {
     [STAThread]
     public static void Main(string[] args)
@@ -16,7 +14,7 @@ class Program
             globalMutex.Close();
             return;
         }
- 
+
         SetupClient.Start(args);
         globalMutex.Close();
     }

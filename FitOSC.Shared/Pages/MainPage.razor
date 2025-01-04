@@ -15,40 +15,46 @@
     <div class="app-header-title">Fit OSC</div>
     
     
-    @if (_ftmsLogic == null && !_noDeviceMode)
-    {
-        <div class="app-controls-container">
-            <div class="app-controls">
-                <button @onclick="RequestDevice"> Connect To Device</button>
-            </div>
-            @if (!OperatingSystem.IsBrowser())
-            {
-                <div class="app-divider">
-                    <div>Or</div>
-                </div>
-                <div class="app-controls">
-                    <button @onclick="NoDeviceMode"> No Device Mode</button>
-                </div>
-            }
+    <div class="app-controls-container @(_mainViewOption == MainViewOption.Select ? "show" : "")">
+        <div class="app-controls">
+            <button @onclick="RequestDevice"> Connect To Device</button>
         </div>
-    }
-    else
-    {
-        <InfoPanel @ref="@InfoPanel" 
+        @if (!OperatingSystem.IsBrowser())
+        {
+            <div class="app-divider">
+                <div>Or</div>
+            </div>
+            <div class="app-controls">
+                <button @onclick="NoDeviceMode"> No Device Mode</button>
+            </div>
+        }
+    </div>
+        
+    <div class="app-controls-container @(_mainViewOption == MainViewOption.Check ? "show" : "")">
+        <div class="app-controls" style="flex-direction: column;">
+            <ChecklistItem Checked="@_checklist?.IsIdentified" Show="@(_checklist != null)" 
+                           Title="Identifying Device" />
+            <ChecklistItem Checked="@_checklist?.IsIdentified" Show="@(_checklist?.InterfaceType != null)"
+                           Title="@(_checklist?.InterfaceType?.Name)" /> 
+        </div>
+   
+    </div>
+        
+    <div class="app-controls-container @(_mainViewOption == MainViewOption.Run ? "show" : "")">
+        <InfoPanel @ref="@InfoPanel"
                    Data="_liveData"
                    LastSession="@_lastSession"
-                   
-            @bind-Config="_config"
-            FtmsLogic="_ftmsLogic"
-            NoDeviceMode="_noDeviceMode"
-            Walk="_walk"
-            WalkChanged="SetWalkingState"
-            OnDisconnect="DisconnectDevice"
-            @bind-TrimSpeed="_trimSpeed"
-        />
-        
-    }
 
+                   @bind-Config="_config"
+                   FtmsLogic="_ftmsLogic"
+                   NoDeviceMode="_noDeviceMode"
+                   Walk="_walk"
+                   WalkChanged="SetWalkingState"
+                   OnDisconnect="DisconnectDevice"
+                   @bind-TrimSpeed="_trimSpeed"/>
+    </div>
+    
+    
     <div class="app-config-container">
  
         <SettingButton Icon="fa-solid fa-cog" Label="Config" OnClick="OpenSettings" />

@@ -1,7 +1,7 @@
 ﻿using Blazor.Bluetooth;
 using FitOSC.Shared.Extensions;
 
-namespace FitOSC.Shared.Interfaces;
+namespace FitOSC.Shared.Interfaces.GenericPad;
 
 public class GenericLogic(IDevice device) : BaseLogic(device)
 {
@@ -31,10 +31,7 @@ public class GenericLogic(IDevice device) : BaseLogic(device)
     public override async Task Stop()
     {
         await base.Stop();
-        if (State == TreadmillState.Running || State == TreadmillState.Paused)
-        {
-            await (ControlPoint?.ExecuteCommand(0x08, 0x01) ?? Task.CompletedTask);
-        }
+        await (ControlPoint?.ExecuteCommand(0x08, 0x01) ?? Task.CompletedTask);
     }
 
     public override async Task Pause() =>
@@ -42,6 +39,8 @@ public class GenericLogic(IDevice device) : BaseLogic(device)
 
     public override async Task SetSpeed(decimal speed, decimal maxSpeed) =>
         await (ControlPoint?.ExecuteCommand(0x02, ConvertSpeed(speed, maxSpeed)) ?? Task.CompletedTask);
+
+ 
     
     public override async Task<FitnessMachineFeatures?> GetFeatures()
     {

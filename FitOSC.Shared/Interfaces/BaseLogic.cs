@@ -1,10 +1,15 @@
 ﻿using Blazor.Bluetooth;
 using FitOSC.Shared.Extensions;
+using FitOSC.Shared.Utilities;
+using Swan.Formatters;
 
 namespace FitOSC.Shared.Interfaces;
 
 public abstract class BaseLogic(IDevice device) : IDisposable
 {
+    private readonly Session _session = new();
+
+    private TreadmillState _state = TreadmillState.Unknown;
     protected virtual string LogicName { get; } = "Base Logic";
     private IBluetoothRemoteGATTService? Service { get; set; }
     protected virtual string ServiceUuid { get; } = "0x0000FE00_0000_1000_8000_00805F9B34FB";
@@ -16,15 +21,7 @@ public abstract class BaseLogic(IDevice device) : IDisposable
     protected virtual string ControlPointUuid { get; } = "0x0000FE03_0000_1000_8000_00805F9B34FB";
     protected IBluetoothRemoteGATTCharacteristic? Features { get; set; }
     protected virtual string FeaturesUuid { get; } = "0x0000FE02_0000_1000_8000_00805F9B34FB";
-    
-    public event EventHandler<Session>? LastSessionDataReceived; 
-    public event EventHandler<FtmsData>? DataReceived;
-    public event EventHandler<TreadmillState>? TreadmillStateChanged;
-    
-    private readonly Session _session = new Session();
     protected IDevice Device { get; set; } = device;
-
-    private TreadmillState _state = TreadmillState.Unknown;
 
     protected TreadmillState State
     {
@@ -36,22 +33,49 @@ public abstract class BaseLogic(IDevice device) : IDisposable
             TreadmillStateChanged?.Invoke(this, _state);
         }
     }
-    
-    public virtual async Task Start() => await Task.CompletedTask;
-    public virtual async Task Start(decimal startSpeed, decimal maxSpeed) => await Task.CompletedTask;
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    public event EventHandler<Session>? LastSessionDataReceived;
+    public event EventHandler<FtmsData>? DataReceived;
+    public event EventHandler<TreadmillState>? TreadmillStateChanged;
+
+    public virtual async Task Start()
+    {
+        await Task.CompletedTask;
+    }
+
+    public virtual async Task Start(decimal startSpeed, decimal maxSpeed)
+    {
+        await Task.CompletedTask;
+    }
 
     public virtual async Task Stop()
     {
         if (State == TreadmillState.Running || State == TreadmillState.Paused)
-        {
             LastSessionDataReceived?.Invoke(this, _session);
-        }
         await Task.CompletedTask;
-        
     }
-    public virtual async Task Pause() => await Task.CompletedTask;
-    public virtual async Task SetSpeed(decimal d, decimal maxSpeed) => await Task.CompletedTask;
-    public virtual async Task Reset() => await Task.CompletedTask;
+
+    public virtual async Task Pause()
+    {
+        await Task.CompletedTask;
+    }
+
+    public virtual async Task SetSpeed(decimal d, decimal maxSpeed)
+    {
+        await Task.CompletedTask;
+    }
+
+    public virtual async Task Reset()
+    {
+        await Task.CompletedTask;
+    }
+  
     protected virtual void ReadData(object? sender, CharacteristicEventArgs args)
     {
         var ftmsData = FtmsCommands.ReadFtmsData(args.Value);
@@ -66,10 +90,9 @@ public abstract class BaseLogic(IDevice device) : IDisposable
         var features = FitnessMachineFeatures.Parse(args.Value);
     }
 
-    
-    
+
     public virtual async Task Connect()
-    { 
+    {
         const int maxRetries = 3;
         const int connectionDelayMs = 1000; // Delay before next connection attempt
         const int connectionTimeoutMs = 5000; // Connection timeout per attempt
@@ -77,7 +100,8 @@ public abstract class BaseLogic(IDevice device) : IDisposable
         try
         {
             // First, try connecting to the device with retries
-            bool initiallyConnected = await device.AttemptConnectionAsync(maxRetries, connectionDelayMs, connectionTimeoutMs);
+            var initiallyConnected =
+                await device.AttemptConnectionAsync(maxRetries, connectionDelayMs, connectionTimeoutMs);
             if (!initiallyConnected)
             {
                 Console.WriteLine("Failed to establish initial connection after multiple attempts.");
@@ -94,16 +118,15 @@ public abstract class BaseLogic(IDevice device) : IDisposable
 
             // After obtaining the service, ensure the connection is still solid
             // Some devices may require a "reconnect" logic or a stable connection before reading characteristics
-            bool reconnected = await device.AttemptConnectionAsync(maxRetries, connectionDelayMs, connectionTimeoutMs);
+            var reconnected = await device.AttemptConnectionAsync(maxRetries, connectionDelayMs, connectionTimeoutMs);
             if (!reconnected)
             {
                 Console.WriteLine("Failed to reconnect to the device after obtaining the service.");
                 throw new TimeoutException("Failed to reconnect to the device to access characteristics.");
             }
-            
+
             // Initialize Characteristics
             await Initialize(maxRetries, connectionDelayMs, connectionTimeoutMs);
-
             Console.WriteLine("Device connected and characteristics initialized successfully.");
         }
         catch (Exception ex)
@@ -121,14 +144,11 @@ public abstract class BaseLogic(IDevice device) : IDisposable
             throw; // Rethrow the exception after cleanup
         }
     }
-    
+
     private async Task Initialize(int maxRetries, int delayMs, int timeoutMs)
     {
-        if(Service == null)
-        {
-            throw new InvalidOperationException($"{LogicName} Service not found.");
-        }
-        
+        if (Service == null) throw new InvalidOperationException($"{LogicName} Service not found.");
+
         // Get characteristics
         var characteristics = await Service.GetCharacteristics();
         if (characteristics == null || !characteristics.Any())
@@ -145,15 +165,14 @@ public abstract class BaseLogic(IDevice device) : IDisposable
 
         // Verify that critical characteristics are available
         if (Features == null || ControlPoint == null)
-        {
             // If critical characteristics are missing, try reconnecting and retrying a few times
-            for (int i = 0; i < maxRetries; i++)
+            for (var i = 0; i < maxRetries; i++)
             {
                 Console.WriteLine("Critical characteristics not found. Retrying to reinitialize...");
                 await Task.Delay(delayMs);
 
                 // Attempt reconnection and re-fetching characteristics
-                bool connected = await device.AttemptConnectionAsync(1, delayMs, timeoutMs);
+                var connected = await device.AttemptConnectionAsync(1, delayMs, timeoutMs);
                 if (connected)
                 {
                     characteristics = await Service.GetCharacteristics();
@@ -161,23 +180,17 @@ public abstract class BaseLogic(IDevice device) : IDisposable
                     ControlPoint =
                         await characteristics.GetAndSubscribeToCharacteristic(ControlPointUuid, HandleControlPoint);
 
-                    if (DataPoint != null && ControlPoint != null)
-                    {
-                        break; // Successfully reinitialized critical characteristics
-                    }
+                    if (DataPoint != null &&
+                        ControlPoint != null) break; // Successfully reinitialized critical characteristics
                 }
 
                 if (i == maxRetries - 1)
-                {
                     throw new InvalidOperationException(
                         $"Unable to initialize critical {LogicName} characteristics after multiple retries.");
-                }
             }
-        }
     }
 
-    
-    
+
     public virtual async Task Disconnect()
     {
         if (ControlPoint != null)
@@ -192,10 +205,7 @@ public abstract class BaseLogic(IDevice device) : IDisposable
             DataPoint = null;
         }
 
-        if (Features != null)
-        {
-            Features = null;
-        }
+        if (Features != null) Features = null;
 
         if (StatusPoint != null)
         {
@@ -213,23 +223,22 @@ public abstract class BaseLogic(IDevice device) : IDisposable
         }
     }
 
-    
-    
+
     public virtual async Task<FitnessMachineFeatures?> GetFeatures()
     {
         await Task.CompletedTask;
         return null;
     }
+
     protected byte[] ConvertSpeed(decimal speed)
     {
-        
         try
         {
-            ushort speedInCmPerSecond = (ushort)(speed * 100);
-            byte[] speedBytes = new byte[]
+            var speedInCmPerSecond = (ushort)(speed * 100);
+            byte[] speedBytes =
             {
-                (byte)(speedInCmPerSecond & 0xFF),         // Lower byte of speed
-                (byte)((speedInCmPerSecond >> 8) & 0xFF)   // Upper byte of speed
+                (byte)(speedInCmPerSecond & 0xFF), // Lower byte of speed
+                (byte)((speedInCmPerSecond >> 8) & 0xFF) // Upper byte of speed
             };
             return speedBytes;
         }
@@ -237,14 +246,15 @@ public abstract class BaseLogic(IDevice device) : IDisposable
         {
             //throw new Exception($"Failed to convert {speed} to byte array.");
         }
+
         return new byte[0];
     }
-    
+
     protected byte[] ConvertSpeed(decimal speed, decimal maxSpeed)
     {
         try
         {
-            if (speed >= maxSpeed) 
+            if (speed >= maxSpeed)
                 return ConvertSpeed(maxSpeed);
             return ConvertSpeed(speed);
         }
@@ -252,16 +262,16 @@ public abstract class BaseLogic(IDevice device) : IDisposable
         {
             //throw new Exception($"Failed to convert {speed} to byte array.");
         }
+
         return new byte[0];
     }
-    
-    
-    
+
+
     protected virtual void HandleControlPoint(object? sender, CharacteristicEventArgs args)
     {
-        byte opcode = args.Value[0];
-        byte result = args.Value.Length > 1 ? args.Value[1] : (byte)0;
-        string commandName = opcode switch
+        var opcode = args.Value[0];
+        var result = args.Value.Length > 1 ? args.Value[1] : (byte)0;
+        var commandName = opcode switch
         {
             0x80 => "Request Control",
             0x81 => "Reset",
@@ -278,12 +288,13 @@ public abstract class BaseLogic(IDevice device) : IDisposable
 
         Console.WriteLine($"> Received '{commandName}' response, Result: {result}");
     }
+
     protected virtual void HandleStatusChange(object? sender, CharacteristicEventArgs args)
     {
-        byte[] value = args.Value;
+        var value = args.Value;
 
         // The first byte of the notification contains the status event code.
-        byte statusCode = value[0];
+        var statusCode = value[0];
 
         switch (statusCode)
         {
@@ -301,18 +312,12 @@ public abstract class BaseLogic(IDevice device) : IDisposable
                 break;
         }
     }
-
+    
 
     protected virtual void Dispose(bool disposing)
     {
         if (disposing)
         {
         }
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
     }
 }

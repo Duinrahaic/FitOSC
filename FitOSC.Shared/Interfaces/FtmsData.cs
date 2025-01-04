@@ -1,6 +1,4 @@
-﻿using System.Runtime.InteropServices;
-
-namespace FitOSC.Shared.Interfaces;
+﻿namespace FitOSC.Shared.Interfaces;
 
 public class FtmsData
 {
@@ -13,7 +11,7 @@ public class FtmsData
     public ushort? RemainingTime { get; set; }
     public double? ElevGain { get; set; }
     public int? MET { get; set; }
-    public int? InsPace { get; set; } 
-    public int? AvgPace { get; set; } 
+    public int? InsPace { get; set; }
+    public int? AvgPace { get; set; }
     public int? Steps { get; set; }
 }

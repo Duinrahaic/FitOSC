@@ -5,88 +5,97 @@ namespace FitOSC.Shared.Interfaces;
 
 public class FitnessMachineFeatures
 {
-    [DisplayName("Average Speed ")]
-    public bool AverageSpeedSupported { get; set; }
-    [DisplayName("Cadence")]
-    public bool CadenceSupported { get; set; }
-    [DisplayName("Total Distance")]
-    public bool TotalDistanceSupported { get; set; }
-    [DisplayName("Inclination")]
-    public bool InclinationSupported { get; set; }
-    [DisplayName("Elevation Gain")]
-    public bool ElevationGainSupported { get; set; }
-    [DisplayName("Pace")]
-    public bool PaceSupported { get; set; }
-    [DisplayName("Step Count")]
-    public bool StepCountSupported { get; set; }
-    [DisplayName("Resistance Level")]
-    public bool ResistanceLevelSupported { get; set; }
-    [DisplayName("Stride Count")]
-    public bool StrideCountSupported { get; set; }
-    [DisplayName("Expended Energy")]
-    public bool ExpendedEnergySupported { get; set; }
+    [DisplayName("Average Speed ")] public bool AverageSpeedSupported { get; set; }
+
+    [DisplayName("Cadence")] public bool CadenceSupported { get; set; }
+
+    [DisplayName("Total Distance")] public bool TotalDistanceSupported { get; set; }
+
+    [DisplayName("Inclination")] public bool InclinationSupported { get; set; }
+
+    [DisplayName("Elevation Gain")] public bool ElevationGainSupported { get; set; }
+
+    [DisplayName("Pace")] public bool PaceSupported { get; set; }
+
+    [DisplayName("Step Count")] public bool StepCountSupported { get; set; }
+
+    [DisplayName("Resistance Level")] public bool ResistanceLevelSupported { get; set; }
+
+    [DisplayName("Stride Count")] public bool StrideCountSupported { get; set; }
+
+    [DisplayName("Expended Energy")] public bool ExpendedEnergySupported { get; set; }
+
     [DisplayName("Heart Rate Measurement")]
     public bool HeartRateMeasurementSupported { get; set; }
-    [DisplayName("Metabolic Equivalent")]
-    public bool MetabolicEquivalentSupported { get; set; }
-    [DisplayName("Elapsed Time")]
-    public bool ElapsedTimeSupported { get; set; }
-    [DisplayName("Remaining Time")]
-    public bool RemainingTimeSupported { get; set; }
-    [DisplayName("Power Measurement")]
-    public bool PowerMeasurementSupported { get; set; }
+
+    [DisplayName("Metabolic Equivalent")] public bool MetabolicEquivalentSupported { get; set; }
+
+    [DisplayName("Elapsed Time")] public bool ElapsedTimeSupported { get; set; }
+
+    [DisplayName("Remaining Time")] public bool RemainingTimeSupported { get; set; }
+
+    [DisplayName("Power Measurement")] public bool PowerMeasurementSupported { get; set; }
+
     [DisplayName("Force On Belt And Power Output")]
     public bool ForceOnBeltAndPowerOutputSupported { get; set; }
-    [DisplayName("User Data Retention")]
-    public bool UserDataRetentionSupported { get; set; }
+
+    [DisplayName("User Data Retention")] public bool UserDataRetentionSupported { get; set; }
 
     // Target Setting Features (4.3.1.2)
-    [DisplayName("Speed Target")]
-    public bool SpeedTargetSettingSupported { get; set; }
-    [DisplayName("Inclination Target")]
-    public bool InclinationTargetSettingSupported { get; set; }
-    [DisplayName("Resistance Target")]
-    public bool ResistanceTargetSettingSupported { get; set; }
-    [DisplayName("Power Target")]
-    public bool PowerTargetSettingSupported { get; set; }
-    [DisplayName("Heart Rate Target")]
-    public bool HeartRateTargetSettingSupported { get; set; }
+    [DisplayName("Speed Target")] public bool SpeedTargetSettingSupported { get; set; }
+
+    [DisplayName("Inclination Target")] public bool InclinationTargetSettingSupported { get; set; }
+
+    [DisplayName("Resistance Target")] public bool ResistanceTargetSettingSupported { get; set; }
+
+    [DisplayName("Power Target")] public bool PowerTargetSettingSupported { get; set; }
+
+    [DisplayName("Heart Rate Target")] public bool HeartRateTargetSettingSupported { get; set; }
+
     [DisplayName("Targeted Expended Energy Configuration")]
     public bool TargetedExpendedEnergyConfigurationSupported { get; set; }
+
     [DisplayName("Targeted Step Number Configuration")]
     public bool TargetedStepNumberConfigurationSupported { get; set; }
+
     [DisplayName("Targeted Stride Number Configuration")]
     public bool TargetedStrideNumberConfigurationSupported { get; set; }
+
     [DisplayName("Targeted Distance Configuration")]
     public bool TargetedDistanceConfigurationSupported { get; set; }
+
     [DisplayName("Targeted Training Time Configuration")]
     public bool TargetedTrainingTimeConfigurationSupported { get; set; }
+
     [DisplayName("Targeted Time In Two Heart Rate Zones")]
     public bool TargetedTimeInTwoHeartRateZonesSupported { get; set; }
+
     [DisplayName("Targeted Time In Three Heart Rate Zones")]
     public bool TargetedTimeInThreeHeartRateZonesSupported { get; set; }
+
     [DisplayName("Targeted Time In Five Heart Rate Zones")]
     public bool TargetedTimeInFiveHeartRateZonesSupported { get; set; }
+
     [DisplayName("Indoor Bike Simulation Parameters")]
     public bool IndoorBikeSimulationParametersSupported { get; set; }
+
     [DisplayName("Wheel Circumference Configuration")]
     public bool WheelCircumferenceConfigurationSupported { get; set; }
-    [DisplayName("Spin Down Control")]
-    public bool SpinDownControlSupported { get; set; }
+
+    [DisplayName("Spin Down Control")] public bool SpinDownControlSupported { get; set; }
+
     [DisplayName("Targeted Cadence Configuration")]
     public bool TargetedCadenceConfigurationSupported { get; set; }
 
     public static FitnessMachineFeatures Parse(byte[] data)
     {
         if (data == null || data.Length < 8)
-        {
             throw new ArgumentException("Invalid data length. Must be at least 8 bytes.");
-        }
 
         var features = new FitnessMachineFeatures();
 
         // Parse Fitness Machine Features (first 4 bytes)
-        uint fitnessFeatures = BitConverter.ToUInt32(data, 0);
+        var fitnessFeatures = BitConverter.ToUInt32(data, 0);
         features.AverageSpeedSupported = (fitnessFeatures & (1 << 0)) != 0;
         features.CadenceSupported = (fitnessFeatures & (1 << 1)) != 0;
         features.TotalDistanceSupported = (fitnessFeatures & (1 << 2)) != 0;
@@ -106,7 +115,7 @@ public class FitnessMachineFeatures
         features.UserDataRetentionSupported = (fitnessFeatures & (1 << 16)) != 0;
 
         // Parse Target Setting Features (next 4 bytes)
-        uint targetFeatures = BitConverter.ToUInt32(data, 4);
+        var targetFeatures = BitConverter.ToUInt32(data, 4);
         features.SpeedTargetSettingSupported = (targetFeatures & (1 << 0)) != 0;
         features.InclinationTargetSettingSupported = (targetFeatures & (1 << 1)) != 0;
         features.ResistanceTargetSettingSupported = (targetFeatures & (1 << 2)) != 0;
@@ -127,7 +136,7 @@ public class FitnessMachineFeatures
 
         return features;
     }
-    
+
     public Dictionary<string, bool> ToDictionary()
     {
         var result = new Dictionary<string, bool>();
@@ -137,9 +146,7 @@ public class FitnessMachineFeatures
         {
             var displayAttribute = property.GetCustomAttribute<DisplayNameAttribute>();
             if (displayAttribute != null)
-            {
                 result[displayAttribute.DisplayName ?? property.Name] = property.GetValue(this) as bool? ?? false;
-            }
         }
 
         return result;

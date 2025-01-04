@@ -1,4 +1,4 @@
-﻿namespace FitOSC.Shared.Interfaces;
+﻿namespace FitOSC.Shared.Interfaces.WalkingPad;
 
 public class WalkingPadData
 {

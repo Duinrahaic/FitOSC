@@ -1,38 +1,45 @@
 @import "_variables";
-@font-face {
-  font-family: 'Brush Script MT';
-  src: url('../../css/fonts/brush-script-mt.ttf') format('truetype');
+
+@font-face
+{
+  font-family: "Brush Script MT";
+  src: url("../../css/fonts/brush-script-mt.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }
 
-@font-face {
-  font-family: 'Open Iconic';
-  src: url('../../css/fonts/open-iconic.eot');
-  src: url('../../css/fonts/open-iconic.eot?#iefix') format('embedded-opentype'),
-  url('../../css/fonts/open-iconic.woff') format('woff'),
-  url('../../css/fonts/open-iconic.ttf') format('truetype'),
-  url('../../css/fonts/open-iconic.svg#openiconic') format('svg');
+@font-face
+{
+  font-family: "Open Iconic";
+  src: url("../../css/fonts/open-iconic.eot");
+  src: url("../../css/fonts/open-iconic.eot?#iefix") format("embedded-opentype"),
+  url("../../css/fonts/open-iconic.woff") format("woff"),
+  url("../../css/fonts/open-iconic.ttf") format("truetype"),
+  url("../../css/fonts/open-iconic.svg#openiconic") format("svg");
   font-weight: normal;
   font-style: normal;
 }
 
-body{
-  	font-family: 'Roboto', sans-serif;
-  	background-color: $theme-color-background;
-  	color: $theme-color-text;
-  	position: relative;
-  	margin: 0;
+body
+{
+  font-family: "Roboto", sans-serif;
+  background-color: $theme-color-background;
+  color: $theme-color-text;
+  position: relative;
+  margin: 0;
 }
 
-.app{
+.app
+{
   display: flex;
   height: 100vh;
   user-select: none;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  .app-center{
+  
+  .app-center
+  {
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
@@ -40,23 +47,25 @@ body{
 	width: min(100%, 800px);
 	margin-outside: auto;
 	margin-top: 3rem;
-
-	.app-header-title {
+	
+	.app-header-title
+	{
 	  font-size: 120px;
 	  padding: 8px;
 	  position: absolute;
 	  top: 20px;
-	  font-family: 'Brush Script MT', cursive;
+	  font-family: "Brush Script MT", cursive;
 	  background: linear-gradient(to right,
 			  #0077ff,
 			  #01c1ff);
 	  -webkit-background-clip: text;
 	  color: transparent; /* Ensures the gradient is visible */
 	  pointer-events: none;
- 
+	  
 	}
 	
-	.app-divider{
+	.app-divider
+	{
 	  width: 200px;
 	  border-bottom: 1px solid white;
 	  display: flex;
@@ -64,38 +73,91 @@ body{
 	  justify-content: center;
 	  align-items: center;
 	  transform: translateY(-50%);
-
-	  div{
+	  pointer-events: none;
+	  div
+	  {
 		transform: translateY(50%);
 		background: $theme-color-background;
-		padding: 0 2px;
+		padding: 10px 2px;
 	  }
 	}
 	
-	.app-controls-container{
+	.app-controls-container
+	{
 	  display: flex;
 	  flex-direction: column;
-	  gap: 1rem;
+	  gap: 2px;
 	  align-content: center;
 	  justify-content: center;
+	  position: absolute;
+	  opacity: 0;
+	  transition: opacity 0.5s ease-in-out;
+	  &.show
+	  {
+		opacity: 1;
+		z-index: 50;
+	  }
 	}
 	
-	.app-controls{
+	.app-checklist-item
+	{
+	  opacity: 0;
+	  transition: opacity 0.5s ease-in-out;
+	  
+	  display: flex;
+	  flex-direction: row;
+	  align-items: center;
+	  justify-content: flex-start;;
+	  gap: 1rem;
+	  padding: 8px 12px;
+	  border-radius: 8px;
+	  background: $theme-color-shadow;
+	  flex-grow: 1;
+	  
+	  &.show{
+		opacity: 1;
+	  }
+	  
+	  div{
+		flex-grow: 1;
+	  }
+	  
+	  i {
+		&.fa-check-square{
+		  color: #4caf50;
+		}
+		&.fa-x-square{
+		  color: red;
+		}
+		color: dodgerblue;
+	  }
+	  
+	}
+	
+	
+	.app-controls
+	{
 	  display: flex;
 	  flex-direction: row;
 	  gap: 1rem;
 	  align-content: center;
 	  justify-content: center;
 	}
-	.app-title{
+	
+	.app-title
+	{
 	  font-size: 2rem;
 	  margin-bottom: 1rem;
 	}
-	.app-subtitle{
+	
+	.app-subtitle
+	{
 	  font-size: 1rem;
 	  margin-bottom: 1rem;
 	}
-	button {
+	
+	button
+	{
 	  background-color: $theme-color-primary;
 	  color: white;
 	  padding: 0.5rem 1rem;
@@ -106,22 +168,30 @@ body{
 	  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
 	  user-select: none;
 	  
-	  &.enabled{
+	  &.enabled
+	  {
 		background-color: #26b050;
-		&:hover:not(:disabled) {
+		
+		&:hover:not(:disabled)
+		{
 		  //noinspection CssInvalidFunction
-		  background-color: darken(#26b050, 10%) ;
+		  background-color: darken(#26b050, 10%);
 		}
 	  }
-	  &.disabled{
+	  
+	  &.disabled
+	  {
 		background-color: #b02626;
-		&:hover:not(:disabled) {
+		
+		&:hover:not(:disabled)
+		{
 		  //noinspection CssInvalidFunction
-		  background-color: darken(#b02626, 10%) ;
+		  background-color: darken(#b02626, 10%);
 		}
 	  }
-
-	  &.circle-button{
+	  
+	  &.circle-button
+	  {
 		width: 40px;
 		height: 40px;
 		border-radius: 50%; /* Makes the button a circle */
@@ -133,43 +203,54 @@ body{
 		border: none;
 		cursor: pointer;
 		transition: background-color 0.3s;
- 
+		
 	  }
-	  &:disabled {
+	  
+	  &:disabled
+	  {
 		//noinspection CssInvalidFunction
 		background-color: lighten($theme-color-primary, 10%); // Lighten the background color
 		cursor: default;
 		opacity: 0.6; // Dim the button to show it's disabled
 		border-color: transparent;
 		box-shadow: none;
-
+		
 	  }
 	  
-	  &:hover:not(:disabled) {
+	  &:hover:not(:disabled)
+	  {
 		//noinspection CssInvalidFunction
 		background: darken($theme-color-primary, 10%);
-		&.enable{
+		
+		&.enable
+		{
 		  //noinspection CssInvalidFunction
-		  background-color: darken(#26b050, 10%) ;
+		  background-color: darken(#26b050, 10%);
 		}
-		&.disabled{
+		
+		&.disabled
+		{
 		  //noinspection CssInvalidFunction
-		  background-color: darken(#b02626, 10%) ;
+		  background-color: darken(#b02626, 10%);
 		}
 	  }
 	  
-	  &.interacted {
+	  &.interacted
+	  {
 		border: 2px solid darkblue; // Define your glow color variable
 		box-shadow: 0 0 10px 2px darkblue;
-
+		
 		animation: glow 0.25s forwards;
-
-		@keyframes glow {
-		  0% {
+		
+		@keyframes glow
+		{
+		  0%
+		  {
 			border-color: darkblue;
 			box-shadow: 0 0 10px 2px darkblue;
 		  }
-		  100% {
+		  100%
+		  {
 			border-color: transparent;
 			box-shadow: none;
 		  }
@@ -177,53 +258,64 @@ body{
 	  }
 	}
 	
-	.app-info{
+	.app-info
+	{
 	  display: flex;
 	  flex-direction: row;
 	  gap: 80px;
-	  margin-top: 1rem;
+	  margin-top: 12px;
 	  background: $theme-color-shadow;
 	  padding: 8px 30px;
-	  width: 60%;
 	  border-radius: 8px;
 	  user-select: none;
-	  justify-content: space-evenly;
+	  justify-content: space-between;
 	  position: relative;
-	 
 	  
-	  .app-info-item{
+	  
+	  .app-info-item
+	  {
 		display: flex;
 		flex-direction: column;
 		justify-content: flex-start;
 		align-items: center;
 		gap: 12px;
 		
-		&.lastSession{
-		  .app-info-item-value{
+		&.lastSession
+		{
+		  .app-info-item-value
+		  {
 			color: $theme-color-primary;
 		  }
 		}
 		
-		button{
+		button
+		{
 		  margin: auto;
 		}
 		
 		
-		.app-info-item-title{
+		.app-info-item-title
+		{
 		  margin: 2px;
 		  //noinspection CssInvalidFunction
 		  border-bottom: 1px solid transparentize(white, 0.5);
 		}
-		.app-info-item-value{
-		   
+		
+		.app-info-item-value
+		{
+		  
 		}
-		.app-info-item-unit{
+		
+		.app-info-item-unit
+		{
 		  font-size: 0.8rem;
 		}
 	  }
 	}
   }
-  .app-config-container {
+  
+  .app-config-container
+  {
 	display: flex;
 	flex-direction: row;
 	gap: 1rem;
@@ -231,10 +323,12 @@ body{
 	position: absolute;
 	left: 0;
 	padding: 1rem;
-	.app-config-item{
+	
+	.app-config-item
+	{
 	  height: 60px;
 	  width: 60px;
-
+	  
 	  display: flex;
 	  align-items: center;
 	  justify-content: center;
@@ -242,17 +336,21 @@ body{
 	  overflow: hidden;
 	  background: $theme-color-shadow;
 	  
-	  &:disabled{
+	  &:disabled
+	  {
 		background: $theme-color-shadow;
-
+		
 	  }
 	  
 	  
-	  &:hover:not(:disabled) {
+	  &:hover:not(:disabled)
+	  {
 		background: $theme-color-shadow;
-
+		
 		cursor: pointer;
-		label{
+		
+		label
+		{
 		  transform: translateY(-60px);
 		  scale: 1;
 		  transition: scale 0.1s ease-in-out;
@@ -260,22 +358,27 @@ body{
 		  
 		}
 	  }
-		.app-config-item-icon-background{
-		  width: 48px;
-		  height: 48px;
-		  background: $theme-color-shadow;
-		  display: flex;
-		  align-items: center;
-		  justify-content: center;
-		  i{
-
-			font-size: 32px;
-			z-index: 2;
-
-		  }
+	  
+	  .app-config-item-icon-background
+	  {
+		width: 48px;
+		height: 48px;
+		background: $theme-color-shadow;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		
+		i
+		{
+		  
+		  font-size: 32px;
+		  z-index: 2;
+		  
 		}
-
-	  label{
+	  }
+	  
+	  label
+	  {
 		position: absolute;
 		z-index: 0;
 		background: $theme-color-shadow;
@@ -285,7 +388,9 @@ body{
 	  }
 	}
   }
-  .app-support-container {
+  
+  .app-support-container
+  {
 	display: flex;
 	flex-direction: row;
 	gap: 1rem;
@@ -293,7 +398,9 @@ body{
 	position: absolute;
 	right: 0;
 	padding: 1rem;
-	.app-support-item{
+	
+	.app-support-item
+	{
 	  height: 60px;
 	  width: 60px;
 	  display: flex;
@@ -301,24 +408,31 @@ body{
 	  justify-content: center;
 	  border-radius: 50%;
 	  overflow: hidden;
-	  &:hover {
+	  
+	  &:hover
+	  {
 		cursor: pointer;
-		label{
+		
+		label
+		{
 		  transform: translateY(-60px);
 		  scale: 1;
 		  transition: scale 0.1s ease-in-out;
 		}
 	  }
 	  
-	  img{
+	  img
+	  {
 		width: 48px;
 		height: 48px;
 		z-index: 2;
 		padding: 12px;
 		background: $theme-color-shadow;
-
+		
 	  }
-	  label{
+	  
+	  label
+	  {
 		position: absolute;
 		z-index: 0;
 		background: $theme-color-shadow;
@@ -328,13 +442,12 @@ body{
 	  }
 	}
 	
-
-	
 	
   }
 }
 
-.app-modal-container{
+.app-modal-container
+{
   display: none;
   flex-direction: column;
   gap: 1rem;
@@ -347,46 +460,56 @@ body{
   align-items: center;
   z-index: 100;
   
-  &.open{
+  &.open
+  {
 	display: flex;
   }
   
-  .app-modal-background{
+  .app-modal-background
+  {
 	position: absolute;
 	height: 100%;
 	width: 100%;
 	background-color: rgba(0, 0, 0, 0.3); /* semi-transparent background */
-	backdrop-filter: blur(2px); /* Adjust the blur intensity */	
+	backdrop-filter: blur(2px); /* Adjust the blur intensity */
 	cursor: pointer;
 	pointer-events: all;
   }
   
-  .app-modal {
+  .app-modal
+  {
 	z-index: 101;
 	background-color: $theme-color-background;
 	border-radius: 8px;
 	width: clamp(400px, 50%, 800px);
-	.app-modal-header{
+	
+	.app-modal-header
+	{
 	  display: flex;
 	  flex-direction: row;
 	  justify-content: space-between;
 	  align-items: center;
 	  padding: 8px 12px;
-	  font-size: 20px;		  
+	  font-size: 20px;
 	  //noinspection CssInvalidFunction
 	  border-bottom: 1px solid transparentize(white, 0.5);
 	  
-	  .app-modal-header-close{
+	  .app-modal-header-close
+	  {
 		pointer-events: all;
-
+		
 		cursor: pointer;
-		&:hover {
+		
+		&:hover
+		{
 		  //noinspection CssInvalidFunction
 		  color: darken($theme-color-text, 10%);
 		}
 	  }
 	}
-	.app-modal-body{
+	
+	.app-modal-body
+	{
 	  display: flex;
 	  flex-direction: column;
 	  gap: 4px;
@@ -394,10 +517,11 @@ body{
 	  justify-content: flex-start;
 	  height: 600px;
 	  overflow-y: auto;
-	  flex-grow:1;
+	  flex-grow: 1;
 	  padding: 4px 12px;
 	  
-	  .app-modal-body-container{
+	  .app-modal-body-container
+	  {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
@@ -406,42 +530,52 @@ body{
 		width: 100%;
 	  }
 	  
-		.app-modal-body-content-item {
-		  display: flex;
-		  flex-direction: row;
-		  gap: 1rem;
-		  justify-content: space-between;
-		  align-items: center;
-		  width: 100%;
-
-
-		  label{
-			flex-grow: 1;
-		  }
-		  i{
-			font-size: 1.5rem;
-			&.fa-check-circle{
-			  color: #4caf50;
-			}
-			&.fa-circle-xmark{
-			  color: #dc0d0d;
-			}
-		  }
+	  .app-modal-body-content-item
+	  {
+		display: flex;
+		flex-direction: row;
+		gap: 1rem;
+		justify-content: space-between;
+		align-items: center;
+		width: 100%;
+		font-size: 1.5rem;
+		
+		
+		label
+		{
+		  flex-grow: 1;
 		}
 		
-	    #settings{
-		  display: flex;
-		  flex-direction: column;
-		  gap: 1rem;
-		  align-items: center;
-		  justify-content: flex-start;
-		  width: 100%;
+		i
+		{
+		  
+		  &.fa-check-circle
+		  {
+			color: #4caf50;
+		  }
+		  
+		  &.fa-circle-x-square
+		  {
+			color: #dc0d0d;
+		  }
 		}
+	  }
 	  
-
+	  #settings
+	  {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		align-items: center;
+		justify-content: flex-start;
+		width: 100%;
+	  }
+	  
 	  
 	}
-	.app-modal-footer{
+	
+	.app-modal-footer
+	{
 	  display: flex;
 	  flex-direction: row;
 	  justify-content: flex-end;
@@ -450,7 +584,9 @@ body{
 	  //noinspection CssInvalidFunction
 	  border-top: 1px solid transparentize(white, 0.5);
 	  gap: 1rem;
-	  button{
+	  
+	  button
+	  {
 		padding: 4px 12px;
 		border: 2px solid transparent;
 		border-radius: 0.25rem;
@@ -461,21 +597,24 @@ body{
 		background: $theme-color-primary;
 		color: white;
 		
-		&:hover:not(:disabled) {
+		&:hover:not(:disabled)
+		{
 		  //noinspection CssInvalidFunction
 		  background: darken($theme-color-primary, 10%);
-
+		  
 		}
 	  }
 	}
   }
 }
 
-@function interpolate-color($value) {
+@function interpolate-color($value)
+{
   @return linear-gradient(to right, #4caf50 calc(#{$value} * 100%), #ddd calc(#{$value} * 100%));
 }
 
-.app-trim-container{
+.app-trim-container
+{
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -483,39 +622,43 @@ body{
   gap: 1rem;
   background: $theme-color-shadow;
   padding: 8px 30px;
-  width: 60%;
   border-radius: 8px;
   margin-top: 1rem;
-
-
-  label{
+  
+  
+  label
+  {
 	white-space: nowrap;
 	min-width: 5ch;
   }
 }
 
-.trim-pot {
+.trim-pot
+{
   min-width: 200px;
   position: relative;
   display: flex;
   flex-grow: 1;
-
-  .trim-slider {
+  
+  .trim-slider
+  {
 	width: 100%;
 	height: 10px;
 	border-radius: 5px;
 	outline: none;
-
+	
 	// Use the data-value attribute to set the --value custom property
-	&[data-value] {
+	&[data-value]
+	{
 	  --value: attr(data-value number);
-
+	  
 	  // Apply the background based on the --value custom property
 	  background: interpolate-color(var(--value));
 	}
-
+	
 	// Style the thumb (the knob that the user drags)
-	&::-webkit-slider-thumb {
+	&::-webkit-slider-thumb
+	{
 	  -webkit-appearance: none;
 	  appearance: none;
 	  width: 25px;

@@ -5,6 +5,7 @@ using FitOSC.Shared.Components.UI;
 using FitOSC.Shared.Config;
 using FitOSC.Shared.Utilities;
 using FitOSC.Shared.Extensions;
+using FitOSC.Shared.Interfaces.GenericPad;
 using Valve.VR;
 
 namespace FitOSC.Pages;

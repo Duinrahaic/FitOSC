@@ -19,14 +19,14 @@
         <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
     <ItemGroup>
-        <Compile Remove="DawnCache\**" />
-        <Compile Remove="GPUCache\**" />
-        <Content Remove="DawnCache\**" />
-        <Content Remove="GPUCache\**" />
-        <EmbeddedResource Remove="DawnCache\**" />
-        <EmbeddedResource Remove="GPUCache\**" />
-        <None Remove="DawnCache\**" />
-        <None Remove="GPUCache\**" />
+        <Compile Remove="DawnCache\**"/>
+        <Compile Remove="GPUCache\**"/>
+        <Content Remove="DawnCache\**"/>
+        <Content Remove="GPUCache\**"/>
+        <EmbeddedResource Remove="DawnCache\**"/>
+        <EmbeddedResource Remove="GPUCache\**"/>
+        <None Remove="DawnCache\**"/>
+        <None Remove="GPUCache\**"/>
         <Compile Update="App.axaml.cs">
             <DependentUpon>App.axaml</DependentUpon>
             <SubType>Code</SubType>
@@ -43,89 +43,89 @@
             <DependentUpon>ClientWindow.axaml</DependentUpon>
             <SubType>Code</SubType>
         </Compile>
-        <Compile Remove="Devices\FTMSDevice.cs" />
-        <Compile Remove="MainWindow.axaml.cs" />
+        <Compile Remove="Devices\FTMSDevice.cs"/>
+        <Compile Remove="MainWindow.axaml.cs"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.10" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="8.0.10" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="8.0.91" />
-        
-        <PackageReference Include="Avalonia" Version="11.1.4" />
-        <PackageReference Include="Avalonia.Desktop" Version="11.1.4" />
-        <PackageReference Include="Avalonia.ReactiveUI" Version="11.1.4" />
-        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.4" />
-        <PackageReference Include="Avalonia.Themes.Simple" Version="11.1.4" />
-        <PackageReference Include="Serilog.Sinks.Async" Version="2.0.0" />
-        <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
-        <TrimmableAssembly Include="Avalonia.Themes.Fluent" />
-        <TrimmableAssembly Include="Avalonia.Themes.Default" />
+        <PackageReference Include="Blazored.LocalStorage" Version="4.5.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.10"/>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="8.0.10"/>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="8.0.91"/>
+
+        <PackageReference Include="Avalonia" Version="11.1.4"/>
+        <PackageReference Include="Avalonia.Desktop" Version="11.1.4"/>
+        <PackageReference Include="Avalonia.ReactiveUI" Version="11.1.4"/>
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.4"/>
+        <PackageReference Include="Avalonia.Themes.Simple" Version="11.1.4"/>
+        <PackageReference Include="Serilog.Sinks.Async" Version="2.0.0"/>
+        <PackageReference Include="Serilog.Sinks.File" Version="6.0.0"/>
+        <TrimmableAssembly Include="Avalonia.Themes.Fluent"/>
+        <TrimmableAssembly Include="Avalonia.Themes.Default"/>
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.1.4" />
+        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.1.4"/>
     </ItemGroup>
     <ItemGroup>
-      <None Remove="Assets\icon.ico" />
-      <AvaloniaResource Include="Assets\icon.ico">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </AvaloniaResource>
+        <None Remove="Assets\icon.ico"/>
+        <AvaloniaResource Include="Assets\icon.ico">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </AvaloniaResource>
     </ItemGroup>
     <ItemGroup>
-      <ProjectReference Include="..\FitOSC.Shared\FitOSC.Shared.csproj" />
+        <ProjectReference Include="..\FitOSC.Shared\FitOSC.Shared.csproj"/>
     </ItemGroup>
     <ItemGroup>
-      <_ContentIncludedByDefault Remove="wwwroot\css\app.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\all.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\all.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\brands.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\brands.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\fontawesome.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\fontawesome.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\regular.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\regular.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\solid.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\solid.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\svg-with-js.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\svg-with-js.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-font-face.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-font-face.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-shims.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-shims.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v5-font-face.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v5-font-face.min.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\LICENSE.txt" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-brands-400.ttf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-brands-400.woff2" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-regular-400.ttf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-regular-400.woff2" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-solid-900.ttf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-solid-900.woff2" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-v4compatibility.ttf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-v4compatibility.woff2" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.svg" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.ttf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.woff" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.woff2" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.eot" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.otf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.svg" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.ttf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.woff" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\fonts\VarelaRound-Regular.ttf" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\icons.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\scss\app.css" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\scss\app.css.map" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\scss\app.scss" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\scss\_main.scss" />
-      <_ContentIncludedByDefault Remove="wwwroot\css\scss\_variables.scss" />
-      <_ContentIncludedByDefault Remove="wwwroot\js\jquery-3.7.1.min.js" />
-      <_ContentIncludedByDefault Remove="wwwroot\js\popper.min.js" />
+        <_ContentIncludedByDefault Remove="wwwroot\css\app.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\all.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\all.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\brands.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\brands.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\fontawesome.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\fontawesome.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\regular.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\regular.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\solid.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\solid.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\svg-with-js.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\svg-with-js.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-font-face.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-font-face.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-shims.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v4-shims.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v5-font-face.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\css\v5-font-face.min.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\LICENSE.txt"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-brands-400.ttf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-brands-400.woff2"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-regular-400.ttf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-regular-400.woff2"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-solid-900.ttf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-solid-900.woff2"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-v4compatibility.ttf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\font-awesome\webfonts\fa-v4compatibility.woff2"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.svg"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.ttf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.woff"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\lucide.woff2"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.eot"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.otf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.svg"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.ttf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\open-iconic.woff"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\fonts\VarelaRound-Regular.ttf"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\icons.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\scss\app.css"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\scss\app.css.map"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\scss\app.scss"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\scss\_main.scss"/>
+        <_ContentIncludedByDefault Remove="wwwroot\css\scss\_variables.scss"/>
+        <_ContentIncludedByDefault Remove="wwwroot\js\jquery-3.7.1.min.js"/>
+        <_ContentIncludedByDefault Remove="wwwroot\js\popper.min.js"/>
     </ItemGroup>
     <ItemGroup>
-      <ContentWithTargetPath Include="OpenVR\openvr_api.dll">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        <TargetPath>openvr_api.dll</TargetPath>
-      </ContentWithTargetPath>
+        <ContentWithTargetPath Include="OpenVR\openvr_api.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <TargetPath>openvr_api.dll</TargetPath>
+        </ContentWithTargetPath>
     </ItemGroup>
 </Project>

@@ -1,8 +1,4 @@
-﻿@using System.Diagnostics
-@using System.Runtime.InteropServices
-@using Microsoft.AspNetCore.Components.Web
-
-<button class="app-config-item" @onclick="Click" disabled="@Disable">
+﻿<button class="app-config-item" @onclick="Click" disabled="@Disable">
     <div class="app-config-item-icon-background">
         <i class="@Icon"></i>
     </div>
@@ -20,4 +16,5 @@
     {
         OnClick.InvokeAsync();
     }
+
 }

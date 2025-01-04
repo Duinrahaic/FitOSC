@@ -10,7 +10,9 @@ public partial class NewIndex: IDisposable
     protected override void OnInitialized()
     {
          Ovr.OnDataUpdateReceived += OnOvrDataUpdateReceived;
+         
     }
+    
     
     private void SetWalkingState(bool state)
     {

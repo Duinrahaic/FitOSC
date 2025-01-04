@@ -7,25 +7,31 @@
         <RazorLangVersion>8.0</RazorLangVersion>
     </PropertyGroup>
     <ItemGroup>
-        <SupportedPlatform Include="browser" />
+        <SupportedPlatform Include="browser"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Blazor.Bluetooth" Version="1.0.6.2" />
-        <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
-        <PackageReference Include="LucHeart.CoreOSC" Version="1.4.0" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="8.0.10" />
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
-        <PackageReference Include="OscQueryLibrary" Version="1.1.1" />
-        <PackageReference Include="VRChat.OSCQuery" Version="0.0.7" />
+        <PackageReference Include="Blazor.Bluetooth" Version="1.0.6.2"/>
+        <PackageReference Include="Blazored.LocalStorage" Version="4.5.0"/>
+        <PackageReference Include="InTheHand.BluetoothLE" Version="4.0.37"/>
+        <PackageReference Include="LucHeart.CoreOSC" Version="1.4.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="8.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2"/>
+        <PackageReference Include="OscQueryLibrary" Version="1.1.1"/>
+        <PackageReference Include="VRChat.OSCQuery" Version="0.0.7"/>
     </ItemGroup>
     <ItemGroup>
-        <Folder Include="wwwroot\" />
+        <Folder Include="wwwroot\"/>
     </ItemGroup>
     <ItemGroup>
-      <Content Update="wwwroot\css\fonts\brush-script-mt.ttf">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </Content>
+        <Content Update="wwwroot\css\fonts\brush-script-mt.ttf">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+      <Reference Include="System.Windows.Forms">
+        <HintPath>..\..\..\..\..\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\8.0.7\System.Windows.Forms.dll</HintPath>
+      </Reference>
     </ItemGroup>
 
 
