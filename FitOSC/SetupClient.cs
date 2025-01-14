@@ -2,7 +2,6 @@
 using Avalonia;
 using Avalonia.ReactiveUI;
 
-
 namespace FitOSC;
 
 public static class SetupClient
@@ -13,17 +12,17 @@ public static class SetupClient
         {
             App.RunAvaloniaAppWithHosting(args, BuildAvaloniaApp); // Builds WebView
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             ExceptionDispatchInfo.Capture(ex).Throw();
         }
-
     }
- 
 
-   
+
     private static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    {
+        return AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .UseReactiveUI();
- }
+    }
+}

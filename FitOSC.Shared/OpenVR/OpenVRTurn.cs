@@ -4,5 +4,5 @@ public enum OpenVRTurn
 {
     None,
     Left,
-    Right,
+    Right
 }

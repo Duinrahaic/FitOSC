@@ -1,8 +1,7 @@
 ﻿@using FitOSC.Shared.Layouts
-
 <Router AppAssembly="@typeof(Main).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
     </Found>
     <NotFound>
         <LayoutView Layout="@typeof(MainLayout)">

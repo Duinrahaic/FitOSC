@@ -1,8 +1,7 @@
-﻿@page "/"
-@using Blazor.Bluetooth
+﻿@using Blazor.Bluetooth
 @using Blazored.LocalStorage
-@using FitOSC.Shared.Utilities
 @using FitOSC.Shared.Components.UI
+@using FitOSC.Shared.Utilities
 @inject ILocalStorageService LocalStorage
 @inject IBluetoothNavigator Bt
 
@@ -12,8 +11,8 @@
 <div class="app-center">
 
     <div class="app-header-title">Fit OSC</div>
-    
-    
+
+
     @if (_device == null && !_noDeviceMode)
     {
         <div class="app-controls-container">
@@ -24,20 +23,31 @@
     }
     else
     {
-
         <div class="app-controls">
             @if (!_noDeviceMode)
             {
-                <button @onclick="Start"> <i class="oi oi-media-play"></i></button>
-                <button @onclick="Stop"> <i class="oi oi-media-stop"></i></button>
-                <button @onclick="Pause"> <i class="oi oi-media-pause"></i></button>
-                <button @onclick="SendReset"> <i class="oi oi-power-standby"></i></button>
+                <button @onclick="Start">
+                    <i class="oi oi-media-play"></i>
+                </button>
+                <button @onclick="Stop">
+                    <i class="oi oi-media-stop"></i>
+                </button>
+                <button @onclick="Pause">
+                    <i class="oi oi-media-pause"></i>
+                </button>
+                <button @onclick="SendReset">
+                    <i class="oi oi-power-standby"></i>
+                </button>
             }
-            <button @onclick="DisconnectDevice"> <i class="oi oi-action-undo fa-rotate-90"></i></button>
-            <button class="@(_walk ? "enabled" : "disabled")" @onclick="ToggleWalking"> <i class="bi bi-person-walking"></i></button>
+            <button @onclick="DisconnectDevice">
+                <i class="oi oi-action-undo fa-rotate-90"></i>
+            </button>
+            <button class="@(_walk ? "enabled" : "disabled")" @onclick="ToggleWalking">
+                <i class="bi bi-person-walking"></i>
+            </button>
         </div>
         <div class="app-info">
-            <AppInfoItem Title="Calories" Value="@($"{_liveData.Kcal}")" Unit="kCals"/>
+            <AppInfoItem Title="Calories" Value="@($"{_liveData.Calories}")" Unit="kCals"/>
             @if (_config.IsMetric)
             {
                 <AppInfoItem Title="Distance" Value="@((_liveData.Distance / 1000).ToString("F2"))" Unit="Kilometers"/>
@@ -46,7 +56,7 @@
             {
                 <AppInfoItem Title="Distance" Value="@($"{DataConversion.ConvertKilometersToMiles(_liveData.Distance / 1000):F2}")" Unit="Miles"/>
             }
-            <AppInfoItem Title="Duration" Value="@($"{DataConversion.ConvertSecondsToTime(_liveData.ElapsedTime)}")" Unit=""/>
+            <AppInfoItem Title="ElapsedTime" Value="@($"{DataConversion.ConvertSecondsToTime(_liveData.ElapsedTime)}")" Unit=""/>
         </div>
         <div class="app-info">
             <div class="app-info-item">
@@ -103,13 +113,13 @@
             <i class="fa-solid fa-cog"/>
             <label>Config</label>
         </div>
-        
+
     </div>
-        
+
 
     <div class="app-support-container">
-        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/dev-icon.png" Uri="https://x.com/Duinrahaic" Label="Twitter" />
-        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/github-mark-white.png" Uri="https://github.com/duinrahaic" Label="Github" />
-        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/kofi-logo-white.png" Uri="https://ko-fi.com/duinrahaic" Label="Ko-Fi" />
+        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/dev-icon.png" Uri="https://x.com/Duinrahaic" Label="Twitter"/>
+        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/github-mark-white.png" Uri="https://github.com/duinrahaic" Label="Github"/>
+        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/kofi-logo-white.png" Uri="https://ko-fi.com/duinrahaic" Label="Ko-Fi"/>
     </div>
 </div>

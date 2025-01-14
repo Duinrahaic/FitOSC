@@ -2,11 +2,9 @@
     x:Class="FitOSC.Client.Views.ClientWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:blazor="clr-namespace:FitOSC.Client.Views;assembly=FitOSC"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="using:FitOSC.Client.ViewModels"
-    xmlns:client="clr-namespace:FitOSC"
     xmlns:client1="clr-namespace:FitOSC.Client"
     Title="FitOSC"
     Icon="/Assets/icon.ico"
@@ -47,11 +45,9 @@
                     HostPage="index.html"
                     RootComponents="{DynamicResource rootComponents}"
                     Services="{DynamicResource services}"
-                    ZoomFactor="0"
-                >
-                </client1:BlazorWebView>
+                    ZoomFactor="0" />
             </Panel>
-            
+
         </Grid>
     </DockPanel>
 </Window>

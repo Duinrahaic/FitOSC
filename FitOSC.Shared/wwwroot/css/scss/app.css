@@ -55,18 +55,54 @@ body {
   justify-content: center;
   align-items: center;
   transform: translateY(-50%);
+  pointer-events: none;
 }
 .app .app-center .app-divider div {
   transform: translateY(50%);
   background: #2C2C2C;
-  padding: 0 2px;
+  padding: 10px 2px;
 }
 .app .app-center .app-controls-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 2px;
   align-content: center;
   justify-content: center;
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+}
+.app .app-center .app-controls-container.show {
+  opacity: 1;
+  z-index: 50;
+}
+.app .app-center .app-checklist-item {
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #1f1f1f;
+  flex-grow: 1;
+}
+.app .app-center .app-checklist-item.show {
+  opacity: 1;
+}
+.app .app-center .app-checklist-item div {
+  flex-grow: 1;
+}
+.app .app-center .app-checklist-item i {
+  color: dodgerblue;
+}
+.app .app-center .app-checklist-item i.fa-check-square {
+  color: #4caf50;
+}
+.app .app-center .app-checklist-item i.fa-x-square {
+  color: red;
 }
 .app .app-center .app-controls {
   display: flex;
@@ -154,13 +190,12 @@ body {
   display: flex;
   flex-direction: row;
   gap: 80px;
-  margin-top: 1rem;
+  margin-top: 12px;
   background: #1f1f1f;
   padding: 8px 30px;
-  width: 60%;
   border-radius: 8px;
   user-select: none;
-  justify-content: space-evenly;
+  justify-content: space-between;
   position: relative;
 }
 .app .app-center .app-info .app-info-item {
@@ -169,6 +204,9 @@ body {
   justify-content: flex-start;
   align-items: center;
   gap: 12px;
+}
+.app .app-center .app-info .app-info-item.lastSession .app-info-item-value {
+  color: #1E90FF;
 }
 .app .app-center .app-info .app-info-item button {
   margin: auto;
@@ -188,31 +226,41 @@ body {
   position: absolute;
   left: 0;
   padding: 1rem;
-  scale: 0.8;
 }
 .app .app-config-container .app-config-item {
+  height: 60px;
+  width: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   overflow: hidden;
+  background: #1f1f1f;
 }
-.app .app-config-container .app-config-item:hover {
+.app .app-config-container .app-config-item:disabled {
+  background: #1f1f1f;
+}
+.app .app-config-container .app-config-item:hover:not(:disabled) {
+  background: #1f1f1f;
   cursor: pointer;
 }
-.app .app-config-container .app-config-item:hover label {
+.app .app-config-container .app-config-item:hover:not(:disabled) label {
   transform: translateY(-60px);
   scale: 1;
-  transition: transform 0.1s ease-in-out;
   transition: scale 0.1s ease-in-out;
+  white-space: nowrap;
 }
-.app .app-config-container .app-config-item i {
+.app .app-config-container .app-config-item .app-config-item-icon-background {
   width: 48px;
   height: 48px;
-  font-size: 48px;
-  z-index: 2;
-  padding: 12px;
   background: #1f1f1f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app .app-config-container .app-config-item .app-config-item-icon-background i {
+  font-size: 32px;
+  z-index: 2;
 }
 .app .app-config-container .app-config-item label {
   position: absolute;
@@ -230,9 +278,10 @@ body {
   position: absolute;
   right: 0;
   padding: 1rem;
-  scale: 0.8;
 }
 .app .app-support-container .app-support-item {
+  height: 60px;
+  width: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -245,7 +294,6 @@ body {
 .app .app-support-container .app-support-item:hover label {
   transform: translateY(-60px);
   scale: 1;
-  transition: transform 0.1s ease-in-out;
   transition: scale 0.1s ease-in-out;
 }
 .app .app-support-container .app-support-item img {
@@ -312,55 +360,49 @@ body {
   color: #c7c7c7;
 }
 .app-modal-container .app-modal .app-modal-body {
-  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  height: 600px;
+  overflow-y: auto;
+  flex-grow: 1;
+  padding: 4px 12px;
+}
+.app-modal-container .app-modal .app-modal-body .app-modal-body-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 .app-modal-container .app-modal .app-modal-body .app-modal-body-content-item {
-  display: grid;
-  grid-template-columns: 150px 1fr;
-  grid-gap: 14px;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  justify-content: space-between;
   align-items: center;
-  padding: 4px 8px;
+  width: 100%;
+  font-size: 1rem;
 }
 .app-modal-container .app-modal .app-modal-body .app-modal-body-content-item label {
-  justify-self: end;
-  white-space: nowrap;
+  flex-grow: 1;
 }
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item input {
-  padding: 5px;
-  font-size: 16px;
-  width: 100%;
-  border: 1px solid #1f1f1f;
-  border-radius: 4px;
-  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
-  background-color: rgba(31, 31, 31, 0.2);
-  color: #E0E0E0;
-  outline: none;
+.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item i.fa-check-circle {
+  color: #4caf50;
 }
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item input[type=number]:focus {
-  border-color: #1E90FF;
-  box-shadow: 0 0 5px 1px #1E90FF;
-}
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item input[type=checkbox] {
-  padding: 5px;
-  font-size: 16px;
-  width: auto;
-  border: 1px solid #1f1f1f;
-  border-radius: 4px;
-  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
-  accent-color: #1E90FF;
-  background-color: transparent;
-  justify-self: start;
-}
-.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item .validation-message {
-  grid-column: span 2;
+.app-modal-container .app-modal .app-modal-body .app-modal-body-content-item i.fa-circle-x-square {
   color: #dc0d0d;
-  font-weight: bold;
-  text-align: center;
+}
+.app-modal-container .app-modal .app-modal-body #settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 .app-modal-container .app-modal .app-modal-footer {
   display: flex;
@@ -394,7 +436,6 @@ body {
   gap: 1rem;
   background: #1f1f1f;
   padding: 8px 30px;
-  width: 60%;
   border-radius: 8px;
   margin-top: 1rem;
 }

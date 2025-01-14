@@ -1,8 +1,7 @@
 ﻿using Blazor.Bluetooth;
 using Blazored.LocalStorage;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace FitOSC.Shared.Services;
 
@@ -12,11 +11,11 @@ public static class ServicesExtension
     {
         services.AddBluetoothNavigator();
         services.AddBlazoredLocalStorage();
+        services.AddSingleton<OscService>();
         return services;
     }
-    
-    
-    
+
+
     public static void RegisterHostedService<TService>(this IServiceCollection services)
         where TService : class, IHostedService
     {
@@ -25,5 +24,5 @@ public static class ServicesExtension
 
         // Add the service as a hosted service
         services.AddHostedService<TService>(provider => provider.GetRequiredService<TService>());
-    } 
+    }
 }

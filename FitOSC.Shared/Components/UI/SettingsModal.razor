@@ -1,26 +1,23 @@
 ﻿@using Blazored.LocalStorage
 @using FitOSC.Shared.Config
-@using Microsoft.AspNetCore.Components.Forms
-@using Microsoft.AspNetCore.Components.Web
-
 @inject ILocalStorageService LocalStorage
 
 
-<div class="app-modal-container @(_open ? "open" : string.Empty )">
+<div class="app-modal-container @(_open ? "open" : string.Empty)">
     <div class="app-modal-background" @onclick="HideModal"></div>
     <div class="app-modal">
         <div class="app-modal-header">
             <div class="app-modal-header-title">
                 Settings
             </div>
-            <div class="app-modal-header-close"  @onclick="HideModal">
+            <div class="app-modal-header-close" @onclick="HideModal">
                 <i class="fa-solid fa-xmark"></i>
             </div>
         </div>
         <div class="app-modal-body">
-            <EditForm Model="_config" OnValidSubmit="OnValidSubmit" id="settings">
-                <DataAnnotationsValidator />
-                <div class="app-modal-body-content">
+            <div class="app-modal-body-container">
+                <EditForm Model="_config" OnValidSubmit="OnValidSubmit" id="settings">
+                    <DataAnnotationsValidator/>
                     <div class="app-modal-body-content-item">
                         <label for="is-metric">Use Metric Units</label>
                         <InputCheckbox id="is-metric" @bind-Value="@_config.IsMetric"/>
@@ -41,8 +38,14 @@
                         <InputNumber id="equipment-max-speed-add" @bind-Value="@_config.IncrementAmount"/>
                         <ValidationMessage For="() => _config.IncrementAmount"/>
                     </div>
-                </div>
-            </EditForm>
+                    <div class="app-modal-body-content-item">
+                        <label for="default-speed">Default Speed (kmh)</label>
+                        <InputNumber id="default-speed" @bind-Value="@_config.DefaultSpeed"/>
+                        <ValidationMessage For="() => _config.DefaultSpeed"/>
+                    </div>
+                </EditForm>
+            </div>
+
         </div>
         <div class="app-modal-footer">
             <button type="submit" form="settings">Save</button>
@@ -51,21 +54,19 @@
 </div>
 
 
-
-
 @code
 {
     [Parameter] public EventCallback OnClose { get; set; }
-    
-    private FitOscConfig _config = new FitOscConfig();
+
+    private FitOscConfig _config = new();
     private bool _open = false;
-    
+
     public async Task OpenModal()
     {
         _config = await LocalStorage.GetConfig();
-        _open = true; 
+        _open = true;
     }
-    
+
     private async Task OnValidSubmit(EditContext ctx)
     {
         await LocalStorage.SetConfig(_config);
@@ -78,7 +79,7 @@
     {
         _open = false;
         Console.WriteLine("Modal Closed");
-        this.StateHasChanged();
+        StateHasChanged();
         await OnClose.InvokeAsync();
-    } 
+    }
 }

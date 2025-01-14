@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
 using Microsoft.AspNetCore.Components.WebView.WindowsForms;
@@ -9,16 +8,10 @@ using Microsoft.Web.WebView2.Core;
 
 namespace FitOSC.Client;
 
-public class BlazorWebView: NativeControlHost
+public class BlazorWebView : NativeControlHost
 {
-    private Uri? _source = null;
-    private Microsoft.AspNetCore.Components.WebView.WindowsForms.BlazorWebView? _blazorWebView;
-    private double _zoomFactor = 1.0;
-    private string? _hostPage;
-    private IServiceProvider _serviceProvider = default!;
-    private RootComponentsCollection _rootComponents = new();
     /// <summary>
-    /// The <see cref="AvaloniaProperty" /> which backs the <see cref="ZoomFactor" /> property.
+    ///     The <see cref="AvaloniaProperty" /> which backs the <see cref="ZoomFactor" /> property.
     /// </summary>
     public static readonly DirectProperty<BlazorWebView, double> ZoomFactorProperty
         = AvaloniaProperty.RegisterDirect<BlazorWebView, double>(
@@ -38,27 +31,27 @@ public class BlazorWebView: NativeControlHost
             x => x.RootComponents,
             (x, y) => x.RootComponents = y);
 
- 
+    private Microsoft.AspNetCore.Components.WebView.WindowsForms.BlazorWebView? _blazorWebView;
+    private string? _hostPage;
+    private IServiceProvider _serviceProvider = default!;
+    private Uri? _source;
+    private double _zoomFactor = 1.0;
+
+
     public string? HostPage
     {
         get
         {
-            if(_blazorWebView != null)
-            {
-                _hostPage = _blazorWebView.HostPage;
-            }
+            if (_blazorWebView != null) _hostPage = _blazorWebView.HostPage;
             return _hostPage;
         }
 
         set
         {
-            if(_hostPage != value)
+            if (_hostPage != value)
             {
                 _hostPage = value;
-                if(_blazorWebView != null)
-                {
-                    _blazorWebView.HostPage = value;
-                }
+                if (_blazorWebView != null) _blazorWebView.HostPage = value;
             }
         }
     }
@@ -67,22 +60,16 @@ public class BlazorWebView: NativeControlHost
     {
         get
         {
-            if(_blazorWebView != null)
-            {
-                _source = _blazorWebView.WebView.Source;
-            }
+            if (_blazorWebView != null) _source = _blazorWebView.WebView.Source;
             return _source;
         }
 
         set
         {
-            if(_source != value)
+            if (_source != value)
             {
                 _source = value;
-                if(_blazorWebView != null)
-                {
-                    _blazorWebView.WebView.Source = value;
-                }
+                if (_blazorWebView != null) _blazorWebView.WebView.Source = value;
             }
         }
     }
@@ -91,88 +78,64 @@ public class BlazorWebView: NativeControlHost
     {
         get
         {
-            if(_blazorWebView != null)
-            {
-                _zoomFactor = _blazorWebView.WebView.ZoomFactor;
-            }
+            if (_blazorWebView != null) _zoomFactor = _blazorWebView.WebView.ZoomFactor;
             return _zoomFactor;
         }
 
         set
         {
-            if(_zoomFactor != value)
+            if (_zoomFactor != value)
             {
                 _zoomFactor = value;
-                if(_blazorWebView != null)
-                {
-                    _blazorWebView.WebView.ZoomFactor = value;
-                }
+                if (_blazorWebView != null) _blazorWebView.WebView.ZoomFactor = value;
             }
         }
     }
 
     public IServiceProvider Services
     {
-        get
-        {
-            return _serviceProvider;
-        }
+        get => _serviceProvider;
         set
         {
             _serviceProvider = value;
-            if(_blazorWebView != null)
-            {
-                _blazorWebView.Services = _serviceProvider;
-            }
+            if (_blazorWebView != null) _blazorWebView.Services = _serviceProvider;
         }
     }
 
-    public RootComponentsCollection RootComponents
-    {
-        get
-        {
-            return _rootComponents;
-        }
-        set
-        {
-            _rootComponents = value;
-        }
-    }
+    public RootComponentsCollection RootComponents { get; set; } = new();
+
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
-{
-    if (OperatingSystem.IsWindows())
     {
-        // Initialize the Blazor WebView
-        _blazorWebView = new()
+        if (OperatingSystem.IsWindows())
         {
-            HostPage = Path.Combine(Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName), "wwwroot\\index.html"),
-            Services = _serviceProvider,
-            BlazorWebViewInitializing = (sender, e) =>
+            // Initialize the Blazor WebView
+            _blazorWebView = new Microsoft.AspNetCore.Components.WebView.WindowsForms.BlazorWebView
             {
-                e.EnvironmentOptions = new()
+                HostPage = Path.Combine(Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName),
+                    "wwwroot\\index.html"),
+                Services = _serviceProvider,
+                BlazorWebViewInitializing = (sender, e) =>
                 {
-                    AdditionalBrowserArguments = "--enable-experimental-web-platform-features"
-                };
-            }
-        };
-        
+                    e.EnvironmentOptions = new CoreWebView2EnvironmentOptions
+                    {
+                        AdditionalBrowserArguments = "--enable-experimental-web-platform-features"
+                    };
+                }
+            };
 
-        foreach (var component in _rootComponents)
-        {
-            _blazorWebView.RootComponents.Add(component);
+
+            foreach (var component in RootComponents) _blazorWebView.RootComponents.Add(component);
+
+            return new PlatformHandle(_blazorWebView.Handle, "HWND");
         }
 
-        return new PlatformHandle(_blazorWebView.Handle, "HWND");
+        return base.CreateNativeControlCore(parent);
     }
 
-    return base.CreateNativeControlCore(parent);
-}
 
- 
-    
     protected override void DestroyNativeControlCore(IPlatformHandle control)
     {
-        if(OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows())
         {
             _blazorWebView?.Dispose();
             _blazorWebView = null;
@@ -182,16 +145,16 @@ public class BlazorWebView: NativeControlHost
             base.DestroyNativeControlCore(control);
         }
     }
-    
+
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
-        if(OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows())
         {
             _blazorWebView?.Dispose();
             _blazorWebView = null;
         }
+
         base.OnUnloaded(e);
     }
-    
 }

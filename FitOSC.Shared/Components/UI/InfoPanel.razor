@@ -1,0 +1,285 @@
+﻿@using Blazored.LocalStorage
+@using FitOSC.Shared.Config
+@using FitOSC.Shared.Interfaces
+@using FitOSC.Shared.Utilities
+@inject ILocalStorageService LocalStorage
+
+<div class="app-controls">
+    @if (!NoDeviceMode)
+    {
+        <button @onclick="Start">
+            <i class="oi oi-media-play"></i>
+        </button>
+        <button @onclick="Stop">
+            <i class="oi oi-media-stop"></i>
+        </button>
+        <button @onclick="Pause">
+            <i class="oi oi-media-pause"></i>
+        </button>
+        <button @onclick="SendReset">
+            <i class="oi oi-power-standby"></i>
+        </button>
+    }
+    <button @onclick="DisconnectDevice">
+        <i class="oi oi-action-undo fa-rotate-90"></i>
+    </button>
+    @if (!OperatingSystem.IsBrowser())
+    {
+        <button class="@(Walk ? "enabled" : "disabled")" @onclick="ToggleWalking">
+            <i class="bi bi-person-walking"></i>
+        </button>
+    }
+</div>
+
+@if (Data.ElapsedTime == 0 && LastSession != null)
+{
+    <div class="app-info">
+        <AppInfoItem IsLastSession="@true" Title="Calories" Value="@($"{LastSession.Calories}")" Unit="kCals"/>
+        @if (Config.IsMetric)
+        {
+            <AppInfoItem IsLastSession="@true" Title="Distance" Value="@((LastSession.Distance / 1000).ToString("F2"))" Unit="Kilometers"/>
+        }
+        else
+        {
+            <AppInfoItem IsLastSession="@true" Title="Distance" Value="@($"{DataConversion.ConvertKilometersToMiles(LastSession.Distance / 1000):F2}")" Unit="Miles"/>
+        }
+        <AppInfoItem IsLastSession="@true" Title="Elapsed" Value="@($"{DataConversion.ConvertSecondsToTime((int)LastSession.ElapsedTime)}")" Unit=""/>
+    </div>
+    <div class="app-info">
+        <div class="app-info-item">
+            <button class="circle-button  @(_speedDecreasedFlag ? "interacted" : string.Empty)" @onclick="DecreaseSpeed">
+                <i class="oi oi-minus"></i>
+            </button>
+        </div>
+        <div class="app-info-item">
+            @if (Config.IsMetric)
+            {
+                <AppInfoItem Title="Speed" Value="@($"{Data.Speed:F1}")" Unit="KPH"/>
+            }
+            else
+            {
+                <AppInfoItem Title="Speed" Value="@($"{DataConversion.ConvertKphToMph(Data.Speed):F1}")" Unit="MPH"/>
+            }
+        </div>
+
+        <div class="app-info-item">
+            <button class="circle-button @(_speedIncreasedFlag ? "interacted" : string.Empty)" @onclick="IncreaseSpeed">
+                <i class="oi oi-plus"></i>
+            </button>
+        </div>
+    </div>
+
+
+    <div class="app-info">
+        <div class="app-info-item">
+            <button class="circle-button" @onclick="DecreaseMaxSpeed">
+                <i class="oi oi-minus"></i>
+            </button>
+        </div>
+        <div class="app-info-item">
+            @if (Config.IsMetric)
+            {
+                <AppInfoItem Title="Max Speed" Value="@($"{Config.UserMaxSpeed:F1}")" Unit="KPH"/>
+            }
+            else
+            {
+                <AppInfoItem Title="Max Speed" Value="@($"{DataConversion.ConvertKphToMph(Config.UserMaxSpeed):F1}")" Unit="MPH"/>
+            }
+        </div>
+
+        <div class="app-info-item">
+            <button class="circle-button" @onclick="IncreaseMaxSpeed">
+                <i class="oi oi-plus"></i>
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="app-info">
+        <AppInfoItem Title="Calories" Value="@($"{Data.Calories}")" Unit="kCals"/>
+        @if (Config.IsMetric)
+        {
+            <AppInfoItem Title="Distance" Value="@((Data.Distance / 1000).ToString("F2"))" Unit="Kilometers"/>
+        }
+        else
+        {
+            <AppInfoItem Title="Distance" Value="@($"{DataConversion.ConvertKilometersToMiles(Data.Distance / 1000):F2}")" Unit="Miles"/>
+        }
+        <AppInfoItem Title="Elapsed" Value="@($"{DataConversion.ConvertSecondsToTime(Data.ElapsedTime)}")" Unit=""/>
+    </div>
+    <div class="app-info">
+        <div class="app-info-item">
+            <button class="circle-button  @(_speedDecreasedFlag ? "interacted" : string.Empty)" @onclick="DecreaseSpeed">
+                <i class="oi oi-minus"></i>
+            </button>
+        </div>
+        <div class="app-info-item">
+            @if (Config.IsMetric)
+            {
+                <AppInfoItem Title="Speed" Value="@($"{Data.Speed:F1}")" Unit="KPH"/>
+            }
+            else
+            {
+                <AppInfoItem Title="Speed" Value="@($"{DataConversion.ConvertKphToMph(Data.Speed):F1}")" Unit="MPH"/>
+            }
+        </div>
+
+        <div class="app-info-item">
+            <button class="circle-button @(_speedIncreasedFlag ? "interacted" : string.Empty)" @onclick="IncreaseSpeed">
+                <i class="oi oi-plus"></i>
+            </button>
+        </div>
+    </div>
+
+
+    <div class="app-info">
+        <div class="app-info-item">
+            <button class="circle-button" @onclick="DecreaseMaxSpeed">
+                <i class="oi oi-minus"></i>
+            </button>
+        </div>
+        <div class="app-info-item">
+            @if (Config.IsMetric)
+            {
+                <AppInfoItem Title="Max Speed" Value="@($"{Config.UserMaxSpeed:F1}")" Unit="KPH"/>
+            }
+            else
+            {
+                <AppInfoItem Title="Max Speed" Value="@($"{DataConversion.ConvertKphToMph(Config.UserMaxSpeed):F1}")" Unit="MPH"/>
+            }
+        </div>
+
+        <div class="app-info-item">
+            <button class="circle-button" @onclick="IncreaseMaxSpeed">
+                <i class="oi oi-plus"></i>
+            </button>
+        </div>
+    </div>
+}
+
+
+@if (!OperatingSystem.IsBrowser())
+{
+    <div class="app-trim-container">
+        <label> Walking Trim</label>
+        <TrimPot TrimValue="@TrimSpeed" TrimValueChanged="SetTrimSpeed"/>
+        <label> @TrimSpeed.ToString("P0")</label>
+    </div>
+}
+
+
+@code {
+    [Parameter] public FtmsData Data { get; set; } = new();
+    [Parameter] public Session? LastSession { get; set; } = null;
+    [Parameter] public FitOscConfig Config { get; set; } = new();
+    [Parameter] public EventCallback<FitOscConfig> ConfigChanged { get; set; }
+
+    [Parameter] public bool NoDeviceMode { get; set; } = false;
+    [Parameter] public decimal TrimSpeed { get; set; } = 0.8m;
+    [Parameter] public EventCallback<decimal> TrimSpeedChanged { get; set; }
+    private bool _speedIncreasedFlag = false;
+    private bool _speedDecreasedFlag = false;
+
+    [Parameter] public Session? MonthlySession { get; set; } = null;
+
+
+    [Parameter] public bool Walk { get; set; } = false;
+    [Parameter] public EventCallback<bool> WalkChanged { get; set; }
+
+    [Parameter] public BaseLogic? FtmsLogic { get; set; } = null;
+
+    public async Task SendReset()
+    {
+        await (FtmsLogic?.Reset() ?? Task.CompletedTask);
+    }
+
+    public async Task Start()
+    {
+        await (FtmsLogic?.Start(Config.DefaultSpeed, Config.UserMaxSpeed) ?? Task.CompletedTask);
+    }
+
+    public async Task Stop()
+    {
+        await (FtmsLogic?.Stop() ?? Task.CompletedTask);
+    }
+
+    public async Task Pause()
+    {
+        await (FtmsLogic?.Pause() ?? Task.CompletedTask);
+    }
+
+    public async Task IncreaseSpeed()
+    {
+        _speedIncreasedFlag = true;
+        _speedDecreasedFlag = false;
+        if (NoDeviceMode == false && FtmsLogic != null)
+        {
+            await FtmsLogic.SetSpeed(Data.Speed + Config.IncrementAmount, Config.UserMaxSpeed);
+        }
+        else
+        {
+            var s = Data.Speed + Config.IncrementAmount;
+            if (s <= Config.UserMaxSpeed)
+            {
+                Data.Speed = s;
+            }
+        }
+    }
+
+    public async Task DecreaseSpeed()
+    {
+        _speedIncreasedFlag = false;
+        _speedDecreasedFlag = true;
+        if (NoDeviceMode == false && FtmsLogic != null)
+        {
+            await FtmsLogic.SetSpeed(Data.Speed - Config.IncrementAmount, Config.UserMaxSpeed);
+        }
+        else
+        {
+            var s = Data.Speed - Config.IncrementAmount;
+            if (s >= Config.EquipmentMinSpeed)
+            {
+                Data.Speed = s;
+            }
+        }
+    }
+
+
+    [Parameter] public EventCallback<bool> OnDisconnect { get; set; }
+
+    private async Task DisconnectDevice()
+    {
+        await OnDisconnect.InvokeAsync(true);
+    }
+
+    public void SetTrimSpeed(decimal value)
+    {
+        TrimSpeedChanged.InvokeAsync(value);
+    }
+
+
+    private async Task SetMaxSpeed(decimal s = 0)
+    {
+        var ms = Math.Clamp(s, Config.EquipmentMinSpeed, Config.EquipmentMaxSpeed);
+        Config.UserMaxSpeed = ms;
+        await ConfigChanged.InvokeAsync(Config);
+        await LocalStorage.SetConfig(Config);
+    }
+
+    private async Task IncreaseMaxSpeed()
+    {
+        await SetMaxSpeed(Config.UserMaxSpeed + Config.IncrementAmount);
+    }
+
+    private async Task DecreaseMaxSpeed()
+    {
+        await SetMaxSpeed(Config.UserMaxSpeed - Config.IncrementAmount);
+    }
+
+    private void ToggleWalking()
+    {
+        WalkChanged.InvokeAsync(!Walk);
+    }
+
+}
