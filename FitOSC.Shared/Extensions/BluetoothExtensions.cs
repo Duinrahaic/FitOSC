@@ -1,5 +1,4 @@
-﻿using System.Windows.Forms;
-using Blazor.Bluetooth;
+﻿using Blazor.Bluetooth;
 using FitOSC.Shared.Interfaces;
 using FitOSC.Shared.Interfaces.GenericPad;
 using FitOSC.Shared.Interfaces.WalkingPad;
@@ -205,13 +204,9 @@ public static class BluetoothExtensions
             }
             
         }
-        catch(Exception ex)
+        catch
         {
-            if (OperatingSystem.IsWindows())
-            {
-                MessageBox.Show(ex.ToString(), "FitOSC Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-
-            }
+            // ignore
 
         }
 
