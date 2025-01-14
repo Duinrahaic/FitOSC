@@ -1,4 +1,5 @@
-﻿using System.Timers;
+﻿using System.Formats.Tar;
+using System.Timers;
 using Blazor.Bluetooth;
 using FitOSC.Shared.Components.UI;
 using FitOSC.Shared.Config;
@@ -19,6 +20,7 @@ public sealed partial class MainPage : IDisposable
 
     private BaseLogic? _ftmsLogic = null;
     private Session? _lastSession = null;
+    private OpenVRDataEvent? _vrData = null;
 
     private FtmsData _liveData = new();
     private bool _noDeviceMode;
@@ -36,7 +38,7 @@ public sealed partial class MainPage : IDisposable
         Dispose(true);
         GC.SuppressFinalize(this);
     }
-
+    
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -59,27 +61,7 @@ public sealed partial class MainPage : IDisposable
     }
 
     #region OpenVR
-
-    public void OnOvrDataUpdateReceived(OpenVRDataEvent e)
-    {
-        if (_walk)
-        {
-            Osc.SetWalkingSpeed(_liveData.Speed / _config.UserMaxSpeed * _trimSpeed);
-            Osc.SetHorizontalSpeed((decimal)e.HorizontalAdjustment * (_liveData.Speed / _config.UserMaxSpeed) *
-                                   _trimSpeed);
-
-            if (e.Turn != OpenVRTurn.None)
-                Osc.SetTurningSpeed(e.Turn == OpenVRTurn.Left ? -0.2f : 0.2f);
-            else
-                Osc.SetTurningSpeed(0);
-        }
-        else
-        {
-            Osc.SetWalkingSpeed(0);
-            Osc.SetTurningSpeed(0);
-            Osc.SetHorizontalSpeed(0);
-        }
-    }
+    public void OnOvrDataUpdateReceived(OpenVRDataEvent e) => _vrData = e;
 
     #endregion
 
@@ -112,9 +94,15 @@ public sealed partial class MainPage : IDisposable
         }
 
 
-        if (Osc != null) Osc.OnOscMessageReceived -= OnOscMessageReceived;
+        if (Osc != null)
+        {
+            Osc.OnOscMessageReceived -= OnOscMessageReceived;
+        }
 
+        _vrData = null;
         SettingsModal = null;
+        TestModal = null;
+        _noDeviceModeTimer?.Dispose();
     }
 
     private void Dispose(bool disposing)
@@ -178,11 +166,38 @@ public sealed partial class MainPage : IDisposable
     {
         InvokeAsync(StateHasChanged);
     }
-
+    
+    DateTime _lastSpeedUpdate = DateTime.MinValue;
+    TimeSpan _udpateInterval = TimeSpan.FromSeconds(1);
     private void OnTreadmillDataChanged(object? sender, FtmsData data)
     {
         _liveData = data;
-        InvokeAsync(StateHasChanged);
+        if (DateTime.Now - _lastSpeedUpdate >= _udpateInterval)
+        {
+            _lastSpeedUpdate = DateTime.Now;
+            InvokeAsync(StateHasChanged);
+            if (_walk)
+            {
+                Osc.SetWalkingSpeed(_liveData.Speed / _config.UserMaxSpeed * _trimSpeed);
+                Osc.SetHorizontalSpeed(
+                    (decimal)(_vrData ?? new() ).HorizontalAdjustment 
+                        * (_liveData.Speed / _config.UserMaxSpeed) * _trimSpeed);
+
+                if ((_vrData ?? new() ).Turn != OpenVRTurn.None)
+                    Osc.SetTurningSpeed((_vrData ?? new() ).Turn == OpenVRTurn.Left ? -0.2f : 0.2f);
+                else
+                    Osc.SetTurningSpeed(0);
+            }
+            else
+            {
+                Osc.SetWalkingSpeed(0);
+                Osc.SetTurningSpeed(0);
+                Osc.SetHorizontalSpeed(0);
+            }
+        }
+        
+
+        
     }
 
     private async void DisconnectDevice()
@@ -307,9 +322,9 @@ public sealed partial class MainPage : IDisposable
         Console.WriteLine("Requesting Device");
         var options = new RequestDeviceOptions
         {
-            //Filters = [new Filter { Services = ["00001826-0000-1000-8000-00805f9b34fb"] }]
-            OptionalServices = BluetoothServices.GetServices().Select(x=>x.ToLower()).ToList(),
-            AcceptAllDevices = true
+            Filters = [new Filter { Services = ["00001826-0000-1000-8000-00805f9b34fb"] }]
+            //OptionalServices = BluetoothServices.GetServices().Select(x=>x.ToLower()).ToList(),
+            //AcceptAllDevices = true
         };
         IDevice? device = null;
         try

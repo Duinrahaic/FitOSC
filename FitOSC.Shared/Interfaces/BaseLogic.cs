@@ -56,8 +56,7 @@ public abstract class BaseLogic(IDevice device) : IDisposable
 
     public virtual async Task Stop()
     {
-        if (State == TreadmillState.Running || State == TreadmillState.Paused)
-            LastSessionDataReceived?.Invoke(this, _session);
+        LastSessionDataReceived?.Invoke(this, _session);
         await Task.CompletedTask;
     }
 

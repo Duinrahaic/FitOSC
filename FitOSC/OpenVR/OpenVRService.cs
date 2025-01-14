@@ -25,13 +25,7 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        OpenVR.Init(ref _initError, EVRApplicationType.VRApplication_Background);
-
-        if (_initError != EVRInitError.None)
-        {
-            _logger?.LogError($"Failed to initialize OpenVR: {_initError}");
-            return;
-        }
+        
 
         _logger?.LogInformation("OpenVR initialized successfully.");
         _isRunning = true;
@@ -71,9 +65,23 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     public event DataUpdateReceivedEventHandler? OnDataUpdateReceived;
 
 
+    private bool TryInitialize()
+    {
+        OpenVR.Shutdown();
+        OpenVR.Init(ref _initError, EVRApplicationType.VRApplication_Background);
+        if (_initError != EVRInitError.None)
+        {
+            _logger?.LogError($"Failed to initialize OpenVR: {_initError}");
+            return false;
+        }
+
+        return true;
+    }
+    
     public void StartMonitoring()
     {
-        IsMonitoring = true;
+        bool success = TryInitialize();
+        IsMonitoring = success;
     }
 
     public void StopMonitoring()

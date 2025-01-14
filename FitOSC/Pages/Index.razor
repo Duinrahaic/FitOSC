@@ -1,62 +1,6 @@
-﻿@using Blazor.Bluetooth
-@using Blazored.LocalStorage
-@using FitOSC.Shared.Components.UI
-@using FitOSC.Shared.Services
+﻿@page "/"
+@using FitOSC.Shared.Pages
 @using Valve.VR
-@inject IBluetoothNavigator Bt
-@inject OscService Osc
 @inject OpenVRService Ovr
 
-@inject ILocalStorageService LocalStorage
-
-<SettingsModal @ref="SettingsModal" OnClose="OnSettingsClose"/>
-<TestModal @ref="TestModal" Device="_ftmsLogic"/>
-
-<div class="app-center">
-
-    <div class="app-header-title">Fit OSC</div>
-
-
-    @if (_ftmsLogic == null && !_noDeviceMode)
-    {
-        <div class="app-controls-container">
-            <div class="app-controls">
-                <button @onclick="RequestDevice"> Connect To Device</button>
-            </div>
-            <div class="app-divider">
-                <div>Or</div>
-            </div>
-            <div class="app-controls">
-                <button @onclick="NoDeviceMode"> No Device Mode</button>
-            </div>
-        </div>
-    }
-    else
-    {
-        <InfoPanel @ref="@InfoPanel"
-                   Data="_liveData"
-                   @bind-Config="_config"
-                   FtmsLogic="_ftmsLogic"
-                   NoDeviceMode="_noDeviceMode"
-                   Walk="_walk"
-                   WalkChanged="SetWalkingState"
-                   OnDisconnect="DisconnectDevice"
-                   @bind-TrimSpeed="_trimSpeed"/>
-    }
-
-    <div class="app-config-container">
-
-        <SettingButton Icon="fa-solid fa-cog" Label="Config" OnClick="OpenSettings"/>
-        <SettingButton Icon="fa-solid fa-flask-vial" Label="Feature Test" OnClick="OpenTest" Disable="@(_ftmsLogic == null)"/>
-        @if (!OperatingSystem.IsBrowser())
-        {
-            <SettingButton Icon="fa-solid fa-tower-broadcast" Label="Reset OSC" OnClick="@(() => Osc?.RestartService())"/>
-        }
-    </div>
-
-    <div class="app-support-container">
-        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/dev-icon.png" Uri="https://x.com/Duinrahaic" Label="Twitter"/>
-        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/github-mark-white.png" Uri="https://github.com/duinrahaic" Label="Github"/>
-        <SocialMediaButton ImageUri="_content/FitOSC.Shared/images/kofi-logo-white.png" Uri="https://ko-fi.com/duinrahaic" Label="Ko-Fi"/>
-    </div>
-</div>
+<MainPage @ref="@MainPage" OnWalkingStateChanged="SetWalkingState"/>
