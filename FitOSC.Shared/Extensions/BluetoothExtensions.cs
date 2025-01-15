@@ -2,7 +2,6 @@
 using FitOSC.Shared.Interfaces;
 using FitOSC.Shared.Interfaces.GenericPad;
 using FitOSC.Shared.Interfaces.WalkingPad;
-using FitOSC.Shared.Utilities;
 
 namespace FitOSC.Shared.Extensions;
 
@@ -207,7 +206,7 @@ public static class BluetoothExtensions
         catch
         {
             // ignore
-
+ 
         }
 
         return null;
