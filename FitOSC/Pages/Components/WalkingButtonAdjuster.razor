@@ -1,0 +1,117 @@
+﻿@using FitOSC.Models
+<div class="treadmill-control-adjuster-container wide @(Enabled ? string.Empty : "disabled")">
+    <div class="treadmill-control-adjuster-indicator-row" @onclick="RotateWalkingMode">
+        <div class="treadmill-control-adjuster-indicator">
+            <div class="treadmill-control-adjuster-indicator-value">
+                @SpeedPercentage.ToString("N0")
+            </div>
+            <div class="treadmill-control-adjuster-indicator-title">
+                SPEED %
+            </div>
+        </div>
+        <div class="treadmill-control-adjuster-indicator">
+
+
+            <div class="treadmill-control-adjuster-indicator-led">
+                <WalkingModeLed Text="DISABLED" AdditionalClasses="led-disabled" IsActive="@(WalkingMode == WalkingMode.Disabled)"/>
+                <WalkingModeLed Text="DYNAMIC" IsActive="@(WalkingMode == WalkingMode.Dynamic)"/>
+                <WalkingModeLed Text="OVERRIDE" IsActive="@(WalkingMode == WalkingMode.Override)"/>
+            </div>
+
+        </div>
+
+    </div>
+    <div class="treadmill-control-group">
+        <div class="treadmill-control-adjuster-container">
+            <button class="treadmill-control-adjuster increase" @bind="OnIncrease">
+                <i class="fa fa-add"></i>
+            </button>
+            <div class="treadmill-control-adjuster-title">
+                WALK
+            </div>
+            <button class="treadmill-control-adjuster decrease" @bind="OnDecrease">
+                <i class="fa fa-minus"></i>
+            </button>
+        </div>
+        <div class="treadmill-control-adjuster-container">
+            @for (double i = 100; i >= 0; i -= 25)
+            {
+                double val = i;
+                <button class="treadmill-control-adjuster walking" @onclick="() => OverrideSpeed(val)">
+                    @i
+                </button>
+            }
+        </div>
+    </div>
+</div>
+@code
+{
+    [Parameter]
+    public bool Enabled { get; set; } = true;
+
+    [Parameter]
+    public WalkingMode WalkingMode { get; set; } = WalkingMode.Disabled;
+    
+    [Parameter]
+    public double SpeedPercentage { get; set; } = 0.0;
+    
+    [Parameter]
+    public EventCallback<bool> OnIncrease { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnDecrease { get; set; }
+    
+    [Parameter]
+    public EventCallback<double> OnOverrideSpeed { get; set; }
+
+    [Parameter]
+    public EventCallback<WalkingMode> WalkingModeChanged { get; set; }
+    
+    private async Task Increase()
+    {
+        if (Enabled)
+        {
+            await OnIncrease.InvokeAsync(true);
+        }
+    }
+
+    private async Task Decrease()
+    {
+        if (Enabled)
+        {
+            await OnDecrease.InvokeAsync(false);
+        }
+    }
+    
+    private async Task OverrideSpeed(double speed)
+    {
+        if (Enabled)
+        {
+            await OnOverrideSpeed.InvokeAsync(speed);
+        }
+    }
+    
+    private async Task ChangeWalkingMode(WalkingMode mode)
+    {
+        if (Enabled)
+        {
+            await WalkingModeChanged.InvokeAsync(mode);
+        }
+    }
+    
+    private async Task RotateWalkingMode()
+    {
+        if (Enabled)
+        {
+            WalkingMode nextMode = WalkingMode switch
+            {
+                WalkingMode.Disabled => WalkingMode.Dynamic,
+                WalkingMode.Dynamic => WalkingMode.Override,
+                WalkingMode.Override => WalkingMode.Disabled,
+                _ => WalkingMode.Disabled
+            };
+            await ChangeWalkingMode(nextMode);
+        }
+    }
+
+}

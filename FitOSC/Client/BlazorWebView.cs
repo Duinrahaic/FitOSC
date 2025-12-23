@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
+using FitOSC.Services;
 using Microsoft.AspNetCore.Components.WebView.WindowsForms;
 using Microsoft.Web.WebView2.Core;
 
@@ -114,6 +115,7 @@ public class BlazorWebView : NativeControlHost
                 HostPage = Path.Combine(Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName),
                     "wwwroot\\index.html"),
                 Services = _serviceProvider,
+                Name = "FitOSCWebView",
                 BlazorWebViewInitializing = (sender, e) =>
                 {
                     e.EnvironmentOptions = new CoreWebView2EnvironmentOptions
@@ -122,7 +124,13 @@ public class BlazorWebView : NativeControlHost
                     };
                 }
             };
-
+            _blazorWebView.WebView.CoreWebView2InitializationCompleted+= (sender, args) =>
+            {
+                if (args.IsSuccess && _blazorWebView?.WebView.CoreWebView2 is { } core)
+                {
+                    core.AttachWebViewConsole();
+                }
+            };
 
             foreach (var component in RootComponents) _blazorWebView.RootComponents.Add(component);
 

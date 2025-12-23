@@ -1,0 +1,360 @@
+html {
+  height: 100%;
+  overflow: hidden;
+  background: #121212;
+  position: relative;
+  color: #e0e0e0;
+  font-family: Tahoma, sans-serif;
+}
+html body {
+  height: 100%;
+  margin: 0;
+}
+html .app {
+  height: 100%;
+}
+html .app main {
+  height: calc(100% - 16px);
+  padding: 8px;
+}
+
+.utility-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 16px;
+}
+
+.treadmill-interaction {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+}
+.treadmill-interaction .treadmill-glass-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(5px);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+.treadmill-interaction .treadmill-info-box {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: stretch;
+  position: relative;
+  max-height: 86px;
+  height: 100%;
+  user-select: none;
+  width: 100%;
+}
+.treadmill-interaction .treadmill-info-box .treadmill-info-box-item {
+  background: #1e1e1e;
+  border: 1px solid #2c2c2c;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  font-size: 14px;
+  text-align: center;
+  align-items: stretch;
+  justify-content: center;
+  aspect-ratio: 1/1;
+  flex: 1;
+}
+.treadmill-interaction .treadmill-info-box .treadmill-info-box-item.treadmill-info-box-timer {
+  flex-grow: 1;
+  aspect-ratio: unset;
+}
+.treadmill-interaction .treadmill-info-box .treadmill-info-box-item .treadmill-info-box-value {
+  font-size: 26px;
+}
+.treadmill-interaction .treadmill-info-box .treadmill-info-box-item .treadmill-info-box-title {
+  font-size: 14px;
+  color: #a0a0a0;
+  letter-spacing: 2px;
+  margin-top: auto;
+}
+.treadmill-interaction .treadmill-display {
+  width: 100%;
+  flex-grow: 1;
+  background: #1e1e1e;
+  border: 1px solid #2c2c2c;
+  border-radius: 4px;
+  align-items: center;
+}
+.treadmill-interaction .treadmill-control-row {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.treadmill-interaction .treadmill-control-row button {
+  color: #e0e0e0;
+  border: 2px solid #e0e0e0;
+  background: transparent;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 16px;
+  width: 50%;
+}
+.treadmill-interaction .treadmill-control-row button:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  border-right: unset;
+}
+.treadmill-interaction .treadmill-control-row button:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  border-left: unset;
+}
+.treadmill-interaction .treadmill-controls {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group {
+  flex-grow: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  max-width: 100%;
+  position: relative;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .title {
+  font-size: 30px;
+  letter-spacing: 4px;
+  color: #e0e0e0;
+  user-select: none;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group img {
+  width: 160px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  justify-content: space-evenly;
+  align-items: center;
+  border-radius: 4px;
+  background: #1e1e1e;
+  padding: 4px 12px;
+  border: 1px solid #2c2c2c;
+  width: 236px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar .icon {
+  color: #a0a0a0;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar .icon#bt {
+  color: #004a99;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar .icon#bt.active {
+  color: #007bff;
+  text-shadow: 0 0 0px #007bff, 0 0 4px #007bff;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar .icon#vr {
+  color: #cccccc;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar .icon#vr.active {
+  color: #fff;
+  text-shadow: 0 0 0px #fff, 0 0 4px #fff;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar .icon#OSC {
+  color: #145523;
+}
+.treadmill-interaction .treadmill-controls .treadmill-controls-group .indicator-bar .icon#OSC.active {
+  color: #28a745;
+  text-shadow: 0 0 0px #28a745, 0 0 4px #28a745;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  max-width: 99px;
+  min-width: 99px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container.wide {
+  max-width: 200px;
+  min-width: 200px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container.wide .treadmill-control-adjuster-indicator {
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 2/1;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-group {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  width: 100%;
+  position: relative;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row {
+  background: #1e1e1e;
+  outline: 1px solid #2c2c2c;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  font-size: 14px;
+  text-align: center;
+  align-items: stretch;
+  justify-content: center;
+  aspect-ratio: 2/1;
+  flex: 1;
+  width: 100%;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row .treadmill-control-adjuster-indicator {
+  background: unset;
+  outline: unset;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-value {
+  font-size: 32px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-title {
+  font-size: 14px;
+  color: #a0a0a0;
+  letter-spacing: 2px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator {
+  background: #1e1e1e;
+  outline: 1px solid #2c2c2c;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+  text-align: center;
+  align-items: stretch;
+  justify-content: center;
+  aspect-ratio: 1/1;
+  flex: 1;
+  width: 100%;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-value {
+  font-size: 32px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-title {
+  font-size: 14px;
+  color: #a0a0a0;
+  letter-spacing: 2px;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led {
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+  user-select: none;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: start;
+  width: 100%;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled) {
+  color: #2d682f;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled) .led-text {
+  color: #a0a0a0;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled).active .led-indicator {
+  color: #4caf50;
+  text-shadow: 0 0 0 #4caf50, 0 0 4px #4caf50;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled).active .led-text {
+  color: #e0e0e0;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled {
+  color: #ba160a;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled .led-text {
+  color: #a0a0a0;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled.active .led-indicator {
+  color: #f44336;
+  text-shadow: 0 0 0 #f44336, 0 0 4px #f44336;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled.active .led-text {
+  color: #e0e0e0;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-title {
+  letter-spacing: 4px;
+  font-size: 18px;
+  user-select: none;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1/0.9;
+  width: 99px;
+  font-size: 24px;
+  border: 2px solid #e0e0e0;
+  color: #e0e0e0;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+  overflow: hidden;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.increase {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border-bottom: none;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.decrease {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  border-top: none;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking {
+  aspect-ratio: unset;
+  flex-grow: 1;
+  border: none;
+  border-bottom: 2px solid #e0e0e0;
+  width: 90%;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking:last-child {
+  border-bottom: none;
+}
+
+/*# sourceMappingURL=app.css.map */

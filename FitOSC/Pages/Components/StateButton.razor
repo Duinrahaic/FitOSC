@@ -1,0 +1,20 @@
+﻿<button class="treadmill-control-button" disabled="@(!Enabled)" @onclick="HandleClick">
+    <i class="@Icon"></i>
+    <div class="treadmill-control-button-title">
+        @Title
+    </div>
+</button>
+@code {
+    [Parameter] public bool Enabled { get; set; } = true;
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "fa-solid fa-circle";
+    [Parameter] public EventCallback OnClick { get; set; }
+    
+    private async Task HandleClick()
+    {
+        if (Enabled)
+        {
+            await OnClick.InvokeAsync();
+        }
+    }
+}

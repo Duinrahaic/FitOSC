@@ -17,7 +17,7 @@ public partial class ClientWindow : ReactiveWindow<ClientWindowViewModel>
 
         Resources.Add("services", App.AppHost!.Services);
         Resources.Add("rootComponents", rootComponents);
-
+        
         InitializeComponent();
 
         this.WhenActivated(d => d(ViewModel!.ExitInteraction.RegisterHandler(DoExitAsync)));

@@ -1,56 +1,14 @@
-﻿using FitOSC.Shared.Pages;
-using Valve.VR;
+﻿using FitOSC.Services.Treadmill;
 
 namespace FitOSC.Pages;
 
-public partial class Index: IDisposable
+public partial class Index
 {
-    private MainPage? MainPage { get; set; }
-
-    protected override void OnInitialized()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-         Ovr.OnDataUpdateReceived += OnOvrDataUpdateReceived;
-         
-    }
-    
-    
-    private void SetWalkingState(bool state)
-    {
-        if (state && !Ovr.IsMonitoring)
+        if (firstRender)
         {
-            Ovr.StartMonitoring();
+            await Treadmill.ConnectAsync("URTM036", TreadmillType.FTMS);
         }
-        else
-        {
-            Ovr.StopMonitoring();
-        }
-    }
-    private void OnOvrDataUpdateReceived(OpenVRDataEvent e) => MainPage?.OnOvrDataUpdateReceived(e);
-    private void ReleaseUnmanagedResources()
-    {
-        if (Ovr != null)
-        {
-            Ovr.OnDataUpdateReceived -= OnOvrDataUpdateReceived;
-        }
-    }
-    
-    protected virtual void Dispose(bool disposing)
-    {
-        ReleaseUnmanagedResources();
-        if (disposing)
-        {
-            Ovr?.Dispose();
-        }
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    ~Index()
-    {
-        Dispose(false);
     }
 }

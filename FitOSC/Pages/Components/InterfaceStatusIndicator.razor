@@ -1,0 +1,62 @@
+﻿@using FitOSC.Models
+@using FitOSC.Services.State
+@implements IDisposable
+@inject AppStateService AppState
+
+<div class="icon @GetActiveClass()" id="@GetId()">
+    <i class="@GetIcon()"></i>
+</div>
+@code {
+
+    [Parameter] public required AppInterface Interface { get; set; }
+    
+    private Dictionary<AppInterface, ConnectionStatus> _interfaceStatuses = new();
+    private ConnectionStatus Status => _interfaceStatuses.GetValueOrDefault(Interface, ConnectionStatus.Disconnected);
+    
+    private bool IsActive => Status == ConnectionStatus.Connected;
+    
+    private string GetId()
+    {
+        return Interface switch
+        {
+            AppInterface.Bluetooth => "bt",
+            AppInterface.VR => "vr",
+            AppInterface.OSC => "osc",
+            _ => "unknown"
+        };
+    }
+    
+    private string GetIcon()
+    {
+        return Interface switch
+        {
+            AppInterface.Bluetooth => "fa-brands fa-bluetooth",
+            AppInterface.VR => "fa fa-vr-cardboard",
+            AppInterface.OSC => "fa fa-wifi",
+            _ => "fa-solid fa-circle"
+        };
+    }
+    private string GetActiveClass()
+    {
+        return IsActive ? "active" : string.Empty;
+    }
+    
+    protected override void OnInitialized()
+    {
+        AppState.AppStateUpdated += UpdateAppState;
+    }
+
+    private void UpdateAppState(AppStateInfo info)
+    {
+        _interfaceStatuses = info.ConnectionStates; 
+        InvokeAsync(StateHasChanged);
+    }
+
+
+    public void Dispose()
+    {
+        AppState.AppStateUpdated -= UpdateAppState;
+    }
+    
+
+}

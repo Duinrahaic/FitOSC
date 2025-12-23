@@ -1,0 +1,80 @@
+﻿@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@inject AppStateService AppState
+@implements IDisposable
+
+<div class="treadmill-info-box-item @(_enabled ? "" : "disabled")">
+    <div class="treadmill-info-box-value">
+        @if(_data == null || !_data.Enabled)
+        {
+            @("--")
+        }
+        else if (Property == TreadmillTelemetryProperty.InstantaneousPace)
+        {
+            if(_duration.Hours > 0)
+            {
+                @_duration.ToString(@"h\:mm\:ss")
+            }
+            else
+            {
+                @(_duration.ToString(@"mm\:ss"))
+            }
+        }
+        else
+        {
+            @_value.ToString(ValueFormat)
+        }
+    </div>
+    <div class="treadmill-info-box-title">
+        @_unit
+    </div>
+</div>
+
+@code
+{
+    [Parameter]
+    public required TreadmillTelemetryProperty Property { get; set; }
+    [Parameter]
+    public string ValueFormat { get; set; } = "0.0";
+
+    private bool _enabled = false;
+    private string _unit = "MPH";
+    private decimal _value = 0m;
+    private TreadmillTelemetryValue? _data;
+    private TimeSpan _duration = TimeSpan.Zero;
+    
+     protected override void OnInitialized()
+    {
+        AppStateOnAppStateUpdated(AppState.GetCurrentAppStateInfo());
+        AppState.AppStateUpdated += AppStateOnAppStateUpdated;
+    }
+
+    private void AppStateOnAppStateUpdated(AppStateInfo stateInfo)
+    {
+        if(stateInfo.TreadmillTelemetry.Values.TryGetValue(Property, out _data))
+        {
+            _enabled = _data.Enabled;
+            _unit = stateInfo.UserMeasurementType == MeasurementType.Metric || string.IsNullOrEmpty(_data.ImperialUnit) ? _data.MetricUnit : _data.ImperialUnit;
+            _value = stateInfo.UserMeasurementType == MeasurementType.Metric ? _data.AsMetric().Value : _data.AsImperial().Value;
+            
+            if(Property == TreadmillTelemetryProperty.InstantaneousPace)
+            {
+                _duration = TimeSpan.FromSeconds((double)_value);
+            }
+        }
+        else
+        {
+            _data = null;
+            _enabled = false;
+        }
+
+        InvokeAsync(StateHasChanged);
+
+    }
+    
+    public void Dispose()
+    {
+        AppState.AppStateUpdated -= AppStateOnAppStateUpdated;
+    }
+ 
+}

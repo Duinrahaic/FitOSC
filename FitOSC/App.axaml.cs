@@ -5,10 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using FitOSC.Client.ViewModels;
 using FitOSC.Client.Views;
-using FitOSC.Shared.Services;
-using FitOSC.Shared.Utilities;
-using Microsoft.JSInterop;
-using Valve.VR;
+using FitOSC.Services;
 using Application = Avalonia.Application;
 
 namespace FitOSC;
@@ -64,24 +61,13 @@ public class App : Application, IDisposable
         var appBuilder = Host.CreateApplicationBuilder(args);
         appBuilder.Services.AddWindowsFormsBlazorWebView();
         appBuilder.Services.AddBlazorWebViewDeveloperTools();
-
-#if DEBUG
-
-#endif
-
-        appBuilder.Services.RegisterServices();
-        appBuilder.Services.RegisterHostedService<OpenVRService>();
-        appBuilder.Services.AddSingleton<OscService>();
-
-    
-        
-        using var myApp = appBuilder.Build();
-        AppHost = myApp;
         
         try
         {
+            appBuilder.Logging.RegisterLogger();
+            appBuilder.Services.RegisterServices();
+            AppHost = appBuilder.Build();
             AppHost.Start();
-
             buildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)

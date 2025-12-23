@@ -1,6 +1,51 @@
 ﻿@page "/"
-@using FitOSC.Shared.Pages
 @using Valve.VR
+@using FitOSC.Pages.Components
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@using FitOSC.Utilities
 @inject OpenVRService Ovr
+@inject TreadmillManager Treadmill
+@inject AppStateService AppState
 
-<MainPage @ref="@MainPage" OnWalkingStateChanged="SetWalkingState"/>
+<div class="treadmill-interaction">
+    <div class="treadmill-info-box">
+        <KPIBox Property="TreadmillTelemetryProperty.HeartRate" ValueFormat="0"/>
+        <KPIBox Property="TreadmillTelemetryProperty.TotalDistance" ValueFormat="0.00"/>
+        <DurationInterface/>
+        <KPIBox Property="TreadmillTelemetryProperty.Calories" ValueFormat="0"/>
+        <KPIBox Property="TreadmillTelemetryProperty.InstantaneousPace" ValueFormat="@(@"hh\:mm\:ss")"/>
+    </div>
+    <div class="treadmill-display">
+        @foreach(var speed in _speedStepsMph)
+        {
+            <button @onclick="() => SetSpeed(speed)">
+                @speed
+            </button>
+        }
+    </div>
+    <TreadmillControls/>
+</div>
+@code {
+
+    
+    private List<decimal> _speedStepsMph
+    {
+        get
+        {
+            var list = new List<decimal>();
+            for(decimal i = 0.6m; i <= 12.0m; i += 0.2m)
+            {
+                list.Add(i);
+            }
+
+            return list;
+        }
+    }
+
+
+    private async Task SetSpeed(decimal speed)
+    {
+        await Treadmill.SetSpeedAsync(speed.ConvertMphToKph());
+    }
+}

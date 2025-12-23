@@ -1,0 +1,96 @@
+﻿@using FitOSC.Models
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@inject TreadmillManager Treadmill
+@inject AppStateService AppState
+@implements IDisposable
+
+<div class="treadmill-controls">
+    <ButtonAdjuster ControlType="TreadmillControlType.Speed"/>
+    <ButtonAdjuster ControlType="TreadmillControlType.Incline"/>
+    <div class="treadmill-controls-group">
+        <AppStatusBar/>
+        <div class="title">
+            FITOSC
+        </div>
+        <img src="images/FitOSC-Bunny.svg" alt="fitosc-logo"/>
+            
+        <div class="treadmill-control-row">
+            <StateButton OnClick="Treadmill.StartAsync" Enabled="true" Icon="fa fa-play" Title="START"/>
+            <StateButton OnClick="Treadmill.StopAsync" Enabled="true" Icon="fa fa-square" Title="STOP"/>
+        </div>
+    </div>
+
+    <WalkingButtonAdjuster
+        WalkingMode="WalkingMode" 
+        WalkingModeChanged="OnWalkingModeChange"
+        SpeedPercentage="100"
+        OnIncrease="IncreaseWalkingSpeed"
+        OnDecrease="DecreaseWalkingSpeed"
+        OnOverrideSpeed="OverrideWalkingSpeed"
+    />
+
+</div>
+
+@code {
+
+    private AppStateInfo? _treadmillData;
+    private WalkingMode WalkingMode { get; set; } = WalkingMode.Disabled;
+
+    protected override void OnInitialized()
+    {
+        AppState.AppStateUpdated += UpdateTreadmillData;
+    }
+
+    private void UpdateTreadmillData(AppStateInfo? obj)
+    {
+        _treadmillData = obj;
+        InvokeAsync(StateHasChanged);
+    }
+
+
+    private async Task OnWalkingModeChange(WalkingMode mode)
+    {
+        WalkingMode = mode; // Temporary set of the mode
+        switch (mode)
+        {
+            case WalkingMode.Disabled:
+                break;
+            case WalkingMode.Dynamic:
+                break;
+            case WalkingMode.Override:
+                break;
+        }
+        await Task.CompletedTask;
+    }
+    
+    private async Task IncreaseWalkingSpeed()
+    {
+     
+    }
+
+    private async Task DecreaseWalkingSpeed()
+    {
+        
+    }
+    
+    private async Task OverrideWalkingSpeed(double speed)
+    {
+        if (WalkingMode == WalkingMode.Override)
+        {
+             await Task.CompletedTask;
+        }
+    }
+    
+    
+    private void SetWalkingState(bool state)
+    {
+ 
+    }
+
+    public void Dispose()
+    {
+        AppState.AppStateUpdated -= UpdateTreadmillData;
+    }
+
+}
