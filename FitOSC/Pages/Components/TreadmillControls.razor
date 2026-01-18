@@ -9,33 +9,40 @@
     <ButtonAdjuster ControlType="TreadmillControlType.Speed"/>
     <ButtonAdjuster ControlType="TreadmillControlType.Incline"/>
     <div class="treadmill-controls-group">
-        <AppStatusBar/>
+        <div class="treadmill-utility-bar">
+            <InterfaceStatusIndicator Interface="AppInterface.Bluetooth" />
+            <InterfaceStatusIndicator Interface="AppInterface.VR" />
+            <InterfaceStatusIndicator Interface="AppInterface.OSC" />
+            <div class="icon" @onclick="OpenSettings" style="cursor: pointer;">
+                <i class="fa-solid fa-cog"></i>
+            </div>
+        </div>
         <div class="title">
             FITOSC
         </div>
         <img src="images/FitOSC-Bunny.svg" alt="fitosc-logo"/>
-            
+
         <div class="treadmill-control-row">
-            <StateButton OnClick="Treadmill.StartAsync" Enabled="true" Icon="fa fa-play" Title="START"/>
-            <StateButton OnClick="Treadmill.StopAsync" Enabled="true" Icon="fa fa-square" Title="STOP"/>
+            <StateButton OnClick="Treadmill.StartAsync" Enabled="@IsBluetoothConnected" Icon="fa fa-play" Title="START"/>
+            <StateButton OnClick="Treadmill.PauseAsync" Enabled="@IsBluetoothConnected" Icon="fa fa-pause" Title="PAUSE"/>
+            <StateButton OnClick="Treadmill.StopAsync" Enabled="@IsBluetoothConnected" Icon="fa fa-square" Title="STOP"/>
         </div>
     </div>
 
-    <WalkingButtonAdjuster
-        WalkingMode="WalkingMode" 
-        WalkingModeChanged="OnWalkingModeChange"
-        SpeedPercentage="100"
-        OnIncrease="IncreaseWalkingSpeed"
-        OnDecrease="DecreaseWalkingSpeed"
-        OnOverrideSpeed="OverrideWalkingSpeed"
-    />
+    <WalkingButtonAdjuster Enabled="true" />
 
 </div>
 
-@code {
+<SettingsModal @bind-IsOpen="_isSettingsOpen" />
 
+@code {
+    private bool _isSettingsOpen = false;
     private AppStateInfo? _treadmillData;
-    private WalkingMode WalkingMode { get; set; } = WalkingMode.Disabled;
+    private bool _previousBluetoothConnected = false;
+
+    private bool IsBluetoothConnected =>
+        _treadmillData?.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var status) == true
+        && status == ConnectionStatus.Connected; // Only enable when fully connected, not while scanning
 
     protected override void OnInitialized()
     {
@@ -44,53 +51,33 @@
 
     private void UpdateTreadmillData(AppStateInfo? obj)
     {
+        var wasConnected = IsBluetoothConnected;
         _treadmillData = obj;
-        InvokeAsync(StateHasChanged);
-    }
+        var isNowConnected = IsBluetoothConnected;
 
-
-    private async Task OnWalkingModeChange(WalkingMode mode)
-    {
-        WalkingMode = mode; // Temporary set of the mode
-        switch (mode)
+        // Only re-render if Bluetooth connection status changed (affects button enabled states)
+        if (wasConnected != isNowConnected)
         {
-            case WalkingMode.Disabled:
-                break;
-            case WalkingMode.Dynamic:
-                break;
-            case WalkingMode.Override:
-                break;
-        }
-        await Task.CompletedTask;
-    }
-    
-    private async Task IncreaseWalkingSpeed()
-    {
-     
-    }
-
-    private async Task DecreaseWalkingSpeed()
-    {
-        
-    }
-    
-    private async Task OverrideWalkingSpeed(double speed)
-    {
-        if (WalkingMode == WalkingMode.Override)
-        {
-             await Task.CompletedTask;
+            InvokeAsync(StateHasChanged);
         }
     }
-    
-    
-    private void SetWalkingState(bool state)
+
+    // Prevent unnecessary re-renders - child components handle their own updates
+    protected override bool ShouldRender()
     {
- 
+        var currentConnected = IsBluetoothConnected;
+        var shouldRender = currentConnected != _previousBluetoothConnected || _isSettingsOpen;
+        _previousBluetoothConnected = currentConnected;
+        return shouldRender;
+    }
+
+    private void OpenSettings()
+    {
+        _isSettingsOpen = true;
     }
 
     public void Dispose()
     {
         AppState.AppStateUpdated -= UpdateTreadmillData;
     }
-
 }
