@@ -2,7 +2,16 @@
   "profiles": {
     "FitOSC": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:64066;http://localhost:64067"
+    },
+    "FitOSC (No VR)": {
+      "commandName": "Project",
+      "commandLineArgs": "--no-vr",
+      "launchBrowser": false,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },

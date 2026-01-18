@@ -1,0 +1,102 @@
+@using System.Reflection
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>FitOSC</h3>
+        <span class="header-version">Version @GetVersion()</span>
+    </div>
+
+    <div class="settings-item">
+        <div class="about-links">
+            <a href="https://github.com/duinrahaic/FitOSC" target="_blank" class="about-link">
+                <i class="fa-brands fa-github"></i>
+                <span>GitHub</span>
+            </a>
+            <a href="https://me.duinrahaic.app/fitosc" target="_blank" class="about-link">
+                <i class="fa-solid fa-book"></i>
+                <span>User Guide</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Contact</h3>
+    </div>
+
+    <div class="settings-item">
+        <div class="about-links">
+            <a href="https://discord.gg/aZQfy6H9fA" target="_blank" class="about-link">
+                <i class="fa-brands fa-discord"></i>
+                <span>Discord</span>
+            </a>
+            <a href="https://github.com/duinrahaic" target="_blank" class="about-link">
+                <i class="fa-brands fa-github"></i>
+                <span>GitHub</span>
+            </a>
+            <a href="https://bsky.app/profile/duinrahaic.app" target="_blank" class="about-link">
+                <i class="fa-brands fa-bluesky"></i>
+                <span>Bluesky</span>
+            </a>
+            <a href="https://x.com/duinrahaic" target="_blank" class="about-link">
+                <i class="fa-brands fa-x-twitter"></i>
+                <span>Twitter</span>
+            </a>
+            <a href="https://vrchat.com/home/user/usr_30b4e812-e6b1-4200-b563-ef74e89ea266" target="_blank" class="about-link">
+                <i class="fa-solid fa-vr-cardboard"></i>
+                <span>VRChat</span>
+            </a>
+            <a href="https://me.duinrahaic.com" target="_blank" class="about-link">
+                <i class="fa-solid fa-globe"></i>
+                <span>Website</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Support</h3>
+    </div>
+
+    <div class="settings-item">
+        <div class="about-links">
+            <a href="https://duinrahaic.booth.pm/" target="_blank" class="about-link">
+                <i class="fa-solid fa-bag-shopping"></i>
+                <span>Booth</span>
+            </a>
+            <a href="https://ko-fi.com/duinrahaic" target="_blank" class="about-link">
+                <i class="fa-solid fa-heart"></i>
+                <span>Ko-fi</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Special Mentions</h3>
+    </div>
+
+    <div class="settings-item">
+        <div class="about-credits">
+            <a href="https://avaloniaui.net/" target="_blank" class="credit-link">Avalonia</a>
+            <a href="https://github.com/LucHeart/CoreOSC-UTF8-ASYNC" target="_blank" class="credit-link">CoreOSC</a>
+            <a href="https://github.com/inthehand/32feet" target="_blank" class="credit-link">InTheHand.BluetoothLE</a>
+            <a href="https://github.com/ValveSoftware/openvr" target="_blank" class="credit-link">OpenVR</a>
+            <a href="https://github.com/Natsumi-sama/OscQueryLibrary" target="_blank" class="credit-link">OscQueryLibrary</a>
+            <a href="https://serilog.net/" target="_blank" class="credit-link">Serilog</a>
+            <a href="https://threejs.org/" target="_blank" class="credit-link">Three.js</a>
+            <a href="https://fontawesome.com/" target="_blank" class="credit-link">Font Awesome</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string GetVersion()
+    {
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        return version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "1.0.0";
+    }
+}

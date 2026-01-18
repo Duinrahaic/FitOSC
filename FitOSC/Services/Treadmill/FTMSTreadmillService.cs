@@ -1,37 +1,61 @@
 ﻿using System.Buffers.Binary;
 using FitOSC.Models;
-using FitOSC.Pages.Components;
 using FitOSC.Services.State;
 using FitOSC.Utilities;
 using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
-public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppStateService appState) 
+public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppStateService appState)
     : TreadmillService(appState, new WindowsBluetoothClient(logger))
 {
     private static readonly Guid FtmsService     = Guid.Parse("00001826-0000-1000-8000-00805f9b34fb");
     private static readonly Guid ControlPoint    = Guid.Parse("00002ad9-0000-1000-8000-00805f9b34fb");
     private static readonly Guid TreadmillData   = Guid.Parse("00002acd-0000-1000-8000-00805f9b34fb");
     private static readonly Guid StatusPoint     = Guid.Parse("00002ada-0000-1000-8000-00805f9b34fb");
-    private static readonly Guid SupportedSpeed  = Guid.Parse("00002ad4-0000-1000-8000-00805f9b34fb");  
-    private static readonly Guid SupportedIncline= Guid.Parse("00002ad5-0000-1000-8000-00805f9b34fb");  
+    private static readonly Guid SupportedSpeed  = Guid.Parse("00002ad4-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid SupportedIncline= Guid.Parse("00002ad5-0000-1000-8000-00805f9b34fb");
+
+    // Track previous duration to detect paused state
+    private decimal _previousElapsedTime = -1;  
 
     public override async Task ConnectAsync(string deviceName)
     {
         if (!await Client.ConnectAsync(FtmsService, deviceName))
+        {
+            logger.LogError("Failed to connect to FTMS service");
             return;
-        await Client.SubscribeAsync(ControlPoint, null); 
-        await Client.SubscribeAsync(TreadmillData, d => RaiseData(TranslateData(d)));
+        }
+
+        // Subscribe to critical characteristics
+        bool controlPointOk = await Client.SubscribeAsync(ControlPoint, null);
+        bool treadmillDataOk = await Client.SubscribeAsync(TreadmillData, HandleTelemetryData);
+
+        if (!controlPointOk || !treadmillDataOk)
+        {
+            logger.LogError("Failed to subscribe to critical characteristics. Control Point: {CP}, Treadmill Data: {TD}",
+                controlPointOk, treadmillDataOk);
+
+            // Don't continue with connection if critical subscriptions fail
+            // The auto-reconnect in WindowsBluetoothClient will handle retry
+            return;
+        }
+
+        // Subscribe to optional characteristics
         await Client.SubscribeAsync(StatusPoint, HandleStatus);
         await Client.SubscribeAsync(SupportedSpeed, null);
         await Client.SubscribeAsync(SupportedIncline, null);
+
         await GetTreadmillConfigurationAsync();
         logger.LogInformation($"Buffering before sending control request...");
         await RequestControlAsync();
     }
 
-    public override async Task DisconnectAsync() => await Client.DisconnectAsync();
+    public override async Task DisconnectAsync()
+    {
+        _previousElapsedTime = -1; // Reset duration tracking
+        await Client.DisconnectAsync();
+    }
 
     public override async Task RequestControlAsync()
     {
@@ -49,7 +73,9 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
 
     public override async Task SetSpeedAsync(decimal speed)
     {
-        Console.WriteLine($"Speed: {speed} km/h ({speed.ConvertKphToMph()} mph)");
+        logger.LogInformation("Setting speed: {Speed:F2} km/h ({SpeedMph:F2} mph)",
+            speed, speed.ConvertKphToMph());
+
         ushort raw = (ushort)Math.Round(speed * 100, MidpointRounding.AwayFromZero);
         var payload = new byte[]
         {
@@ -57,30 +83,9 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
             (byte)(raw & 0xFF),
             (byte)((raw >> 8) & 0xFF)
         };
-        PayloadToSpeed(payload);
+
         await Client.WriteAsync(ControlPoint, payload);
-    }
-
-    private void PayloadToSpeed(byte[] payload)
-    {
-        if (payload.Length >= 3 && payload[0] == 0x02)
-        {
-            
-            ushort raw = (ushort)(payload[1] | (payload[2] << 8));
-            decimal speedKph = raw / 100m;
-            decimal speedMph = speedKph.ConvertKphToMph();
-
-            logger.LogInformation(
-                "FTMS Payload: [{0}] → {1:F2} km/h ({2:F2} mph)",
-                BitConverter.ToString(payload),
-                speedKph,
-                speedMph
-            );
-        }
-        else
-        {
-            logger.LogWarning("Unexpected FTMS payload: [{0}]", BitConverter.ToString(payload));
-        }
+        logger.LogDebug("Sent speed command: {Payload}", BitConverter.ToString(payload));
     }
 
     public override async Task SetInclineAsync(decimal incline)
@@ -159,19 +164,36 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
             return (0, 0, 0);
         }
 
+        // Log raw bytes received from treadmill
+        logger.LogInformation("Raw FTMS Supported Speed data: [{Bytes}]", BitConverter.ToString(data));
+
         // FTMS uses little-endian format, unit = 0.01 m/s
         ushort minRaw = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(0));
         ushort maxRaw = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(2));
         ushort stepRaw = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(4));
 
-        // Convert m/s → km/h (×3.6)
-        decimal minKph = Math.Round(minRaw * 0.01m , 2);
-        decimal maxKph = Math.Round(maxRaw * 0.01m , 2);
-        decimal stepKph = Math.Round(stepRaw * 0.01m, 2);
+        logger.LogInformation("Parsed raw values: min={MinRaw}, max={MaxRaw}, step={StepRaw} (units: 0.01 m/s)",
+            minRaw, maxRaw, stepRaw);
+
+        // Convert 0.01 m/s → m/s → km/h (×0.01 then ×3.6 = ×0.036)
+        decimal minMps = minRaw * 0.01m;
+        decimal maxMps = maxRaw * 0.01m;
+        decimal stepMps = stepRaw * 0.01m;
+
+        logger.LogInformation("Converted to m/s: min={MinMps:F2}, max={MaxMps:F2}, step={StepMps:F2}",
+            minMps, maxMps, stepMps);
+
+        decimal minKph = Math.Round(minMps * 3.6m, 2);
+        decimal maxKph = Math.Round(maxMps * 3.6m, 2);
+        decimal stepKph = Math.Round(stepMps * 3.6m, 2);
+
+        decimal minMph = Math.Round(minKph.ConvertKphToMph(), 2);
+        decimal maxMph = Math.Round(maxKph.ConvertKphToMph(), 2);
+        decimal stepMph = Math.Round(stepKph.ConvertKphToMph(), 2);
 
         logger.LogInformation(
-            "Supported Speed Range: {Min:F2}–{Max:F2} km/h (step {Step:F2} km/h)",
-            minKph, maxKph, stepKph
+            "Supported Speed Range: {MinKph:F2}–{MaxKph:F2} km/h ({MinMph:F2}–{MaxMph:F2} mph), step {StepKph:F2} km/h ({StepMph:F2} mph)",
+            minKph, maxKph, minMph, maxMph, stepKph, stepMph
         );
 
         return (minKph, maxKph, stepKph);
@@ -191,8 +213,6 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
         decimal kph = rawSpeed / 100.0m; // resolution = 0.01 kph
         decimal speed = Math.Round(kph, 2, MidpointRounding.AwayFromZero);
         td.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Value = speed;
-
-        Console.WriteLine($"Instantaneous Speed: {speed:F2} km/h ({speed / 1.609344m:F2} mph)");
 
         // Average Speed
         if (flags.HasAvgSpeed && flags.PosAvgSpeed != -1)
@@ -317,18 +337,47 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
         return td;
     }
     
+    private void HandleTelemetryData(byte[] data)
+    {
+        var telemetry = TranslateData(data);
+        RaiseData(telemetry);
+
+        // Determine state based on duration changes
+        var elapsedTimeValue = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.ElapsedTime);
+        if (elapsedTimeValue != null)
+        {
+            var currentElapsedTime = elapsedTimeValue.Value;
+            TreadmillState state;
+
+            if (currentElapsedTime == 0)
+            {
+                // Duration is 0 -> Stopped
+                state = TreadmillState.Stopped;
+            }
+            else if (_previousElapsedTime >= 0 && currentElapsedTime > _previousElapsedTime)
+            {
+                // Duration is increasing -> Running
+                state = TreadmillState.Running;
+            }
+            else if (currentElapsedTime > 0)
+            {
+                // Duration is not 0 and not increasing -> Paused
+                state = TreadmillState.Paused;
+            }
+            else
+            {
+                // Fallback to stopped
+                state = TreadmillState.Stopped;
+            }
+
+            _previousElapsedTime = currentElapsedTime;
+            RaiseState(state);
+        }
+    }
+
     private void HandleStatus(byte[] data)
     {
-        if (data.Length == 0) return;
-
-        var state = data[0] switch
-        {
-            0x02 => TreadmillState.Paused,
-            0x03 => TreadmillState.Stopped,
-            0x04 => TreadmillState.Running,
-            _    => TreadmillState.Unknown
-        };
-
-        RaiseState(state);
+        // Status updates from the treadmill are now ignored in favor of duration-based state determination
+        // Keeping this method to maintain subscription compatibility
     }
 }

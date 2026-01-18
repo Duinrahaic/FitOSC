@@ -1,0 +1,115 @@
+@using FitOSC.Models
+@using FitOSC.Services.Configuration
+@using FitOSC.Services.History
+@using FitOSC.Services.State
+@inject ConfigurationService ConfigService
+@inject HistoryService HistoryService
+@inject AppStateService AppState
+@implements IDisposable
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>User Preferences</h3>
+        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
+    </div>
+
+    <div class="settings-item">
+        <label>Preferred Units</label>
+        <div class="unit-toggle">
+            <button class="unit-button @(_preferMetric ? "active" : "")" @onclick="() => SetPreferMetric(true)">Metric</button>
+            <button class="unit-button @(!_preferMetric ? "active" : "")" @onclick="() => SetPreferMetric(false)">Imperial</button>
+        </div>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Session History</h3>
+        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
+        <button class="btn-danger btn-sm btn-header-action" @onclick="ClearAllHistory">
+            <i class="fa-solid fa-trash-can"></i>
+            Clear
+        </button>
+    </div>
+
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" @bind="_historyEnabled" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Enable session history tracking</span>
+        </label>
+    </div>
+
+    <div class="settings-item">
+        <label>Minimum Session Duration (minutes)</label>
+        <input type="number" min="1" max="60" @bind="_minimumSessionDuration" placeholder="5" />
+        <p class="settings-hint">Sessions shorter than this duration will not be saved to history</p>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Performance</h3>
+    </div>
+
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" @bind="_useHardwareAcceleration" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Use hardware acceleration</span>
+        </label>
+        <p class="settings-hint">Disabling may reduce GPU usage. Requires app restart to take effect.</p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Action<bool>? OnPreferMetricChanged { get; set; }
+
+    private bool _preferMetric = true;
+    private bool _historyEnabled = true;
+    private int _minimumSessionDuration = 5;
+    private bool _useHardwareAcceleration = true;
+
+    protected override void OnInitialized()
+    {
+        var config = ConfigService.GetConfiguration();
+        _preferMetric = config.User.PreferMetric;
+        _historyEnabled = config.User.HistoryEnabled;
+        _minimumSessionDuration = config.User.MinimumSessionDuration;
+        _useHardwareAcceleration = config.User.UseHardwareAcceleration;
+    }
+
+    private void ClearAllHistory()
+    {
+        HistoryService.ClearAllHistory();
+    }
+
+    private void SetPreferMetric(bool preferMetric)
+    {
+        _preferMetric = preferMetric;
+
+        // Update AppState immediately so ButtonAdjuster and KPIBox update in real-time
+        AppState.UpdatePreferredUnits(preferMetric);
+
+        // Notify WalkingSettingsTab to update its display
+        OnPreferMetricChanged?.Invoke(preferMetric);
+
+        StateHasChanged();
+    }
+
+    public AppConfiguration GetConfiguration()
+    {
+        var config = ConfigService.GetConfiguration();
+        config.User.PreferMetric = _preferMetric;
+        config.User.HistoryEnabled = _historyEnabled;
+        config.User.MinimumSessionDuration = _minimumSessionDuration;
+        config.User.UseHardwareAcceleration = _useHardwareAcceleration;
+
+        return config;
+    }
+
+    public void Dispose()
+    {
+        // No subscriptions to clean up
+    }
+}

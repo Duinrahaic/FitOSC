@@ -10,6 +10,7 @@ public class WebViewSink() : ILogEventSink
     private CoreWebView2? _webView;
     private readonly ConcurrentQueue<LogEvent> _buffer = new();
     private volatile bool _isReady = false;
+    private const int MaxBufferSize = 500; // Prevent unbounded memory growth
 
     public void AttachWebView(CoreWebView2 webView)
     {
@@ -63,6 +64,11 @@ public class WebViewSink() : ILogEventSink
         }
         else
         {
+            // Drop oldest logs if buffer is full to prevent unbounded memory growth
+            while (_buffer.Count >= MaxBufferSize)
+            {
+                _buffer.TryDequeue(out _);
+            }
             _buffer.Enqueue(logEvent);
         }
     }

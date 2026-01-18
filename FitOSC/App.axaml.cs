@@ -15,6 +15,11 @@ public class App : Application, IDisposable
     private IClassicDesktopStyleApplicationLifetime? _desktop;
     public static IHost? AppHost { get; private set; }
 
+    /// <summary>
+    /// When true, SteamVR/OpenVR initialization is disabled. Use --no-vr launch argument.
+    /// </summary>
+    public static bool DisableVR { get; private set; }
+
 
     public void Dispose()
     {
@@ -58,6 +63,13 @@ public class App : Application, IDisposable
 
     internal static void RunAvaloniaAppWithHosting(string[] args, Func<AppBuilder> buildAvaloniaApp)
     {
+        // Check for --no-vr flag to disable SteamVR initialization
+        DisableVR = args.Contains("--no-vr", StringComparer.OrdinalIgnoreCase);
+        if (DisableVR)
+        {
+            Console.WriteLine("[FitOSC] SteamVR disabled via --no-vr flag");
+        }
+
         var appBuilder = Host.CreateApplicationBuilder(args);
         appBuilder.Services.AddWindowsFormsBlazorWebView();
         appBuilder.Services.AddBlazorWebViewDeveloperTools();

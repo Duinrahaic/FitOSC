@@ -50,6 +50,12 @@
         <Content Update="wwwroot\fonts\brush-script-mt.ttf">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+        <Content Update="wwwroot\js\three.min.js">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\js\treadmillDisplay.js">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Blazored.LocalStorage" Version="4.5.0"/>
@@ -64,6 +70,7 @@
         <PackageReference Include="Avalonia.ReactiveUI" Version="11.1.4"/>
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.4"/>
         <PackageReference Include="Avalonia.Themes.Simple" Version="11.1.4"/>
+        <PackageReference Include="NAudio.Midi" Version="2.2.1" />
         <PackageReference Include="OscQueryLibrary" Version="1.1.1" />
         <PackageReference Include="Serilog" Version="4.3.0" />
         <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
@@ -130,6 +137,11 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>openvr_api.dll</TargetPath>
         </ContentWithTargetPath>
+    </ItemGroup>
+    <ItemGroup>
+        <Content Update="SteamVR\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
     <ItemGroup>
       <Folder Include="Extensions\" />

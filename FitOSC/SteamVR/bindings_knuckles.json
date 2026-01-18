@@ -1,0 +1,47 @@
+{
+  "name": "FitOSC Default Bindings for Valve Index Controllers",
+  "controller_type": "knuckles",
+  "category": "steamvr_input",
+  "bindings": {
+    "/actions/fitosc": {
+      "sources": [
+        {
+          "path": "/user/hand/right/input/thumbstick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/SpeedModifier"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/thumbstick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/ManualMovement"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/thumbstick",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/ToggleWalking"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/thumbstick",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/RecenterYaw"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

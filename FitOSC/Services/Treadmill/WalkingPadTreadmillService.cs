@@ -1,6 +1,5 @@
 ﻿using FitOSC.Services.State;
 using FitOSC.Utilities.BLE;
-using InTheHand.Bluetooth;
 
 namespace FitOSC.Services.Treadmill;
 

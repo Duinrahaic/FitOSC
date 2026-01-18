@@ -1,0 +1,836 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  min-width: 500px;
+  max-width: 600px;
+  max-height: 90vh;
+  min-height: 90vh;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden ;
+  width: 100%;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid $color-border;
+
+  h2 {
+    margin: 0;
+    color: $color-text;
+    font-size: 24px;
+    letter-spacing: 2px;
+  }
+
+  .modal-close {
+    background: transparent;
+    border: none;
+    color: $color-text-muted;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: $color-text;
+    }
+  }
+}
+
+.modal-body {
+  padding: 0;
+  overflow-y: auto;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid $color-border;
+  background: $color-background;
+  padding: 0 24px;
+
+  .tab-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: $color-text-muted;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    user-select: none;
+
+    i {
+      font-size: 16px;
+      transition: color 0.3s ease;
+    }
+
+    &:hover {
+      color: $color-text;
+      background: rgba($color-accent, 0.05);
+
+      i {
+        color: $color-accent;
+      }
+    }
+
+    &.active {
+      color: $color-accent;
+      border-bottom-color: $color-accent;
+
+      i {
+        color: $color-accent;
+      }
+    }
+  }
+}
+
+.tab-content {
+  padding: 24px;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid $color-border;
+
+  .btn-primary,
+  .btn-secondary {
+    @extend .btn-uppercase;
+  }
+}
+
+.settings-section {
+  margin-bottom: 24px;
+  overflow: hidden;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  h3 {
+    color: $color-text;
+    font-size: 16px;
+    letter-spacing: 1.5px;
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid $color-border;
+  }
+  .settings-header{
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    border-bottom: 1px solid $color-border;
+    padding-bottom: 8px;
+    margin: 0 0 16px 0;
+    width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    h3{
+      border-bottom: none;
+      padding-bottom: 0px;
+      margin: 0;
+    }
+    .settings-info-icon{
+      background: none;
+      border: none;
+      color: $color-accent;
+      cursor: pointer;
+      &:hover {
+        color: $color-accent-hover;
+      }
+    }
+    .btn-header-action {
+      margin-left: auto;
+    }
+
+    .header-version {
+      margin-left: auto;
+      color: $color-text-muted;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+  }
+}
+
+
+
+.settings-item {
+  margin-bottom: 16px;
+  max-width: 100%;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  label {
+    display: block;
+    color: $color-text-muted;
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  input,
+  select {
+    width: 100%;
+    padding: 8px 12px;
+    background: $color-background;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+    color: $color-text;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+
+    &:focus {
+      outline: none;
+      border-color: $color-accent;
+    }
+
+    &::placeholder {
+      color: $color-text-muted;
+      opacity: 0.6;
+    }
+  }
+
+  select {
+    cursor: pointer;
+  }
+
+  .unit-toggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+    overflow: hidden;
+    width: fit-content;
+
+    .unit-button {
+      padding: 8px 20px;
+      background: transparent;
+      border: none;
+      color: $color-text-muted;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      user-select: none;
+
+      &:first-child {
+        border-right: 1px solid $color-border;
+      }
+
+      &:hover {
+        color: $color-text;
+        background: rgba($color-accent, 0.1);
+      }
+
+      &.active {
+        background: $color-accent;
+        color: $color-background;
+      }
+    }
+  }
+
+  .toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+
+    input[type="checkbox"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-track {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: $color-border;
+      border: 1px solid $color-border;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: $color-text-muted;
+        border-radius: 3px;
+        transition: all 0.2s ease;
+      }
+    }
+
+    input[type="checkbox"]:checked + .toggle-track {
+      background: $color-accent;
+      border-color: $color-accent;
+
+      &::after {
+        left: calc(100% - 22px);
+        background: $color-background;
+      }
+    }
+
+    &:hover .toggle-track {
+      border-color: $color-text-muted;
+    }
+
+    &:hover input[type="checkbox"]:checked + .toggle-track {
+      border-color: $color-accent-hover;
+      background: $color-accent-hover;
+    }
+
+    input[type="checkbox"]:focus-visible + .toggle-track {
+      border-color: $color-accent-hover;
+      outline-offset: 2px;
+    }
+
+    .toggle-label {
+      color: $color-text;
+      font-size: 14px;
+    }
+  }
+
+  .settings-hint {
+    color: $color-text-muted;
+    font-size: 11px;
+    font-style: italic;
+    margin: 6px 0 0 0;
+    opacity: 0.8;
+  }
+}
+
+.session-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px;
+  background: $color-background;
+  border: 1px solid $color-border;
+  border-radius: 4px;
+
+  .session-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: $color-surface;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+
+    .session-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      .session-date {
+        color: $color-text;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .session-stats {
+        color: $color-text-muted;
+        font-size: 11px;
+      }
+    }
+
+    .btn-delete {
+      @extend .btn-sm;
+    }
+  }
+}
+
+.connection-status {
+  .connected-device {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: $color-background;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+
+    i.fa-bluetooth {
+      color: $bluetooth-color;
+      font-size: 16px;
+    }
+
+    span {
+      flex-grow: 1;
+      color: $color-text;
+      font-size: 14px;
+    }
+
+    .connection-buttons {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .no-device {
+    display: block;
+    padding: 10px 12px;
+    color: $color-text-muted;
+    font-size: 14px;
+    font-style: italic;
+  }
+}
+
+.auto-connect-option {
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+
+    input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+      accent-color: $color-accent;
+    }
+
+    span {
+      color: $color-text;
+      font-size: 14px;
+      user-select: none;
+    }
+  }
+}
+
+.bluetooth-scanner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .selected-device {
+    color: $color-text-muted;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  .device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 8px;
+    background: $color-background;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+  }
+
+  .device-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: $color-surface;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: lighten($color-surface, 5%);
+      border-color: $color-accent-muted;
+    }
+
+    &.selected {
+      background: $color-accent-muted;
+      border-color: $color-accent;
+    }
+
+    i.fa-bluetooth {
+      color: $bluetooth-color;
+      font-size: 16px;
+    }
+
+    span {
+      flex-grow: 1;
+      color: $color-text;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .device-indicators {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      i {
+        font-size: 14px;
+      }
+
+      .default-indicator {
+        color: $color-success;
+      }
+    }
+  }
+}
+
+.debug-hint {
+  color: $color-text-muted;
+  font-size: 12px;
+  font-style: italic;
+  margin: 0;
+  opacity: 0.7;
+}
+
+// About tab styles
+.about-hero {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+
+  .about-hero-content {
+    flex: 1;
+  }
+
+  .about-hero-mascot {
+    flex-shrink: 0;
+
+    img {
+      width: 120px;
+      height: auto;
+    }
+  }
+}
+
+.about-app-info {
+  .about-version {
+    color: $color-accent;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin: 0 0 8px 0;
+  }
+
+  .about-description {
+    color: $color-text-muted;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+  }
+}
+
+.about-links {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+
+  .about-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: $color-background;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+    color: $color-text;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+
+    i {
+      font-size: 16px;
+      color: $color-accent;
+    }
+
+    &:hover {
+      background: rgba($color-accent, 0.1);
+      border-color: $color-accent;
+      color: $color-accent;
+    }
+  }
+}
+
+kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: $color-background;
+  border: 1px solid $color-border;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+  color: $color-text;
+}
+
+.about-credits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .credit-link {
+    color: $color-text-muted;
+    text-decoration: none;
+    font-size: 12px;
+    padding: 4px 10px;
+    background: $color-background;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: $color-accent;
+      border-color: $color-accent;
+    }
+  }
+}
+
+.debug-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  .debug-group {
+    background: $color-background;
+    border: 1px solid $color-border;
+    border-radius: 4px;
+    padding: 16px;
+
+    .debug-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid $color-border;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+
+      h4 {
+        color: $color-text;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        margin: 0;
+        text-transform: uppercase;
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .unit-toggle {
+        display: flex;
+        gap: 0;
+        border: 1px solid $color-border;
+        border-radius: 4px;
+        overflow: hidden;
+
+        .unit-button {
+          padding: 4px 12px;
+          background: transparent;
+          border: none;
+          color: $color-text-muted;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-transform: uppercase;
+          user-select: none;
+
+          &:first-child {
+            border-right: 1px solid $color-border;
+          }
+
+          &:hover {
+            color: $color-text;
+            background: rgba($color-accent, 0.1);
+          }
+
+          &.active {
+            background: $color-accent;
+            color: $color-background;
+          }
+        }
+      }
+    }
+
+    h4 {
+      color: $color-text;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      margin: 0 0 12px 0;
+      text-transform: uppercase;
+      border-bottom: 1px solid $color-border;
+      padding-bottom: 8px;
+    }
+
+    .debug-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba($color-border, 0.3);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .debug-label {
+        color: $color-text-muted;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+
+      .debug-value {
+        color: $color-text;
+        font-size: 13px;
+        font-weight: 600;
+
+        &.status-connected {
+          color: $color-success;
+        }
+
+        &.status-connecting {
+          color: $color-accent;
+        }
+
+        &.status-error {
+          color: $color-error;
+        }
+
+        &.status-disconnected {
+          color: $color-text-muted;
+        }
+      }
+
+      .debug-bar {
+        position: relative;
+        width: 100px;
+        height: 8px;
+        background: $color-surface;
+        border: 1px solid $color-border;
+        border-radius: 4px;
+        margin-left: 12px;
+        overflow: hidden;
+
+        .debug-bar-fill {
+          position: absolute;
+          top: 0;
+          height: 100%;
+          background: $color-accent;
+          transition: left 0.05s ease-out, width 0.05s ease-out;
+        }
+
+        .debug-bar-center {
+          position: absolute;
+          top: 0;
+          left: 50%;
+          width: 1px;
+          height: 100%;
+          background: $color-text-muted;
+        }
+      }
+    }
+
+    .debug-subgroup {
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba($color-surface, 0.5);
+      border: 1px solid rgba($color-border, 0.5);
+      border-radius: 4px;
+
+      h5 {
+        color: $color-text-muted;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin: 0 0 8px 0;
+        text-transform: uppercase;
+      }
+
+      .debug-item {
+        padding: 6px 0;
+
+        .debug-label {
+          font-size: 12px;
+        }
+
+        .debug-value {
+          font-size: 12px;
+        }
+      }
+    }
+  }
+}
+
+// MIDI CC Assignments
+.cc-assignments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: $color-background;
+  border: 1px solid $color-border;
+  border-radius: 4px;
+  padding: 12px;
+
+  .cc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    span {
+      color: $color-text;
+      font-size: 13px;
+      min-width: 80px;
+    }
+
+    input[type="number"] {
+      width: 70px;
+      padding: 6px 8px;
+      font-size: 13px;
+      text-align: center;
+    }
+  }
+}

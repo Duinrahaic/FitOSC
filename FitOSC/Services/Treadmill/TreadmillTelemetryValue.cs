@@ -28,12 +28,18 @@ public class TreadmillTelemetryValue
     /// </summary>
     public string ImperialUnit { get; set; } = string.Empty;
 
-    public TreadmillTelemetryValue(TreadmillTelemetryProperty telemetryProperty, decimal value, string metricUnit, string imperialUnit = "")
+    /// <summary>
+    /// Indicates whether the value is in metric (true) or imperial (false) units.
+    /// </summary>
+    public bool IsMetric { get; set; } = true;
+
+    public TreadmillTelemetryValue(TreadmillTelemetryProperty telemetryProperty, decimal value, string metricUnit, string imperialUnit = "", bool isMetric = true)
     {
         TelemetryProperty = telemetryProperty;
         Value = value;
         MetricUnit = metricUnit;
         ImperialUnit = imperialUnit;
+        IsMetric = isMetric;
     }
 
     /// <summary>
@@ -41,7 +47,7 @@ public class TreadmillTelemetryValue
     /// </summary>
     public TreadmillTelemetryValue AsMetric()
     {
-        return new TreadmillTelemetryValue(TelemetryProperty, Value, MetricUnit, ImperialUnit);
+        return new TreadmillTelemetryValue(TelemetryProperty, Value, MetricUnit, ImperialUnit, isMetric: true);
     }
 
     /// <summary>
@@ -72,11 +78,23 @@ public class TreadmillTelemetryValue
                 break;
         }
 
-        return new TreadmillTelemetryValue(TelemetryProperty, Math.Round(converted, 2), MetricUnit, ImperialUnit);
+        return new TreadmillTelemetryValue(TelemetryProperty, Math.Round(converted, 2), MetricUnit, ImperialUnit, isMetric: false);
     }
 
     public override string ToString()
     {
-        return $"{Value:0.##} {MetricUnit}";
+        var unit = IsMetric ? MetricUnit : (!string.IsNullOrEmpty(ImperialUnit) ? ImperialUnit : MetricUnit);
+
+        // Format pace as time signature (HH:MM:SS)
+        if (TelemetryProperty == TreadmillTelemetryProperty.InstantaneousPace || TelemetryProperty == TreadmillTelemetryProperty.AveragePace)
+        {
+            var totalSeconds = (int)Value;
+            var hours = totalSeconds / 3600;
+            var minutes = (totalSeconds % 3600) / 60;
+            var seconds = totalSeconds % 60;
+            return $"{hours:D2}:{minutes:D2}:{seconds:D2}";
+        }
+
+        return $"{Value:0.##} {unit}";
     }
 }

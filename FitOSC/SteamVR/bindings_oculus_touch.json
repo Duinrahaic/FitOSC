@@ -1,0 +1,47 @@
+{
+  "name": "FitOSC Default Bindings for Oculus Touch Controllers",
+  "controller_type": "oculus_touch",
+  "category": "steamvr_input",
+  "bindings": {
+    "/actions/fitosc": {
+      "sources": [
+        {
+          "path": "/user/hand/right/input/joystick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/SpeedModifier"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/joystick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/ManualMovement"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/joystick",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/ToggleWalking"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/joystick",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/RecenterYaw"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

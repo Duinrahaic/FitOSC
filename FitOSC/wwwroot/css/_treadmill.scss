@@ -1,5 +1,16 @@
 ﻿@import "_variables";
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
 .treadmill-interaction {
   position: relative;
   width: 100%;
@@ -72,7 +83,6 @@
 		color: $color-text-muted;
 		letter-spacing: 2px;
 		margin-top: auto;
-		
 	  }
 	}
   }
@@ -85,8 +95,119 @@
 	border: 1px solid $color-border;
 	border-radius: 4px;
 	align-items: center;
+	position: relative;
+	max-width: 100%;
+	overflow: hidden;
+
+	&-metrics {
+	  display: flex;
+	  flex-direction: row;
+	  gap: 16px;
+	  justify-content: space-between;
+	  align-items: center;
+	  padding: 12px 20px;
+	  background: rgba(0, 0, 0, 0.3);
+	  position: absolute;
+	  top: 0;
+	  right: 0;
+	  left: 0;
+	  z-index: 100;
+	  user-select: none;
+	  opacity: 0;
+	  pointer-events: none;
+	  transition: opacity 0.3s ease-in-out;
+
+	  &.visible {
+		opacity: 1;
+		pointer-events: auto;
+	  }
+
+	  .treadmill-info-box-item{
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		width: 200px;
+		.treadmill-info-box-value{
+		  font-size: 24px;
+		}
+		.treadmill-info-box-title{
+		  font-size: 14px;
+		  color: $color-text-muted;
+		}
+	  }
+
+	}
+
+	&-visual-container {
+	  width: 100%;
+	  height: 100%;
+	  position: relative;
+	  overflow: hidden;
+
+	  canvas {
+		display: block;
+		width: 100%;
+		height: 100%;
+	  }
+
+	  &-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.6);
+		z-index: 50;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.3s ease-in-out;
+
+		&.visible {
+		  opacity: 1;
+		  pointer-events: auto;
+		}
+
+		.walking-paused-indicator {
+		  display: flex;
+		  flex-direction: column;
+		  align-items: center;
+		  gap: 12px;
+		  padding: 24px 32px;
+		  background: rgba($color-error, 0.15);
+		  border: 2px solid $color-error;
+		  border-radius: 12px;
+		  color: $color-error;
+		  text-shadow: glow($color-error, 0, 8px);
+
+		  i {
+			font-size: 48px;
+		  }
+
+		  span {
+			font-size: 18px;
+			font-weight: bold;
+			letter-spacing: 2px;
+			text-transform: uppercase;
+
+			&.subtext {
+			  font-size: 12px;
+			  font-weight: normal;
+			  letter-spacing: 0;
+			  text-transform: none;
+			  color: $color-text-muted;
+			  text-shadow: none;
+			}
+		  }
+		}
+	  }
+	}
+ 
   }
-  
+
   .treadmill-control-row{
 	display: flex;
 	flex-direction: row;
@@ -106,20 +227,42 @@
 	  gap: 8px;
 	  font-size: 16px;
 	  width: 50%;
+	  transition: all 0.2s ease;
+
+	  &:disabled {
+		border-color: $color-border;
+		color: $color-text-muted;
+		cursor: default;
+		opacity: 0.5;
+	  }
+
 	  &:first-child
 	  {
 		border-top-left-radius: 8px;
 		border-bottom-left-radius: 8px;
 		border-right: unset;
 	  }
- 
+	  
+	  &:not(:first-child):not(:last-child) {
+		border-left: unset;
+		border-right: unset;
+	  }
+
 	  &:last-child
 	  {
 		border-top-right-radius: 8px;
 		border-bottom-right-radius: 8px;
 		border-left: unset;
 	  }
-	  
+
+	  .treadmill-control-button-title {
+		transition: color 0.2s ease;
+
+		&.disabled {
+		  color: $color-text-muted;
+		}
+	  }
+
 	}
 	
   }
@@ -138,53 +281,23 @@
 		  height: 100%;
 		  display: flex;
 		  flex-direction: column;
-		  gap: 8px;
 		  align-items: center;
 		  justify-content: space-between;
 		  overflow: hidden;
-		  max-width: 100%;
 		  position: relative;
 		  .title
 		  {
-			font-size: 30px;
+			font-size: 58px;
 			letter-spacing: 4px;
 			color: $color-text;
 			user-select: none;
+			font-family: fantasy;
+			height: 57px;
 		  }
 		  
 		  img
 		  {
 			width: 160px;
-		  }
-	
-		  .indicator-bar{
-			display: flex;
-			flex-direction: row;
-			gap: 12px;
-			justify-content: space-evenly;
-			align-items: center;
-			border-radius: 4px;
-			background: $color-surface;
-			padding: 4px 12px;
-			border: 1px solid $color-border;
-			width: 236px;
-			
-			.icon{
-			  color: $color-text-muted;
-			
-				&#bt{
-				  @include iconGlow($bluetooth-color);
-				}
-				&#vr{
-				  @include iconGlow($vr-color);
-				}
-			  	&#OSC{
-				  @include iconGlow($wifi-color);
-				}
-			}
-			
-			
-			
 		  }
 		}
 		.treadmill-control-adjuster-container{
@@ -212,6 +325,10 @@
 			}
 		  }
 		  
+		  &.walking{
+			gap: 6px;
+		  }
+		  
 		  .treadmill-control-group{
 			display: flex;
 			flex-direction: row;
@@ -235,6 +352,7 @@
 			aspect-ratio: 2/1;
 			flex: 1;
 			width: 100%;
+			user-select: none;
 			.treadmill-control-adjuster-indicator {
 			  background: unset;
 			  outline: unset;
@@ -270,6 +388,7 @@
 			aspect-ratio: 1/1;
 			flex: 1;
 			width: 100%;
+			user-select: none;
 			
 
 			
@@ -366,9 +485,13 @@
 		  
 		  .treadmill-control-adjuster-title
 		  {
-			letter-spacing: 4px;	
+			letter-spacing: 4px;
 			font-size: 18px;
 			user-select: none;
+
+			&.disabled {
+			  color: $color-text-muted;
+			}
 		  }
 		  
 		  .treadmill-control-adjuster{
@@ -386,48 +509,241 @@
 			cursor: pointer;
 			background: transparent;
 			overflow: hidden;
-			
+			transition: all 0.2s ease;
+
 			$control-border-radius: 8px;
-			
-			
-			
+
+			&:disabled {
+			  border-color: $color-border;
+			  color: $color-text-muted;
+			  cursor: default;
+			  opacity: 0.5;
+			}
+
 			&.increase{
 			  border-top-left-radius: $control-border-radius;
 			  border-top-right-radius: $control-border-radius;
 			  border-bottom: none;
-			  
-			  
+
+
 			}
 			&.decrease{
 			  border-bottom-left-radius: $control-border-radius;
 			  border-bottom-right-radius: $control-border-radius;
 			  border-top: none;
-			  
+
 			}
 			&.walking{
 			  aspect-ratio: unset;
 			  flex-grow: 1;
 			  border: none;
-			  border-bottom: 2px solid $color-text;
-			  width: 90%;
-		
-			  
-			  &:last-child
-			  {	
-				border-bottom: none;
+			  box-sizing: border-box;
+			  align-items: center;
+			  justify-content: space-between;
+			  gap: 4px;
+			  .led
+			  {
+				font-size: 12px;
+				
+				display: flex;
+				flex-direction: row-reverse;
+				gap: 12px;
+				align-items: center;
+				justify-content: end;
+				width: 100%;
+				outline: 2px solid $color-border;
+				padding: 0 4px;
+				border-radius: $control-border-radius;
+				
+				.led-text{
+				  font-size: 30px;
+				  color: $color-border;
+				}
+				
+				.led-indicator{
+				  background: darken($color-success, 40%);
+				  width: 8px;
+				  height: 24px;
+				  border-radius: 4px;
+				}
+				
+				&:not(.led-disabled)
+				{
+				  
+			 
+				  &.active
+				  {
+					outline: 2px solid $color-text;
+					
+					.led-indicator
+					{
+					  background-color: $color-success;
+					  box-shadow: glow($color-success, 0, 4px);
+					}
+					.led-text
+					{
+					  color: $color-text;
+					  
+					}
+				  }
+				}
 			  }
-			  
 			}
+		  }
+
+		  .treadmill-dynamic-indicator-container {
+			position: relative;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-end;
+			overflow: hidden;
+			border-radius: 8px;
+			border: 1px solid $color-border;
+			
+			
+			.treadmill-control-indicator-meter{
+			  width: 100%;
+			  height: 100%;
+			  background: linear-gradient(to top,
+					  rgba(0, 255, 0, 1) 0%,      // faded green
+					  rgba(255, 255, 0, 1) 33%,   // faded yellow
+					  rgba(255, 153, 0, 1) 66%,   // faded orange
+					  rgba(255, 0, 0, 1) 100%     // faded red
+			  );
+			  flex-shrink: 0;
+			  clip-path: inset(0 0 0 0 round 8px);
+			  overflow: hidden;
+			}
+			
+			.treadmill-dynamic-indicator-background {
+			  @extend .treadmill-control-indicator-meter;
+			}
+			
+			
+			.treadmill-dynamic-indicator-clipper{
+			  position: absolute;
+			  overflow: hidden;
+			  right: 0;
+			  bottom: 0;
+			  width: 100%;
+			  height:100%;
+			  clip-path: inset(0 0 0 0 round 8px);
+			}
+			.treadmill-dynamic-indicator-mask
+			{
+			  height: 100%;
+			  background: black;
+			  opacity: 0.5;
+			  backdrop-filter: opacity(0.5);
+			  transition: transform 0.3s ease-out;
+			}
+
+			.treadmill-dynamic-indicator-trim-bar
+			{
+			  position: absolute;
+			  bottom: 0;
+			  left: 0;
+			  width: 100%;
+			  height: 100%;
+			  transform: translateY(0%);
+			  z-index: 200;
+			  transition: transform 0.3s ease-out;
+			  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+			  border-bottom: 2px solid black;
+			  
+			  .treadmill-dynamic-indicator-trim-bar-text{
+				position: absolute;
+				bottom: 4px;
+				left: 50%;
+				transform: translateX(-50%) translateY(0);
+				font-family: Tahoma, sans-serif;
+				font-size: 12px;
+				font-weight: bold;
+				color: $color-text;
+				background: rgba(0, 0, 0, 0.7);
+				padding: 2px 8px;
+				border-radius: 4px;
+				opacity: 0;
+				transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+				pointer-events: none;
+				white-space: nowrap;
+
+				&.visible {
+				  opacity: 1;
+				}
+
+				&.below {
+				  transform: translateX(-50%) translateY(calc(100% + 12px));
+				}
+			  }
+	
+			}
+
 		  }
 		}
 
-	
+
   }
   
   .treadmill-utility-bar
   {
-		
-  }
+	display: flex;
+	flex-direction: row;
+	gap: 12px;
+	justify-content: space-between;
+	align-items: center;
+	background: $color-surface;
+	padding: 4px 12px;
+	border: 1px solid $color-border;
+	border-radius: 4px;
+	align-self: stretch; // Makes the bar fill the width of its container
+	box-sizing: border-box; // Ensures padding/border are included in width calculation
+
+	.icon {
+	  color: $color-text-muted;
+	  transition: all 0.3s ease;
 	  
-  
+	  &.scanning {
+		animation: pulse 1.5s ease-in-out infinite;
+	  }
+	  
+	  &.error {
+		color: $color-error !important;
+		text-shadow: glow($color-error, 0, 4px);
+	  }
+	  
+	  &#bt {
+		@include iconGlow($bluetooth-color);
+		
+		&.active {
+		  color: $bluetooth-color;
+		  text-shadow: glow($bluetooth-color, 0, 4px);
+		}
+	  }
+	  
+	  &#vr {
+		@include iconGlow($vr-color);
+		
+		&.active {
+		  color: $vr-color;
+		  text-shadow: glow($vr-color, 0, 4px);
+		}
+	  }
+	  
+	  &#osc {
+		@include iconGlow($wifi-color);
+		
+		&.active {
+		  color: $wifi-color;
+		  text-shadow: glow($wifi-color, 0, 4px);
+		}
+	  }
+	  
+	  i {
+		font-size: 18px;
+	  }
+	}
+  }
 }

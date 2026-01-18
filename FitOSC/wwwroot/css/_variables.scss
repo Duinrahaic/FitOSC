@@ -53,11 +53,10 @@ $shadow-elevation-2: 0 4px 8px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur($blur);
   -webkit-backdrop-filter: blur($blur);
   
-  // create inset using background shades
   box-shadow:
-		  inset 0 2px 6px darken($bg-color, 15%),   // shadow at top (carved in)
-		  inset 0 -2px 6px lighten($bg-color, 12%), // highlight at bottom
-		  0 2px 6px rgba(0, 0, 0, 0.5);             // subtle outer depth
+		  inset 0 2px 6px darken($bg-color, 15%),   
+		  inset 0 -2px 6px lighten($bg-color, 12%), 
+		  0 2px 6px rgba(0, 0, 0, 0.5);             
 
   
   color: #fff;

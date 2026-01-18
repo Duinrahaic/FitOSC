@@ -1,0 +1,78 @@
+{
+  "default_bindings": [
+    {
+      "controller_type": "knuckles",
+      "binding_url": "bindings_knuckles.json"
+    },
+    {
+      "controller_type": "oculus_touch",
+      "binding_url": "bindings_oculus_touch.json"
+    },
+    {
+      "controller_type": "vive_controller",
+      "binding_url": "bindings_vive_controller.json"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/fitosc/in/SpeedModifier",
+      "type": "vector2",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/ToggleWalking",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/RecenterYaw",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/OverrideSpeedUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/OverrideSpeedDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/ManualMovement",
+      "type": "vector2",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TrimUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TrimDown",
+      "type": "boolean",
+      "requirement": "optional"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/fitosc",
+      "usage": "leftright"
+    }
+  ],
+  "localization": [
+    {
+      "language_tag": "en_US",
+      "/actions/fitosc": "FitOSC",
+      "/actions/fitosc/in/SpeedModifier": "Speed Modifier",
+      "/actions/fitosc/in/ToggleWalking": "Toggle Walking",
+      "/actions/fitosc/in/RecenterYaw": "Recenter Direction",
+      "/actions/fitosc/in/OverrideSpeedUp": "Override Speed Up",
+      "/actions/fitosc/in/OverrideSpeedDown": "Override Speed Down",
+      "/actions/fitosc/in/ManualMovement": "Manual Movement",
+      "/actions/fitosc/in/TrimUp": "Increase Trim",
+      "/actions/fitosc/in/TrimDown": "Decrease Trim"
+    }
+  ]
+}

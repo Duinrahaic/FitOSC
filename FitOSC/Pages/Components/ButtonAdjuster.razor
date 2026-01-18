@@ -18,13 +18,17 @@
             @_unit
         </div>
     </div>
-    <button class="treadmill-control-adjuster increase" @onclick="Increase">
+    <button class="treadmill-control-adjuster increase"
+            @onclick="Increase"
+            disabled="@(!_enabled)">
         <i class="fa fa-add"></i>
     </button>
-    <div class="treadmill-control-adjuster-title">
+    <div class="treadmill-control-adjuster-title @(!_enabled ? "disabled" : "")">
         @_title
     </div>
-    <button class="treadmill-control-adjuster decrease" @onclick="Decrease">
+    <button class="treadmill-control-adjuster decrease"
+            @onclick="Decrease"
+            disabled="@(!_enabled)">
         <i class="fa fa-minus"></i>
     </button>
 </div>
@@ -52,12 +56,17 @@
     private void AppStateOnAppStateUpdated(AppStateInfo stateInfo)
     {
         _configuration = stateInfo.TreadmillConfiguration;
-        
+
+        // Check if Bluetooth is fully connected (not connecting/scanning)
+        bool isBluetoothReady = stateInfo.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var btStatus)
+                                     && btStatus == ConnectionStatus.Connected;
+
         if (ControlType == TreadmillControlType.Incline &&
             stateInfo.TreadmillTelemetry.Values.TryGetValue(TreadmillTelemetryProperty.Incline, out _data))
         {
             _title = "INCLINE";
-            _enabled = _data.Enabled;
+            // Enabled only if: Bluetooth fully connected (not scanning) AND feature supported AND feature enabled
+            _enabled = isBluetoothReady && _data.Enabled;
             _unit = "DEGREES";
             _valueFormat = "0.0";
             _value = _data.Value;
@@ -65,7 +74,8 @@
         else if (ControlType == TreadmillControlType.Speed &&
                  stateInfo.TreadmillTelemetry.Values.TryGetValue(TreadmillTelemetryProperty.InstantaneousSpeed, out _data))
         {
-            _enabled = _data.Enabled;
+            // Enabled only if: Bluetooth fully connected (not scanning) AND feature supported AND feature enabled
+            _enabled = isBluetoothReady && _data.Enabled;
             _title = "SPEED";
             _unit = stateInfo.UserMeasurementType == MeasurementType.Metric ? _data.MetricUnit : _data.ImperialUnit;
             var val = stateInfo.UserMeasurementType == MeasurementType.Metric ? _data.AsMetric().Value :  _data.AsImperial().Value;
@@ -74,14 +84,17 @@
         }
         else
         {
+            // Feature not supported by treadmill
             _data = null;
             _enabled = false;
         }
          InvokeAsync(StateHasChanged);
     }
     
-     private readonly decimal _speedStep = .2m; // .2 mph increments
-    
+    // Fixed increment: 0.2 mph (converted to km/h for treadmill)
+    private readonly decimal _speedStepMph = 0.2m;
+    private readonly decimal _speedStepKph = 0.2m * 1.609344m; // 0.2 mph = 0.321869 km/h
+
     private async Task Increase()
     {
         if (!_enabled || _data is null)
@@ -104,9 +117,10 @@
                 );
                 break;
             case TreadmillControlType.Speed:
-                await SetSpeedByStep(true, 
-                    _configuration.SpeedIncrement, 
-                    _configuration.MinSpeed, 
+                // Use fixed 0.2 mph increment with realistic minimum (0.5 km/h = 0.3 mph)
+                await SetSpeedByStep(true,
+                    _speedStepKph,
+                    0.5m, // Realistic minimum instead of FTMS-reported minimum
                     _configuration.MaxSpeed
                 );
                 break;
@@ -135,9 +149,10 @@
                         );
                 break;
             case TreadmillControlType.Speed:
-                await SetSpeedByStep(false, 
-                       _configuration.SpeedIncrement, 
-                            _configuration.MinSpeed, 
+                // Use fixed 0.2 mph decrement with realistic minimum (0.5 km/h = 0.3 mph)
+                await SetSpeedByStep(false,
+                       _speedStepKph,
+                            0.5m, // Realistic minimum instead of FTMS-reported minimum
                             _configuration.MaxSpeed
                         );
                 break;
