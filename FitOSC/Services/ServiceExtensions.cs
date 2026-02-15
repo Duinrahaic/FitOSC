@@ -45,6 +45,7 @@ public static class ServiceExtensions
 
         services.AddSingleton<DebugConsoleService>();
         services.AddSingleton<HistoryService>();
+        services.AddSingleton<OnboardingService>();
 
         // Register WebSocketService for telemetry broadcasting
         services.AddSingleton<WebSocketService>();
@@ -57,6 +58,10 @@ public static class ServiceExtensions
         // Register MidiService for MIDI input/output
         services.AddSingleton<MidiService>();
         services.AddHostedService(sp => sp.GetRequiredService<MidiService>());
+
+        // Register UpdateCheckService for GitHub update checking
+        services.AddSingleton<UpdateCheckService>();
+        services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
 
         return services;
     }

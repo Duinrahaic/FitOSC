@@ -12,6 +12,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <PublishSingleFile>true</PublishSingleFile>
         <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+        <Version>2.0.0-beta</Version>
     </PropertyGroup>
     <PropertyGroup>
         <ServerGarbageCollection>false</ServerGarbageCollection>

@@ -151,6 +151,11 @@ public class UserSettings
     /// Requires app restart to take effect.
     /// </summary>
     public bool UseHardwareAcceleration { get; set; } = true;
+
+    /// <summary>
+    /// Whether the user has completed the onboarding wizard.
+    /// </summary>
+    public bool OnboardingCompleted { get; set; } = false;
 }
 
 public class WebSocketSettings

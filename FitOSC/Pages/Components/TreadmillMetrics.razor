@@ -1,10 +1,10 @@
-﻿@using FitOSC.Services.State
+﻿@using FitOSC.Models
+@using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
 @inject AppStateService AppStateService
 @implements IDisposable
 
-<div class="treadmill-display-metrics @((AppStateInfo?.TreadmillState != TreadmillState.Stopped && 
-                                         AppStateInfo?.TreadmillState != TreadmillState.Unknown ) ? "visible" : "")">
+<div class="treadmill-display-metrics @(_previousConnection == ConnectionStatus.Connected ? "visible" : "")">
     <KPIBox Property="TreadmillTelemetryProperty.InstantaneousPace" ValueFormat="0.0" />
     <KPIBox Property="TreadmillTelemetryProperty.TotalDistance" ValueFormat="0.00" />
     <DurationInterface />
@@ -13,7 +13,7 @@
 </div>
 @code {
     private AppStateInfo? AppStateInfo { get; set; }
-    private TreadmillState _previousState = TreadmillState.Unknown;
+    private ConnectionStatus _previousConnection = ConnectionStatus.Disconnected;
 
     protected override void OnInitialized()
     {
@@ -22,23 +22,13 @@
 
     private void HandleAppStateUpdated(AppStateInfo data)
     {
-        var previousState = AppStateInfo?.TreadmillState ?? TreadmillState.Unknown;
-        AppStateInfo = data;
-
-        // Only trigger re-render if state changed (affects visibility CSS class)
-        if (data.TreadmillState != previousState)
+        var currentState = data.ConnectionStates[AppInterface.Bluetooth];
+        // Only trigger re-render if connection status changed (affects visibility CSS class)
+        if (currentState != _previousConnection)
         {
+            _previousConnection = currentState;
             InvokeAsync(StateHasChanged);
         }
-    }
-
-    // Prevent unnecessary re-renders - child KPIBox components handle their own updates
-    protected override bool ShouldRender()
-    {
-        var currentState = AppStateInfo?.TreadmillState ?? TreadmillState.Unknown;
-        var shouldRender = currentState != _previousState;
-        _previousState = currentState;
-        return shouldRender;
     }
 
     public void Dispose()

@@ -1,10 +1,12 @@
 @using FitOSC.Models
+@using FitOSC.Services
 @using FitOSC.Services.Configuration
 @using FitOSC.Services.History
 @using FitOSC.Services.State
 @inject ConfigurationService ConfigService
 @inject HistoryService HistoryService
 @inject AppStateService AppState
+@inject OnboardingService OnboardingService
 @implements IDisposable
 
 <div class="settings-section">
@@ -62,9 +64,23 @@
     </div>
 </div>
 
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Onboarding</h3>
+    </div>
+
+    <div class="settings-item">
+        <button class="btn-secondary" @onclick="ResetOnboarding">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            Run Setup Wizard
+        </button>
+        <p class="settings-hint">Re-run the initial setup wizard to configure your treadmill and walking mode.</p>
+    </div>
+</div>
+
 @code {
     [Parameter] public Action<bool>? OnPreferMetricChanged { get; set; }
-
+    [Parameter] public EventCallback ShouldCloseSettings { get; set; }
     private bool _preferMetric = true;
     private bool _historyEnabled = true;
     private int _minimumSessionDuration = 5;
@@ -95,6 +111,12 @@
         OnPreferMetricChanged?.Invoke(preferMetric);
 
         StateHasChanged();
+    }
+
+    private async Task ResetOnboarding()
+    {
+        OnboardingService.TriggerOnboarding();
+        await ShouldCloseSettings.InvokeAsync();
     }
 
     public AppConfiguration GetConfiguration()

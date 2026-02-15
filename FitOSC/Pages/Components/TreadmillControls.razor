@@ -1,8 +1,10 @@
 ﻿@using FitOSC.Models
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
+@using FitOSC.Services
 @inject TreadmillManager Treadmill
 @inject AppStateService AppState
+@inject UpdateCheckService UpdateCheckService
 @implements IDisposable
 
 <div class="treadmill-controls">
@@ -13,6 +15,12 @@
             <InterfaceStatusIndicator Interface="AppInterface.Bluetooth" />
             <InterfaceStatusIndicator Interface="AppInterface.VR" />
             <InterfaceStatusIndicator Interface="AppInterface.OSC" />
+            @if (UpdateCheckService.UpdateAvailable)
+            {
+                <div class="icon active" id="update" @onclick="OpenReleaseUrl" style="cursor: pointer;" title="Update available: @UpdateCheckService.LatestVersion">
+                    <i class="fa-solid fa-circle-up"></i>
+                </div>
+            }
             <div class="icon" @onclick="OpenSettings" style="cursor: pointer;">
                 <i class="fa-solid fa-cog"></i>
             </div>
@@ -47,6 +55,31 @@
     protected override void OnInitialized()
     {
         AppState.AppStateUpdated += UpdateTreadmillData;
+        UpdateCheckService.UpdateAvailableChanged += HandleUpdateAvailableChanged;
+    }
+
+    private void HandleUpdateAvailableChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenReleaseUrl()
+    {
+        if (!string.IsNullOrEmpty(UpdateCheckService.ReleaseUrl))
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = UpdateCheckService.ReleaseUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // Silently fail if we can't open the browser
+            }
+        }
     }
 
     private void UpdateTreadmillData(AppStateInfo? obj)
@@ -79,5 +112,6 @@
     public void Dispose()
     {
         AppState.AppStateUpdated -= UpdateTreadmillData;
+        UpdateCheckService.UpdateAvailableChanged -= HandleUpdateAvailableChanged;
     }
 }

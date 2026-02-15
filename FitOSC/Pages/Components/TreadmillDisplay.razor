@@ -1,8 +1,13 @@
 ﻿@using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
+@using FitOSC.Services.Configuration
+@using FitOSC.Services
 @using FitOSC.Models
 @inject IJSRuntime JSRuntime
 @inject AppStateService AppStateService
+@inject ConfigurationService ConfigService
+@inject OnboardingService OnboardingService
+@inject ILogger<TreadmillDisplay> Logger
 @implements IAsyncDisposable
 
 <div class="treadmill-display">
@@ -29,10 +34,13 @@
     </div>
 </div>
 
-<SettingsModal @bind-IsOpen="_isSettingsOpen" />
+<SettingsModal @bind-IsOpen="_isSettingsOpen" @ref="_settingsModal" />
+<OnboardingModal @bind-IsOpen="_showOnboarding" />
 
 @code {
+    private SettingsModal? _settingsModal;
     private bool _isSettingsOpen = false;
+    private bool _showOnboarding = false;
     private bool _threeJsInitialized = false;
 
     private float _lastSpeed = -1;
@@ -54,7 +62,36 @@
     protected override void OnInitialized()
     {
         AppStateService.AppStateUpdated += HandleAppStateUpdated;
+        OnboardingService.OnShowOnboarding += HandleShowOnboarding;
         StartUpdateLoop();
+
+        // Check if onboarding should be shown
+        var config = ConfigService.GetConfiguration();
+        _showOnboarding = !config.User.OnboardingCompleted;
+    }
+
+    private async void HandleShowOnboarding()
+    {
+        try
+        {
+            Logger.LogInformation("ShowOnboarding triggered via OnboardingService");
+
+            // Reset onboarding completed flag so wizard behaves as fresh
+            var config = ConfigService.GetConfiguration();
+            config.User.OnboardingCompleted = false;
+            ConfigService.SaveConfiguration(config);
+            Logger.LogInformation("Onboarding wizard relaunched, OnboardingCompleted reset to false");
+
+            // Close settings and show onboarding
+            await _settingsModal?.Close()!;
+            _isSettingsOpen = false; // Explicitly ensure settings stays closed
+            _showOnboarding = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception e)
+        {
+            // Do Nothing
+        }
     }
 
     private void StartUpdateLoop()
@@ -170,6 +207,7 @@
     public async ValueTask DisposeAsync()
     {
         AppStateService.AppStateUpdated -= HandleAppStateUpdated;
+        OnboardingService.OnShowOnboarding -= HandleShowOnboarding;
 
         // Cancel and dispose timer
         _timerCts?.Cancel();

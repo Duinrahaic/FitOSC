@@ -1,0 +1,16 @@
+// Update indicator styling
+#update {
+  &.active {
+    @include iconGlow($color-accent, 0, 6px);
+    animation: updatePulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes updatePulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}

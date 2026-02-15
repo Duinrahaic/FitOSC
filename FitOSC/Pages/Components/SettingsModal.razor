@@ -1,6 +1,7 @@
 @using FitOSC.Services.Configuration
 @using FitOSC.Pages.Components.SettingsTabs
 @inject ConfigurationService ConfigService
+@implements IDisposable
 
 @if (IsOpen)
 {
@@ -39,7 +40,7 @@
                 <div class="tab-content">
                     @if (_activeTab == "user")
                     {
-                        <UserSettingsTab @ref="_userTab" OnPreferMetricChanged="NotifyPreferMetricChanged" />
+                        <UserSettingsTab @ref="_userTab" OnPreferMetricChanged="NotifyPreferMetricChanged" ShouldCloseSettings="Close" />
                     }
                     else if (_activeTab == "walking")
                     {
@@ -101,7 +102,7 @@
         StateHasChanged();
     }
 
-    private async Task Close()
+    public async Task Close()
     {
         IsOpen = false;
         await IsOpenChanged.InvokeAsync(IsOpen);
@@ -137,4 +138,11 @@
         ConfigService.SaveConfiguration(config);
         await Close();
     }
+
+    public void Dispose()
+    {
+        _integrationsTab?.Dispose();
+        _userTab?.Dispose();
+    }
+
 }

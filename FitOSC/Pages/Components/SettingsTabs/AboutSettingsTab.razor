@@ -1,9 +1,31 @@
 @using System.Reflection
+@using FitOSC.Services
+@inject UpdateCheckService UpdateCheckService
+@implements IDisposable
 
 <div class="settings-section">
     <div class="settings-header">
         <h3>FitOSC</h3>
-        <span class="header-version">Version @GetVersion()</span>
+        <div class="header-version-controls">
+            <span class="header-version">Version @UpdateCheckService.CurrentVersion</span>
+            <button class="btn-secondary btn-small" @onclick="CheckForUpdates" disabled="@_isChecking">
+                <i class="fa-solid fa-rotate @(_isChecking ? "fa-spin" : "")"></i>
+            </button>
+            @if (UpdateCheckService.UpdateAvailable)
+            {
+                <button class="btn-primary btn-small" @onclick="OpenUpdateUrl">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Update</span>
+                </button>
+            }
+            else if (!_isChecking)
+            {
+                <span class="update-status-badge">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>Up to date</span>
+                </span>
+            }
+        </div>
     </div>
 
     <div class="settings-item">
@@ -94,9 +116,58 @@
 </div>
 
 @code {
-    private string GetVersion()
+    private bool _isChecking = false;
+    private bool _hasChecked = false;
+
+    protected override void OnInitialized()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        return version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "1.0.0";
+        UpdateCheckService.UpdateAvailableChanged += HandleUpdateAvailableChanged;
+    }
+
+    private void HandleUpdateAvailableChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CheckForUpdates()
+    {
+        _isChecking = true;
+        _hasChecked = false;
+        StateHasChanged();
+
+        try
+        {
+            await UpdateCheckService.CheckForUpdatesManuallyAsync();
+            _hasChecked = true;
+        }
+        finally
+        {
+            _isChecking = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenUpdateUrl()
+    {
+        if (!string.IsNullOrEmpty(UpdateCheckService.ReleaseUrl))
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = UpdateCheckService.ReleaseUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // Silently fail if we can't open the browser
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        UpdateCheckService.UpdateAvailableChanged -= HandleUpdateAvailableChanged;
     }
 }

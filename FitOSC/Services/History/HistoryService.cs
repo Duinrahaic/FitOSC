@@ -242,7 +242,7 @@ public class HistoryService
     /// </summary>
     private List<TreadmillSession> LoadSessionsFromDisk()
     {
-        try
+     try
         {
             if (File.Exists(_historyFilePath))
             {
