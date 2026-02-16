@@ -1,81 +1,77 @@
-﻿
-<p align="center">
-  <img src="FitOSC.png" alt="Centered Image" >
-</p>
+<div align="center">
 
-FitOSC is a Bluetooth Low Energy (BLE)-enabled treadmill interface that connects your treadmill to your VRChat avatar, allowing you to control in-game actions while exercising. This application synchronizes treadmill movements with avatar parameters, creating an immersive workout experience in VRChat.
+   ![Logo](FitOSC Banner.png)
 
-## Features
+</div>
 
-- **FTMS Connectivity**: Connects to your treadmill via Bluetooth Low Energy (BLE)
-- **Avatar Integration**: Receives treadmill commands from your avatar
-- **OSC Query Support**: Automatically detects and connects to VRChat via OSC.
-- **SteamVR Integration**: Automatically keeps your avatar moving in the same when the treadmill is in use.
 
-## How It Works
+<div align="center">
 
-1. **BLE Communication**: FitOSC connects to the treadmill using BLE, capturing movement data like speed and status.
-2. **OSC Transmission**: Using Open Sound Control (OSC), FitOSC sends treadmill data to VRChat, updating your avatar's movement and actions in real-time.
-3. **Avatar Interaction**: Your avatar mirrors the treadmill's current state (running, walking, paused) and responds to your treadmill commands.
+[Key Features](#key-features) •
+[Pre-Requisites](#pre-requisites) •
+[Documentation](#documentation) •
+[Contact & Support](#contact--support) •
+[Other Projects](#other-projects) •
+[Mentions](#mentions) •
+[License](#license)
 
-## Demo Application
+</div>
 
-A demo application showcasing FitOSC in action is available at [fitosc.duinrahaic.app](https://fitosc.duinrahaic.app). Note that the web demo does **not** include OSC functionality. It is purely a demonstration of how the interface works with BLE-connected treadmills.
+<br>
+<br>
 
-This is Chrome and Edge compatible. 
+## Key Features
 
-## Getting Started
+<ul style="font-size: 16px;">
+  <li>📶 <strong>FTMS Connectivity</strong> - Connects to BLE-enabled treadmills using the Fitness Machine Service protocol.</li>
+  <li>🎮 <strong>Walk In-Game</strong> - Control your movement in-game directly from your treadmill, syncing movement in real-time.</li>
+  <li>🔍 <strong>OSC Query Support</strong> - Automatically discovers and connects to VRChat via OSC Query with no manual setup required.</li>
+  <li>❤️ <strong>Integration Support</strong> - Integrates with Pulsoid for real-time heart rate data during workouts.</li>
+</ul>
 
-### Prerequisites
+## Pre-Requisites
 
-- A treadmill with Bluetooth and FTMS support.
-- VRChat with OSC parameters enabled.
-- Windows or macOS operating system.
+- A treadmill with Bluetooth and [FTMS](https://www.bluetooth.com/specifications/specs/fitness-machine-service-1-0/) support.
+- [VRChat](https://vrchat.com/home/download) with OSC enabled.
+- Windows 10 (v1903) or later operating system.
 - A compatible BLE adapter (if not built-in). [Recommended](https://www.amazon.com/TP-Link-Bluetooth-Receiver-Controller-UB500/dp/B09DMP6T22)
 
-### Installation
+## Documentation
 
-1. **Download FitOSC** from the releases section.
-2. **Pair your treadmill** to the system via BLE.
-3. **Launch FitOSC** and configure BLE and VRChat integration.
-4. **Enable OSC in VRChat** from game settings.
+Full documentation is available at [me.duinrahaic.app/fitosc](https://me.duinrahaic.app/fitosc).
 
-### Usage
+## Contact & Support
 
-1. **Launch FitOSC**: Ensure your treadmill is paired via BLE.
-2. **Start VRChat**: FitOSC will automatically sync treadmill inputs with your avatar.
-3. Use the treadmill to control in-game actions such as walking, running, pausing, etc.
+For additional support, please consider joining my Discord server [here](https://discord.gg/aZQfy6H9fA).
 
-## Troubleshooting
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/Duinrahaic)
+[![X](https://img.shields.io/badge/X-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/Duinrahaic)
+[![Bluesky](https://img.shields.io/badge/Bluesky-00A0DC?style=flat-square&logo=bluesky&logoColor=white)](https://bsky.app/profile/duinrahaic.app)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/Duinrahaic)
 
-1. Ensure BLE is enabled and the treadmill is properly paired.
-2. Check that OSC is enabled in VRChat.
-3. View FitOSC log files for detailed troubleshooting information.
+## Other Projects
 
-## Exposed VRChat Avatar Parameters
+- [VRCDollyManager](https://github.com/Duinrahaic/VRCDollyManager) - A Dolly Manager for VRChat.
+- [VRCPictureToClipboard](https://github.com/Duinrahaic/VRCPictureToClipboard) - A tool to copy the latest picture from VRChat to your clipboard.
 
-Below are the exposed VRChat avatar parameters that can be controlled using FitOSC. These parameters are can be setup in an unity as a VRChat menu, but if you'd like an easy installation for a menu, consider buying my prefab off of [booth](https://duinrahaic.booth.pm/items/6189333) or support me on [patreon](wwww.pateron.com/duinrahaic).
+## Mentions
 
-| **Command**        | **Type**  | **Control Type**  | **Description**                                                                                   |
-|--------------------|-----------|-------------------|---------------------------------------------------------------------------------------------------|
-| **TMC_SpeedUp**     | `bool`    | Button            | Increases the treadmill speed when the argument is `true`.                                        |
-| **TMC_SlowDown**    | `bool`    | Button            | Decreases the treadmill speed when the argument is `true`.                                        |
-| **TMC_Stop**        | `bool`    | Button            | Stops the treadmill when the argument is `true`.                                                  |
-| **TMC_Start**       | `bool`    | Button            | Starts the treadmill when the argument is `true`.                                                 |
-| **TMC_Pause**       | `bool`    | Button            | Pauses the treadmill when the argument is `true`.                                                 |
-| **TMC_Reset**       | `bool`    | Button            | Sends a reset command to the treadmill when the argument is `true`.                               |
-| **TMC_Walk**        | `bool`    | Button            | Automatically triggers your avatar to walk when `true`, syncing the treadmill walking state with the avatar. |
-| **TMC_WalkingTrim** | `float`   | Radial Puppet     | Finitely adjusts the walking speed of the avatar. (Default: 0.8)                                  |
+FitOSC is built on the shoulders of these open-source libraries:
 
-## Support
-
-For additional support, please consider joining my discord server [here](https://discord.gg/aZQfy6H9fA).
-
+- [Avalonia](https://github.com/AvaloniaUI/Avalonia) - Cross-platform UI framework for .NET. 
+- [InTheHand.BluetoothLE](https://github.com/inthehand/32feet) - Bluetooth LE library for .NET. 
+- [LucHeart.CoreOSC](https://github.com/LucHeart/CoreOSC-UTF8-ASYNC) - OSC protocol implementation for .NET.
+- [OscQueryLibrary](https://github.com/Natsumi-sama/OscQueryLibrary) - OSCQuery auto-negotiation library for VRChat.
+- [NAudio](https://github.com/naudio/NAudio) - Audio and MIDI library for .NET. 
+- [Blazored.LocalStorage](https://github.com/Blazored/LocalStorage) - Local storage access for Blazor applications.
+- [Three.js](https://github.com/mrdoob/three.js) - JavaScript 3D library.
+- [Lucide Icons](https://github.com/lucide-icons/lucide) - Open-source icon toolkit. 
+- [Font Awesome](https://github.com/FortAwesome/Font-Awesome) - Icon toolkit. 
+- [Serilog](https://github.com/serilog/serilog) - Structured logging for .NET. 
+- [OpenVR SDK](https://github.com/ValveSoftware/openvr) - Valve's VR hardware access SDK. 
 
 ## License
 
 FitOSC is licensed under the MIT License. Modify and distribute as needed.
 
 ---
-
-### Take your fitness into the virtual world with FitOSC!
