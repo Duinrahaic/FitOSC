@@ -1,6 +1,6 @@
 <div align="center">
 
-   ![Logo](FitOSC%20Banner.png)
+   ![Logo](FitOSC Banner.png)
 
 </div>
 
