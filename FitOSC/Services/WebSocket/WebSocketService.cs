@@ -229,7 +229,7 @@ public class WebSocketService : IHostedService, IDisposable
 
             // Send initial state
             var initialState = _appState.GetCurrentAppStateInfo();
-            await client.SendAsync(new WebSocketMessage { Type = "state", Data = initialState }, JsonOptions);
+            await client.SendAsync(new WebSocketMessage { Type = "state", Data = WebSocketPayload.From(initialState) }, JsonOptions);
 
             // Listen for incoming messages
             var buffer = new byte[4096];
@@ -288,7 +288,7 @@ public class WebSocketService : IHostedService, IDisposable
 
                 case "getstate":
                     var state = _appState.GetCurrentAppStateInfo();
-                    await client.SendAsync(new WebSocketMessage { Type = "state", Data = state }, JsonOptions);
+                    await client.SendAsync(new WebSocketMessage { Type = "state", Data = WebSocketPayload.From(state) }, JsonOptions);
                     break;
 
                 default:
@@ -318,7 +318,7 @@ public class WebSocketService : IHostedService, IDisposable
         // Try to claim this broadcast slot
         if (Interlocked.CompareExchange(ref _lastBroadcastTicks, nowTicks, lastTicks) != lastTicks) return;
 
-        var message = new WebSocketMessage { Type = "telemetry", Data = state };
+        var message = new WebSocketMessage { Type = "telemetry", Data = WebSocketPayload.From(state) };
         var json = JsonSerializer.Serialize(message, JsonOptions);
         var buffer = Encoding.UTF8.GetBytes(json);
 
