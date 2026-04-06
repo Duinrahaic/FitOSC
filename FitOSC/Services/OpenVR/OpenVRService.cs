@@ -37,8 +37,21 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     private ulong _recenterYawHandle;
     private ulong _overrideSpeedUpHandle;
     private ulong _overrideSpeedDownHandle;
-    private ulong _trimUpHandle;
-    private ulong _trimDownHandle;
+    private ulong _tempSpeedUpHandle;
+    private ulong _tempSpeedDownHandle;
+    private ulong _treadmillEnableHandle;
+    private ulong _treadmillSpeedUpHandle;
+    private ulong _treadmillSlowDownHandle;
+    private ulong _treadmillInclineUpHandle;
+    private ulong _treadmillInclineDownHandle;
+    private ulong _enableDynamicHandle;
+    private ulong _walkingSpeedUpHandle;
+    private ulong _walkingSpeedDownHandle;
+    private ulong _enableOverrideHandle;
+    private ulong _preset1Handle;
+    private ulong _preset2Handle;
+    private ulong _preset3Handle;
+    private ulong _preset4Handle;
 
     public bool IsMonitoring { get; private set; }
     public bool ActionsAvailable => _actionsInitialized;
@@ -171,13 +184,65 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
             if (error != EVRInputError.None)
                 _logger?.LogWarning("Failed to get OverrideSpeedDown action handle: {Error}", error);
 
-            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TrimUp", ref _trimUpHandle);
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TempSpeedUp", ref _tempSpeedUpHandle);
             if (error != EVRInputError.None)
-                _logger?.LogWarning("Failed to get TrimUp action handle: {Error}", error);
+                _logger?.LogWarning("Failed to get TempSpeedUp action handle: {Error}", error);
 
-            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TrimDown", ref _trimDownHandle);
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TempSpeedDown", ref _tempSpeedDownHandle);
             if (error != EVRInputError.None)
-                _logger?.LogWarning("Failed to get TrimDown action handle: {Error}", error);
+                _logger?.LogWarning("Failed to get TempSpeedDown action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TreadmillEnable", ref _treadmillEnableHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get TreadmillEnable action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TreadmillSpeedUp", ref _treadmillSpeedUpHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get TreadmillSpeedUp action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TreadmillSlowDown", ref _treadmillSlowDownHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get TreadmillSlowDown action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TreadmillInclineUp", ref _treadmillInclineUpHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get TreadmillInclineUp action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TreadmillInclineDown", ref _treadmillInclineDownHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get TreadmillInclineDown action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/EnableDynamic", ref _enableDynamicHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get EnableDynamic action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/WalkingSpeedUp", ref _walkingSpeedUpHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get WalkingSpeedUp action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/WalkingSpeedDown", ref _walkingSpeedDownHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get WalkingSpeedDown action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/EnableOverride", ref _enableOverrideHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get EnableOverride action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/Preset1", ref _preset1Handle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get Preset1 action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/Preset2", ref _preset2Handle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get Preset2 action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/Preset3", ref _preset3Handle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get Preset3 action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/Preset4", ref _preset4Handle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get Preset4 action handle: {Error}", error);
 
             _logger?.LogInformation("SteamVR actions initialized successfully. Handles: ActionSet={ActionSet}, SpeedMod={Speed}, Manual={Manual}, Toggle={Toggle}, Recenter={Recenter}",
                 _actionSetHandle, _speedModifierHandle, _manualMovementHandle, _toggleWalkingHandle, _recenterYawHandle);
@@ -223,6 +288,10 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
         {
             _logger?.LogWarning("SteamVR actions not available. Controller bindings will not work.");
         }
+
+        // Reset logging flags so warnings surface again after reconnection
+        _loggedActionDebug = false;
+        _loggedActionSuccess = false;
 
         return true;
     }
@@ -357,16 +426,14 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     private async Task PollVrEvents(CancellationToken cancellationToken)
     {
         var poses = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
-        var vrSystem = OpenVR.System;
         HmdMatrix34_t poseMatrix;
         Quaternion quaternion;
         (float yaw, float pitch, float roll) euler;
         (float X, float Y, float Z) position = (0, 0, 0);
 
-        // Action set for updating
+        // Action set for updating — ulActionSet refreshed each iteration after reconnect
         var actionSet = new VRActiveActionSet_t
         {
-            ulActionSet = _actionSetHandle,
             ulRestrictedToDevice = OpenVR.k_ulInvalidInputValueHandle,
             nPriority = 0
         };
@@ -374,6 +441,16 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
 
         while (_isRunning && !cancellationToken.IsCancellationRequested)
         {
+            // Re-fetch vrSystem and actionSetHandle each iteration so reconnections are picked up
+            var vrSystem = OpenVR.System;
+            if (vrSystem == null)
+            {
+                await Task.Delay(IdlePollingRateMs, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            actionSet.ulActionSet = _actionSetHandle;
+
             vrSystem.GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin.TrackingUniverseStanding, 0, poses);
 
             // Poll SteamVR actions if initialized
@@ -453,8 +530,8 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
         }
     }
 
-    private static bool _loggedActionDebug = false;
-    private static bool _loggedActionSuccess = false;
+    private bool _loggedActionDebug = false;
+    private bool _loggedActionSuccess = false;
 
     private OpenVRActionEvent? PollActions(ref VRActiveActionSet_t actionSet, uint actionSetSize)
     {
@@ -564,28 +641,79 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
                 }
             }
 
-            if (_trimUpHandle != 0)
+            if (_tempSpeedUpHandle != 0)
             {
-                error = OpenVR.Input.GetDigitalActionData(_trimUpHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                error = OpenVR.Input.GetDigitalActionData(_tempSpeedUpHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
                 if (error == EVRInputError.None && digitalData.bActive)
+                    actionEvent.TempSpeedUpHeld = digitalData.bState;
+            }
+
+            if (_tempSpeedDownHandle != 0)
+            {
+                error = OpenVR.Input.GetDigitalActionData(_tempSpeedDownHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                if (error == EVRInputError.None && digitalData.bActive)
+                    actionEvent.TempSpeedDownHeld = digitalData.bState;
+            }
+
+            foreach (var (handle, setter) in new (ulong, Action<bool>)[] {
+                (_treadmillEnableHandle,    v => actionEvent.TreadmillEnablePressed    = v),
+                (_treadmillSpeedUpHandle,   v => actionEvent.TreadmillSpeedUpPressed   = v),
+                (_treadmillSlowDownHandle,  v => actionEvent.TreadmillSlowDownPressed  = v),
+                (_treadmillInclineUpHandle, v => actionEvent.TreadmillInclineUpPressed = v),
+                (_treadmillInclineDownHandle, v => actionEvent.TreadmillInclineDownPressed = v),
+            })
+            {
+                if (handle != 0)
                 {
-                    actionEvent.TrimUpPressed = digitalData.bChanged && digitalData.bState;
-                    if (actionEvent.TrimUpPressed)
-                    {
-                        _logger?.LogInformation("SteamVR Action: Trim Up pressed");
-                    }
+                    error = OpenVR.Input.GetDigitalActionData(handle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                    if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
+                        setter(true);
                 }
             }
 
-            if (_trimDownHandle != 0)
+            if (_enableDynamicHandle != 0)
             {
-                error = OpenVR.Input.GetDigitalActionData(_trimDownHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
-                if (error == EVRInputError.None && digitalData.bActive)
+                error = OpenVR.Input.GetDigitalActionData(_enableDynamicHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
+                    actionEvent.EnableDynamicPressed = true;
+            }
+
+            if (_walkingSpeedUpHandle != 0)
+            {
+                error = OpenVR.Input.GetDigitalActionData(_walkingSpeedUpHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
+                    actionEvent.WalkingSpeedUpPressed = true;
+            }
+
+            if (_walkingSpeedDownHandle != 0)
+            {
+                error = OpenVR.Input.GetDigitalActionData(_walkingSpeedDownHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
+                    actionEvent.WalkingSpeedDownPressed = true;
+            }
+
+            if (_enableOverrideHandle != 0)
+            {
+                error = OpenVR.Input.GetDigitalActionData(_enableOverrideHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
+                    actionEvent.EnableOverridePressed = true;
+            }
+
+            foreach (var (handle, index) in new[] {
+                (_preset1Handle, 1), (_preset2Handle, 2), (_preset3Handle, 3), (_preset4Handle, 4) })
+            {
+                if (handle != 0)
                 {
-                    actionEvent.TrimDownPressed = digitalData.bChanged && digitalData.bState;
-                    if (actionEvent.TrimDownPressed)
+                    error = OpenVR.Input.GetDigitalActionData(handle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                    if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
                     {
-                        _logger?.LogInformation("SteamVR Action: Trim Down pressed");
+                        switch (index)
+                        {
+                            case 1: actionEvent.Preset1Pressed = true; break;
+                            case 2: actionEvent.Preset2Pressed = true; break;
+                            case 3: actionEvent.Preset3Pressed = true; break;
+                            case 4: actionEvent.Preset4Pressed = true; break;
+                        }
                     }
                 }
             }

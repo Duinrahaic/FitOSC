@@ -45,12 +45,77 @@
       "requirement": "optional"
     },
     {
-      "name": "/actions/fitosc/in/TrimUp",
+      "name": "/actions/fitosc/in/TempSpeedUp",
       "type": "boolean",
       "requirement": "optional"
     },
     {
-      "name": "/actions/fitosc/in/TrimDown",
+      "name": "/actions/fitosc/in/TempSpeedDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/EnableDynamic",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/WalkingSpeedUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/WalkingSpeedDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/EnableOverride",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillEnable",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillSpeedUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillSlowDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillInclineUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillInclineDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset1",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset2",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset3",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset4",
       "type": "boolean",
       "requirement": "optional"
     }
@@ -71,8 +136,21 @@
       "/actions/fitosc/in/OverrideSpeedUp": "Override Speed Up",
       "/actions/fitosc/in/OverrideSpeedDown": "Override Speed Down",
       "/actions/fitosc/in/ManualMovement": "Manual Movement",
-      "/actions/fitosc/in/TrimUp": "Increase Trim",
-      "/actions/fitosc/in/TrimDown": "Decrease Trim"
+      "/actions/fitosc/in/TempSpeedUp": "Temp Speed Up",
+      "/actions/fitosc/in/TempSpeedDown": "Temp Speed Down",
+      "/actions/fitosc/in/TreadmillEnable": "Treadmill Enable",
+      "/actions/fitosc/in/TreadmillSpeedUp": "Treadmill Speed Up",
+      "/actions/fitosc/in/TreadmillSlowDown": "Treadmill Slow Down",
+      "/actions/fitosc/in/TreadmillInclineUp": "Treadmill Incline Up",
+      "/actions/fitosc/in/TreadmillInclineDown": "Treadmill Incline Down",
+      "/actions/fitosc/in/EnableDynamic": "Enable Dynamic Mode",
+      "/actions/fitosc/in/WalkingSpeedUp": "Walking Speed Up",
+      "/actions/fitosc/in/WalkingSpeedDown": "Walking Speed Down",
+      "/actions/fitosc/in/EnableOverride": "Enable Override Mode",
+      "/actions/fitosc/in/Preset1": "Override Preset 1",
+      "/actions/fitosc/in/Preset2": "Override Preset 2",
+      "/actions/fitosc/in/Preset3": "Override Preset 3",
+      "/actions/fitosc/in/Preset4": "Override Preset 4"
     }
   ]
 }

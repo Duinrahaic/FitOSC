@@ -23,8 +23,15 @@ public class VRChatParameterHandlerService : IHostedService, IDisposable
     // Speed adjustment increment (in km/h) - matches UI increment of 0.2 mph
     private const decimal SpeedIncrementKmh = 0.2m * 1.609344m; // 0.2 mph = 0.321869 km/h
 
+    // Hold-repeat state — tracks cancellation tokens for buttons held down
+    private readonly Dictionary<string, CancellationTokenSource> _heldButtons = new();
+    private const int HoldInitialDelayMs = 500;
+    private const int HoldRepeatIntervalMs = 200;
+    private CancellationToken _serviceCancellation = CancellationToken.None;
+
     // Dictionary for routing OSC parameters to handlers
     private readonly Dictionary<string, Action<object>> _parameterHandlers;
+
 
     public VRChatParameterHandlerService(
         ILogger<VRChatParameterHandlerService> logger,
@@ -37,30 +44,48 @@ public class VRChatParameterHandlerService : IHostedService, IDisposable
         _appStateService = appStateService;
         _treadmillManager = treadmillManager;
 
-        // Initialize parameter handlers
         _parameterHandlers = new Dictionary<string, Action<object>>
         {
-            // Walking Mode Commands
-            { "/avatar/parameters/TMC_Walk_Disable", HandleWalkModeDisable },
-            { "/avatar/parameters/TMC_Walk_Dynamic", HandleWalkModeDynamic },
-            { "/avatar/parameters/TMC_Walk_Preset", HandleWalkModePreset },
-            { "/avatar/parameters/TMC_WalkingTrim", HandleWalkingTrim },
+            // Treadmill
+            { "/avatar/parameters/TMC/Treadmill/Enable",    HandleTreadmillEnable },
+            { "/avatar/parameters/TMC/Treadmill/Speed",     HandleTreadmillSpeed },
+            { "/avatar/parameters/TMC/Treadmill/SpeedUp",   HandleSpeedUp },
+            { "/avatar/parameters/TMC/Treadmill/SlowDown",  HandleSlowDown },
+            { "/avatar/parameters/TMC/Treadmill/InclineUp", HandleInclineUp },
+            { "/avatar/parameters/TMC/Treadmill/InclineDown", HandleInclineDown },
 
-            // Treadmill Control Commands
-            { "/avatar/parameters/TMC_Start", HandleTreadmillStart },
-            { "/avatar/parameters/TMC_Pause", HandleTreadmillPause },
-            { "/avatar/parameters/TMC_Stop", HandleTreadmillStop },
-            { "/avatar/parameters/TMC_SpeedUp", HandleSpeedUp },
-            { "/avatar/parameters/TMC_SlowDown", HandleSlowDown },
-            { "/avatar/parameters/TMC_InclineUp", HandleInclineUp },
-            { "/avatar/parameters/TMC_InclineDown", HandleInclineDown },
-            { "/avatar/parameters/TMC_Reset", HandleReset }
+            // Walking
+            // Walking - General
+            { "/avatar/parameters/TMC/Walking/Enable",                  HandleWalkingEnable },
+            { "/avatar/parameters/TMC/Walking/YawReset",                HandleYawReset },
+            { "/avatar/parameters/TMC/Walking/TempSpeedUp",             HandleWalkTempSpeedUp },
+            { "/avatar/parameters/TMC/Walking/TempSpeedDown",           HandleWalkTempSpeedDown },
+
+            // Walking - Dynamic
+            { "/avatar/parameters/TMC/Walking/Dynamic",                 HandleWalkingDynamic },
+            { "/avatar/parameters/TMC/Walking/Dynamic/TrimUp",          HandleTrimUp },
+            { "/avatar/parameters/TMC/Walking/Dynamic/TrimDown",        HandleTrimDown },
+
+            // Walking - Override
+            { "/avatar/parameters/TMC/Walking/Override",                HandleWalkingOverride },
+
+            // Walking Override step-through
+            { "/avatar/parameters/TMC/Walking/Override/SpeedUp",   HandleOverrideSpeedUp },
+            { "/avatar/parameters/TMC/Walking/Override/SpeedDown", HandleOverrideSpeedDown },
+
+            // Walking Override presets (0 = stopped at 0% speed, still in Override mode)
+            { "/avatar/parameters/TMC/Walking/Override/Preset0", _ => HandleOverridePreset(_, 0) },
+            { "/avatar/parameters/TMC/Walking/Override/Preset1", _ => HandleOverridePreset(_, 1) },
+            { "/avatar/parameters/TMC/Walking/Override/Preset2", _ => HandleOverridePreset(_, 2) },
+            { "/avatar/parameters/TMC/Walking/Override/Preset3", _ => HandleOverridePreset(_, 3) },
+            { "/avatar/parameters/TMC/Walking/Override/Preset4", _ => HandleOverridePreset(_, 4) },
         };
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting VRChat Parameter Handler Service");
+        _serviceCancellation = cancellationToken;
         _oscService.OnOscMessageReceived += OnOscMessageReceived;
         return Task.CompletedTask;
     }
@@ -69,6 +94,8 @@ public class VRChatParameterHandlerService : IHostedService, IDisposable
     {
         _logger.LogInformation("Stopping VRChat Parameter Handler Service");
         _oscService.OnOscMessageReceived -= OnOscMessageReceived;
+        foreach (var cts in _heldButtons.Values) { cts.Cancel(); cts.Dispose(); }
+        _heldButtons.Clear();
         return Task.CompletedTask;
     }
 
@@ -76,21 +103,16 @@ public class VRChatParameterHandlerService : IHostedService, IDisposable
     {
         var message = e.Message;
 
-        // Only process TMC parameters
-        if (!message.Address.StartsWith("/avatar/parameters/TMC_"))
+        if (!message.Address.StartsWith("/avatar/parameters/TMC/"))
             return;
 
-        // Route to appropriate handler
         if (_parameterHandlers.TryGetValue(message.Address, out var handler))
         {
             try
             {
-                // Extract value (VRChat sends bool or float)
                 var value = message.Arguments.FirstOrDefault();
                 if (value != null)
-                {
                     handler(value);
-                }
             }
             catch (Exception ex)
             {
@@ -99,186 +121,258 @@ public class VRChatParameterHandlerService : IHostedService, IDisposable
         }
     }
 
-    #region Walking Mode Handlers
-
-    private void HandleWalkModeDisable(object value)
-    {
-        if (value is bool boolValue && boolValue)
-        {
-            _logger.LogInformation("OSC: Setting walking mode to Disabled");
-            _appStateService.SetWalkingMode(WalkingMode.Disabled);
-        }
-    }
-
-    private void HandleWalkModeDynamic(object value)
-    {
-        if (value is bool boolValue && boolValue)
-        {
-            _logger.LogInformation("OSC: Setting walking mode to Dynamic");
-            _appStateService.SetWalkingMode(WalkingMode.Dynamic);
-        }
-    }
-
-    private void HandleWalkModePreset(object value)
-    {
-        if (value is bool boolValue && boolValue)
-        {
-            _logger.LogInformation("OSC: Setting walking mode to Override (Override)");
-            _appStateService.SetWalkingMode(WalkingMode.Override);
-        }
-    }
-
-    private void HandleWalkingTrim(object value)
-    {
-        // VRChat sends float 0.0 to 1.0
-        if (value is float floatValue)
-        {
-            // Clamp to valid range
-            float trimValue = Math.Clamp(floatValue, 0f, 1f);
-
-            _logger.LogInformation("OSC: Setting walking trim to {Trim:F2}", trimValue);
-
-            // Update config
-            var currentConfig = _appStateService.WalkingModeConfig;
-            currentConfig.WalkingTrim = trimValue;
-            _appStateService.UpdateWalkingModeConfig(currentConfig);
-        }
-    }
-
-    #endregion
-
-    #region Treadmill Control Handlers
+    #region Treadmill Handlers
 
     private bool ShouldExecuteCommand(string commandName)
     {
         if (_lastCommandTime.TryGetValue(commandName, out var lastTime))
         {
-            var elapsed = (DateTime.UtcNow - lastTime).TotalMilliseconds;
-            if (elapsed < CommandDebounceMs)
-            {
-                return false; // Too soon, ignore
-            }
+            if ((DateTime.UtcNow - lastTime).TotalMilliseconds < CommandDebounceMs)
+                return false;
         }
 
         _lastCommandTime[commandName] = DateTime.UtcNow;
         return true;
     }
 
-    private void HandleTreadmillStart(object value)
+    private void HandleTreadmillEnable(object value)
     {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("Start"))
+        if (value is bool boolValue && ShouldExecuteCommand("TreadmillEnable"))
         {
-            _logger.LogInformation("OSC: Starting treadmill");
-            _ = _treadmillManager.StartAsync();
+            if (boolValue)
+            {
+                _logger.LogInformation("OSC: Starting treadmill");
+                _ = _treadmillManager.StartAsync();
+            }
+            else
+            {
+                _logger.LogInformation("OSC: Stopping treadmill");
+                _ = _treadmillManager.StopAsync();
+            }
         }
     }
 
-    private void HandleTreadmillPause(object value)
+    private void HandleTreadmillSpeed(object value)
     {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("Pause"))
+        if (value is float floatValue)
         {
-            _logger.LogInformation("OSC: Pausing treadmill");
-            _ = _treadmillManager.PauseAsync();
+            float normalized = Math.Clamp(floatValue, 0f, 1f);
+            var maxSpeed = _appStateService.WalkingModeConfig.MaxSpeed;
+            var targetSpeed = (decimal)normalized * maxSpeed;
+            _logger.LogInformation("OSC: Setting treadmill speed to {Speed:F2} km/h ({Normalized:P0})", targetSpeed, normalized);
+            _ = _treadmillManager.SetSpeedAsync(targetSpeed);
         }
     }
 
-    private void HandleTreadmillStop(object value)
+    private void StartHoldRepeat(string key, Action action, CancellationToken serviceStopping)
     {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("Stop"))
+        StopHoldRepeat(key);
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(serviceStopping);
+        _heldButtons[key] = cts;
+        _ = Task.Run(async () =>
         {
-            _logger.LogInformation("OSC: Stopping treadmill");
-            _ = _treadmillManager.StopAsync();
+            try
+            {
+                action();
+                await Task.Delay(HoldInitialDelayMs, cts.Token);
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    action();
+                    await Task.Delay(HoldRepeatIntervalMs, cts.Token);
+                }
+            }
+            catch (OperationCanceledException) { }
+        }, cts.Token);
+    }
+
+    private void StopHoldRepeat(string key)
+    {
+        if (_heldButtons.TryGetValue(key, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+            _heldButtons.Remove(key);
         }
     }
 
     private void HandleSpeedUp(object value)
     {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("SpeedUp"))
+        if (value is bool boolValue)
         {
-            var currentSpeed = _appStateService.LatestData?.GetTelemetryValue(
-                TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
-
-            var newSpeed = currentSpeed + SpeedIncrementKmh;
-
-            _logger.LogInformation("OSC: Increasing speed from {Current:F2} to {New:F2} km/h",
-                currentSpeed, newSpeed);
-
-            _ = _treadmillManager.SetSpeedAsync(newSpeed);
+            if (boolValue) StartHoldRepeat("SpeedUp", () =>
+            {
+                var current = _appStateService.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
+                _ = _treadmillManager.SetSpeedAsync(current + SpeedIncrementKmh);
+            }, _serviceCancellation);
+            else StopHoldRepeat("SpeedUp");
         }
     }
 
     private void HandleSlowDown(object value)
     {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("SlowDown"))
+        if (value is bool boolValue)
         {
-            var currentSpeed = _appStateService.LatestData?.GetTelemetryValue(
-                TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
-
-            var newSpeed = Math.Max(0m, currentSpeed - SpeedIncrementKmh);
-
-            _logger.LogInformation("OSC: Decreasing speed from {Current:F2} to {New:F2} km/h",
-                currentSpeed, newSpeed);
-
-            _ = _treadmillManager.SetSpeedAsync(newSpeed);
+            if (boolValue) StartHoldRepeat("SlowDown", () =>
+            {
+                var current = _appStateService.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
+                _ = _treadmillManager.SetSpeedAsync(Math.Max(0m, current - SpeedIncrementKmh));
+            }, _serviceCancellation);
+            else StopHoldRepeat("SlowDown");
         }
     }
 
     private void HandleInclineUp(object value)
     {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("InclineUp"))
+        if (value is bool boolValue)
         {
-            var currentIncline = _appStateService.LatestData?.GetTelemetryValue(
-                TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
-
-            var config = _appStateService.LatestConfiguration;
-            if (config == null)
+            if (boolValue) StartHoldRepeat("InclineUp", () =>
             {
-                _logger.LogWarning("OSC: Cannot adjust incline - no treadmill configuration available");
-                return;
-            }
-
-            var newIncline = currentIncline + config.InclineIncrement;
-            newIncline = Math.Clamp(newIncline, config.MinIncline, config.MaxIncline);
-
-            _logger.LogInformation("OSC: Increasing incline from {Current:F1} to {New:F1} degrees",
-                currentIncline, newIncline);
-
-            _ = _treadmillManager.SetInclineAsync(newIncline);
+                var config = _appStateService.LatestConfiguration;
+                if (config == null) return;
+                var current = _appStateService.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
+                _ = _treadmillManager.SetInclineAsync(Math.Clamp(current + config.InclineIncrement, config.MinIncline, config.MaxIncline));
+            }, _serviceCancellation);
+            else StopHoldRepeat("InclineUp");
         }
     }
 
     private void HandleInclineDown(object value)
     {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("InclineDown"))
+        if (value is bool boolValue)
         {
-            var currentIncline = _appStateService.LatestData?.GetTelemetryValue(
-                TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
-
-            var config = _appStateService.LatestConfiguration;
-            if (config == null)
+            if (boolValue) StartHoldRepeat("InclineDown", () =>
             {
-                _logger.LogWarning("OSC: Cannot adjust incline - no treadmill configuration available");
-                return;
-            }
-
-            var newIncline = currentIncline - config.InclineIncrement;
-            newIncline = Math.Clamp(newIncline, config.MinIncline, config.MaxIncline);
-
-            _logger.LogInformation("OSC: Decreasing incline from {Current:F1} to {New:F1} degrees",
-                currentIncline, newIncline);
-
-            _ = _treadmillManager.SetInclineAsync(newIncline);
+                var config = _appStateService.LatestConfiguration;
+                if (config == null) return;
+                var current = _appStateService.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
+                _ = _treadmillManager.SetInclineAsync(Math.Clamp(current - config.InclineIncrement, config.MinIncline, config.MaxIncline));
+            }, _serviceCancellation);
+            else StopHoldRepeat("InclineDown");
         }
     }
 
-    private void HandleReset(object value)
-    {
-        if (value is bool boolValue && boolValue && ShouldExecuteCommand("Reset"))
-        {
-            _logger.LogInformation("OSC: Resetting treadmill (stop + disable walking)");
+    #endregion
 
-            _ = _treadmillManager.StopAsync();
-            _appStateService.SetWalkingMode(WalkingMode.Disabled);
+    #region Walking Handlers
+
+    private void HandleWalkingEnable(object value)
+    {
+        if (value is bool boolValue && ShouldExecuteCommand("WalkingEnable"))
+        {
+            if (boolValue)
+            {
+                _logger.LogInformation("OSC: Enabling auto-walk");
+                _appStateService.EnableAutoWalk();
+            }
+            else
+            {
+                _logger.LogInformation("OSC: Disabling auto-walk");
+                _appStateService.DisableAutoWalk();
+            }
+        }
+    }
+
+    private void HandleWalkingDynamic(object value)
+    {
+        if (value is bool boolValue && boolValue && ShouldExecuteCommand("WalkingDynamic"))
+        {
+            _logger.LogInformation("OSC: Setting preferred mode to Dynamic");
+            _appStateService.SetPreferredWalkingMode(WalkingMode.Dynamic);
+        }
+    }
+
+    private void HandleWalkingOverride(object value)
+    {
+        if (value is bool boolValue && boolValue && ShouldExecuteCommand("WalkingOverride"))
+        {
+            _logger.LogInformation("OSC: Setting preferred mode to Override");
+            _appStateService.SetPreferredWalkingMode(WalkingMode.Override);
+        }
+    }
+
+    private void HandleTrimUp(object value)
+    {
+        if (value is bool boolValue)
+        {
+            if (boolValue) StartHoldRepeat("TrimUp", () => _appStateService.AdjustWalkingTrim(0.05f), _serviceCancellation);
+            else StopHoldRepeat("TrimUp");
+        }
+    }
+
+    private void HandleTrimDown(object value)
+    {
+        if (value is bool boolValue)
+        {
+            if (boolValue) StartHoldRepeat("TrimDown", () => _appStateService.AdjustWalkingTrim(-0.05f), _serviceCancellation);
+            else StopHoldRepeat("TrimDown");
+        }
+    }
+
+    private void HandleYawReset(object value)
+    {
+        if (value is bool boolValue && boolValue && ShouldExecuteCommand("YawReset"))
+        {
+            _logger.LogInformation("OSC: Requesting yaw reset");
+            _appStateService.RequestYawReset();
+        }
+    }
+
+    private void HandleWalkTempSpeedUp(object value)
+    {
+        if (value is bool boolValue)
+        {
+            _appStateService.SetTemporaryWalkingBoost(boolValue ? 2.0f : 1.0f);
+            _logger.LogInformation("OSC: Temp speed up {State}", boolValue ? "active" : "released");
+        }
+    }
+
+    private void HandleWalkTempSpeedDown(object value)
+    {
+        if (value is bool boolValue)
+        {
+            _appStateService.SetTemporaryWalkingBoost(boolValue ? 0.0f : 1.0f);
+            _logger.LogInformation("OSC: Temp speed down {State}", boolValue ? "active" : "released");
+        }
+    }
+
+    private void HandleOverrideSpeedUp(object value)
+    {
+        if (value is bool boolValue && boolValue && ShouldExecuteCommand("OverrideSpeedUp"))
+        {
+            var newIndex = _appStateService.WalkingModeConfig.CurrentOverrideIndex + 1;
+            _appStateService.SetOverrideSpeedIndex(newIndex);
+            _appStateService.SetPreferredWalkingMode(WalkingMode.Override);
+            _logger.LogInformation("OSC: Override speed up (index {Index})", newIndex);
+        }
+    }
+
+    private void HandleOverrideSpeedDown(object value)
+    {
+        if (value is bool boolValue && boolValue && ShouldExecuteCommand("OverrideSpeedDown"))
+        {
+            var newIndex = _appStateService.WalkingModeConfig.CurrentOverrideIndex - 1;
+            _appStateService.SetOverrideSpeedIndex(newIndex);
+            _appStateService.SetPreferredWalkingMode(WalkingMode.Override);
+            _logger.LogInformation("OSC: Override speed down (index {Index})", newIndex);
+        }
+    }
+
+    private void HandleOverridePreset(object value, int preset)
+    {
+        if (value is bool boolValue && ShouldExecuteCommand($"OverridePreset{preset}"))
+        {
+            if (boolValue)
+            {
+                _appStateService.SetOverrideSpeedIndex(preset);
+                _appStateService.SetPreferredWalkingMode(WalkingMode.Override);
+                _logger.LogInformation("OSC: Override preset set to Preset{Preset}", preset);
+            }
+            else if (_appStateService.CurrentWalkingMode == WalkingMode.Override &&
+                     _appStateService.WalkingModeConfig.CurrentOverrideIndex == preset)
+            {
+                _appStateService.DisableAutoWalk();
+                _logger.LogInformation("OSC: Walking disabled by toggling off Preset{Preset}", preset);
+            }
         }
     }
 

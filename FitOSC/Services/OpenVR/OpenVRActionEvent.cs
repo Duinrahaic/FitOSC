@@ -40,14 +40,48 @@ public class OpenVRActionEvent
     public bool OverrideSpeedDownPressed { get; set; } = false;
 
     /// <summary>
-    /// True on the frame when trim up button was pressed.
+    /// True while the temporary speed up button is held.
     /// </summary>
-    public bool TrimUpPressed { get; set; } = false;
+    public bool TempSpeedUpHeld { get; set; } = false;
 
     /// <summary>
-    /// True on the frame when trim down button was pressed.
+    /// True while the temporary speed down button is held.
     /// </summary>
-    public bool TrimDownPressed { get; set; } = false;
+    public bool TempSpeedDownHeld { get; set; } = false;
+
+    /// <summary>
+    /// Treadmill control actions.
+    /// </summary>
+    public bool TreadmillEnablePressed { get; set; } = false;
+    public bool TreadmillSpeedUpPressed { get; set; } = false;
+    public bool TreadmillSlowDownPressed { get; set; } = false;
+    public bool TreadmillInclineUpPressed { get; set; } = false;
+    public bool TreadmillInclineDownPressed { get; set; } = false;
+
+    /// <summary>
+    /// True on the frame when enable dynamic mode button was pressed.
+    /// </summary>
+    public bool EnableDynamicPressed { get; set; } = false;
+
+    /// <summary>
+    /// True on the frame when walking speed up/down buttons were pressed (permanent WalkingTrim adjustment).
+    /// </summary>
+    public bool WalkingSpeedUpPressed { get; set; } = false;
+    public bool WalkingSpeedDownPressed { get; set; } = false;
+
+    /// <summary>
+    /// True on the frame when enable override mode button was pressed.
+    /// </summary>
+    public bool EnableOverridePressed { get; set; } = false;
+
+    /// <summary>
+    /// True on the frame when a direct override preset button was pressed.
+    /// </summary>
+    public bool Preset0Pressed { get; set; } = false;
+    public bool Preset1Pressed { get; set; } = false;
+    public bool Preset2Pressed { get; set; } = false;
+    public bool Preset3Pressed { get; set; } = false;
+    public bool Preset4Pressed { get; set; } = false;
 
     /// <summary>
     /// Whether manual movement is currently active (magnitude > threshold).

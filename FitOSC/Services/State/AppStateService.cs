@@ -13,6 +13,16 @@ public class AppStateService
     /// </summary>
     public event Action<AppStateInfo>? AppStateUpdated;
 
+    /// <summary>
+    /// Event raised when a yaw reset is requested (e.g. from VRChat OSC menu).
+    /// </summary>
+    public event Action? YawResetRequested;
+
+    /// <summary>
+    /// Request the locomotion service to reset the initial yaw direction.
+    /// </summary>
+    public void RequestYawReset() => YawResetRequested?.Invoke();
+
     // Throttling configuration
     private DateTime _lastNotifyTime = DateTime.MinValue;
     private const int MinNotifyIntervalMs = 100; // Max 10 updates per second to UI
@@ -210,6 +220,43 @@ public class AppStateService
         NotifyAppStateUpdated(forceImmediate: true); // User action should be immediate
     }
 
+    private WalkingMode _lastActiveWalkingMode = WalkingMode.Dynamic;
+    private int _lastOverrideIndex = 0;
+
+    /// <summary>
+    /// Enable auto-walk, restoring the last active mode and override index.
+    /// </summary>
+    public void EnableAutoWalk()
+    {
+        WalkingModeConfig.CurrentOverrideIndex = _lastOverrideIndex;
+        SetWalkingMode(_lastActiveWalkingMode);
+    }
+
+    /// <summary>
+    /// Disable auto-walk, remembering the current mode and override index, then resetting index to 0.
+    /// </summary>
+    public void DisableAutoWalk()
+    {
+        if (CurrentWalkingMode != WalkingMode.Disabled)
+        {
+            _lastActiveWalkingMode = CurrentWalkingMode;
+            _lastOverrideIndex = WalkingModeConfig.CurrentOverrideIndex;
+        }
+        WalkingModeConfig.CurrentOverrideIndex = 0;
+        SetWalkingMode(WalkingMode.Disabled);
+    }
+
+    /// <summary>
+    /// Set the preferred walking mode. If walking is active, switches immediately.
+    /// If disabled, remembers the mode for the next EnableAutoWalk call.
+    /// </summary>
+    public void SetPreferredWalkingMode(WalkingMode mode)
+    {
+        _lastActiveWalkingMode = mode;
+        if (CurrentWalkingMode != WalkingMode.Disabled)
+            SetWalkingMode(mode);
+    }
+
     /// <summary>
     /// Update walking mode configuration
     /// </summary>
@@ -239,6 +286,19 @@ public class AppStateService
         var newTrim = Math.Clamp(WalkingModeConfig.WalkingTrim + delta, 0.0f, 2.0f);
         WalkingModeConfig.WalkingTrim = newTrim;
         NotifyAppStateUpdated();
+    }
+
+    /// <summary>
+    /// Temporary walking speed multiplier applied while a boost button is held (default 1.0).
+    /// </summary>
+    public float TemporaryWalkingBoost { get; private set; } = 1.0f;
+
+    /// <summary>
+    /// Set the temporary walking speed multiplier (1.0 = normal, >1.0 = faster, <1.0 = slower).
+    /// </summary>
+    public void SetTemporaryWalkingBoost(float multiplier)
+    {
+        TemporaryWalkingBoost = multiplier;
     }
 
     /// <summary>

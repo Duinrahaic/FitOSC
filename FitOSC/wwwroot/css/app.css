@@ -613,7 +613,7 @@ html .app main {
   gap: 8px;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: 20%;
   aspect-ratio: 2/1;
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container.walking {

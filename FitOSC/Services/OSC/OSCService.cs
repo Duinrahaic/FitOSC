@@ -160,6 +160,12 @@ public class OscService : IDisposable, IOscService
                     IsConnected = false;
                 }
             }
+            catch (System.Net.Sockets.SocketException se) when (se.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionReset)
+            {
+                _logger.LogWarning("VRChat disconnected (connection reset)");
+                IsConnected = false;
+                return;
+            }
             catch (Exception e)
             {
                 _logger.LogError("Error in receiver loop", e);

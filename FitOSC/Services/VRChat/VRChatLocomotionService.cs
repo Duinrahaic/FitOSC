@@ -18,6 +18,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
     private readonly AppStateService _appState;
     private readonly IOscService _oscService;
     private readonly OpenVRService _openVRService;
+    private readonly TreadmillManager _treadmillManager;
 
     // Latest data from treadmill and OpenVR
     private TreadmillTelemetry? _latestTelemetry;
@@ -33,28 +34,32 @@ public class VRChatLocomotionService : IHostedService, IDisposable
     private float _smoothedStrafe = 0f;
     private float _smoothedVertical = 0f;
 
-    // Thumbstick speed modifier (gradually ramps toward target)
+    // Speed modifier ramp — lerps toward the current target each tick
     private float _currentSpeedModifier = 1f;
+
+    // Stick boost target — set from SteamVR SpeedModifier action (optional, 0–2×)
+    private float _stickBoostTarget = 1f;
 
     // Manual override state (left thumbstick active)
     private bool _isManualOverride = false;
 
+
     // Periodic update timer
     private Timer? _updateTimer;
 
-    // Last active walking mode (for toggle functionality)
-    private WalkingMode _lastActiveMode = WalkingMode.Dynamic;
 
     public VRChatLocomotionService(
         ILogger<VRChatLocomotionService> logger,
         AppStateService appState,
         IOscService oscService,
-        OpenVRService openVRService)
+        OpenVRService openVRService,
+        TreadmillManager treadmillManager)
     {
         _logger = logger;
         _appState = appState;
         _oscService = oscService;
         _openVRService = openVRService;
+        _treadmillManager = treadmillManager;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -69,6 +74,9 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
         // Subscribe to SteamVR action events
         _openVRService.OnActionReceived += OnActionReceived;
+
+        // Subscribe to yaw reset requests (from OSC menu or SteamVR)
+        _appState.YawResetRequested += OnYawResetRequested;
 
         // Start periodic update timer with default interval
         _updateTimer = new Timer(PeriodicUpdate, null, 0, _modeConfig.UpdateIntervalMs);
@@ -89,6 +97,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         _appState.AppStateUpdated -= OnAppStateUpdated;
         _openVRService.OnDataUpdateReceived -= OnOpenVRDataReceived;
         _openVRService.OnActionReceived -= OnActionReceived;
+        _appState.YawResetRequested -= OnYawResetRequested;
 
         return Task.CompletedTask;
     }
@@ -126,12 +135,30 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             _smoothedStrafe = 0f;
             _smoothedVertical = 0f;
             _currentSpeedModifier = 1f;
+            _stickBoostTarget = 1f;
+
         }
     }
 
     private void OnOpenVRDataReceived(OpenVRDataEvent data)
     {
         _latestOpenVRData = data;
+    }
+
+    private void ActivatePreset(int preset)
+    {
+        _appState.SetOverrideSpeedIndex(preset);
+        _appState.SetPreferredWalkingMode(WalkingMode.Override);
+        _logger.LogInformation($"Preset {preset} activated via SteamVR action");
+    }
+
+    private void OnYawResetRequested()
+    {
+        if (_latestOpenVRData != null)
+        {
+            _initialYaw = _latestOpenVRData.Yaw;
+            _logger.LogInformation($"Yaw recentered (new yaw: {_initialYaw:F3})");
+        }
     }
 
     private void OnActionReceived(OpenVRActionEvent action)
@@ -143,25 +170,19 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 if (_currentMode == WalkingMode.Disabled)
                 {
-                    // Enable walking - restore last active mode
-                    _appState.SetWalkingMode(_lastActiveMode);
-                    _logger.LogInformation($"Walking enabled via SteamVR action (mode: {_lastActiveMode})");
+                    _appState.EnableAutoWalk();
+                    _logger.LogInformation("Walking enabled via SteamVR action");
                 }
                 else
                 {
-                    // Disable walking - remember current mode
-                    _lastActiveMode = _currentMode;
-                    _appState.SetWalkingMode(WalkingMode.Disabled);
+                    _appState.DisableAutoWalk();
                     _logger.LogInformation("Walking disabled via SteamVR action");
                 }
             }
 
             // Handle recenter yaw action
-            if (action.RecenterYawPressed && _latestOpenVRData != null)
-            {
-                _initialYaw = _latestOpenVRData.Yaw;
-                _logger.LogInformation($"Yaw recentered via SteamVR action (new yaw: {_initialYaw:F3})");
-            }
+            if (action.RecenterYawPressed)
+                OnYawResetRequested();
 
             // Handle override speed up action
             if (action.OverrideSpeedUpPressed)
@@ -170,6 +191,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
                 if (newIndex < _modeConfig.OverrideSpeeds.Count)
                 {
                     _appState.SetOverrideSpeedIndex(newIndex);
+                    _appState.SetPreferredWalkingMode(WalkingMode.Override);
                     _logger.LogInformation($"Override speed up via SteamVR action (index: {newIndex})");
                 }
             }
@@ -181,23 +203,106 @@ public class VRChatLocomotionService : IHostedService, IDisposable
                 if (newIndex >= 0)
                 {
                     _appState.SetOverrideSpeedIndex(newIndex);
+                    _appState.SetPreferredWalkingMode(WalkingMode.Override);
                     _logger.LogInformation($"Override speed down via SteamVR action (index: {newIndex})");
                 }
             }
 
-            // Handle trim up action (increase by 0.05, or 5%)
-            if (action.TrimUpPressed)
+            // Handle treadmill controls
+            if (action.TreadmillEnablePressed)
             {
-                _appState.AdjustWalkingTrim(0.05f);
-                _logger.LogInformation($"Trim increased via SteamVR action (new trim: {_modeConfig.WalkingTrim:F2})");
+                if (_appState.LatestState == TreadmillState.Running)
+                {
+                    _ = _treadmillManager.StopAsync();
+                    _logger.LogInformation("Treadmill stopped via SteamVR action");
+                }
+                else
+                {
+                    _ = _treadmillManager.StartAsync();
+                    _logger.LogInformation("Treadmill started via SteamVR action");
+                }
             }
 
-            // Handle trim down action (decrease by 0.05, or 5%)
-            if (action.TrimDownPressed)
+            if (action.TreadmillSpeedUpPressed)
+            {
+                var currentSpeed = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
+                _ = _treadmillManager.SetSpeedAsync(currentSpeed + 0.2m * 1.609344m);
+                _logger.LogInformation("Treadmill speed up via SteamVR action");
+            }
+
+            if (action.TreadmillSlowDownPressed)
+            {
+                var currentSpeed = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
+                _ = _treadmillManager.SetSpeedAsync(Math.Max(0m, currentSpeed - 0.2m * 1.609344m));
+                _logger.LogInformation("Treadmill slow down via SteamVR action");
+            }
+
+            if (action.TreadmillInclineUpPressed)
+            {
+                var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
+                var config = _appState.LatestConfiguration;
+                if (config != null)
+                {
+                    _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline + config.InclineIncrement, config.MinIncline, config.MaxIncline));
+                    _logger.LogInformation("Treadmill incline up via SteamVR action");
+                }
+            }
+
+            if (action.TreadmillInclineDownPressed)
+            {
+                var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
+                var config = _appState.LatestConfiguration;
+                if (config != null)
+                {
+                    _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline - config.InclineIncrement, config.MinIncline, config.MaxIncline));
+                    _logger.LogInformation("Treadmill incline down via SteamVR action");
+                }
+            }
+
+            // Handle mode selection
+            if (action.EnableDynamicPressed)
+            {
+                _appState.SetPreferredWalkingMode(WalkingMode.Dynamic);
+                _logger.LogInformation("Enable Dynamic mode via SteamVR action");
+            }
+
+            if (action.WalkingSpeedUpPressed)
+            {
+                _appState.AdjustWalkingTrim(0.05f);
+                _logger.LogInformation("Walking speed up via SteamVR action");
+            }
+
+            if (action.WalkingSpeedDownPressed)
             {
                 _appState.AdjustWalkingTrim(-0.05f);
-                _logger.LogInformation($"Trim decreased via SteamVR action (new trim: {_modeConfig.WalkingTrim:F2})");
+                _logger.LogInformation("Walking speed down via SteamVR action");
             }
+
+            if (action.EnableOverridePressed)
+            {
+                _appState.SetPreferredWalkingMode(WalkingMode.Override);
+                _logger.LogInformation("Enable Override mode via SteamVR action");
+            }
+
+            // Handle direct preset selection
+            if (action.Preset0Pressed) ActivatePreset(0);
+            if (action.Preset1Pressed) ActivatePreset(1);
+            if (action.Preset2Pressed) ActivatePreset(2);
+            if (action.Preset3Pressed) ActivatePreset(3);
+            if (action.Preset4Pressed) ActivatePreset(4);
+
+            // Handle temp speed hold actions (SteamVR buttons) — ramp toward 2x or 0x while held
+            if (action.TempSpeedUpHeld)
+                _appState.SetTemporaryWalkingBoost(2.0f);
+            else if (action.TempSpeedDownHeld)
+                _appState.SetTemporaryWalkingBoost(0.0f);
+            else
+                _appState.SetTemporaryWalkingBoost(1.0f);
+
+            // Update stick boost target from SteamVR SpeedModifier action (optional analog input)
+            _stickBoostTarget = MathF.Abs(action.SpeedModifier) > 0.1f
+                ? Math.Clamp(1f + action.SpeedModifier, 0f, 2f)
+                : 1f;
         }
         catch (Exception ex)
         {
@@ -246,19 +351,19 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             _ => 0f
         };
 
-        // Calculate target speed modifier from right thumbstick
-        // Up (+1) = target 2x, Center (0) = target 1x, Down (-1) = target 0x
-        float targetModifier = 1f;
-        if (_latestOpenVRData != null && MathF.Abs(_latestOpenVRData.RightThumbstickY) > 0.1f)
-        {
-            targetModifier = 1f + _latestOpenVRData.RightThumbstickY;
-            targetModifier = Math.Clamp(targetModifier, 0f, 2f);
-        }
+        // Determine target modifier from available inputs (all optional, any combination):
+        //   Stick (SteamVR only):   analog 0–2×, active when pushed beyond deadzone
+        //   Buttons (OSC or SteamVR): discrete 0, 1, or 2×
+        // Stick takes priority when active; otherwise buttons/OSC source is used.
+        // Stick takes priority when active; otherwise buttons/OSC source is used.
+        float targetModifier = MathF.Abs(_stickBoostTarget - 1f) > 0.1f
+            ? _stickBoostTarget
+            : _appState.TemporaryWalkingBoost;
 
         // Gradually ramp the current modifier toward the target
         _currentSpeedModifier = Lerp(_currentSpeedModifier, targetModifier, _modeConfig.ThumbstickRampSpeed);
 
-        // Apply the smoothed speed modifier
+        // Apply the unified smoothed speed modifier
         baseSpeed *= _currentSpeedModifier;
 
         return Math.Clamp(baseSpeed, 0f, 1f);
@@ -324,11 +429,17 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
         // Vector decomposition: maintain constant speed in initial direction
         // Skip if manual override is active (left thumbstick) to let user control movement
-        if (!_isManualOverride && _currentMode != WalkingMode.Disabled && speed > 0.01f && _latestOpenVRData != null)
+        if (!_isManualOverride && _currentMode != WalkingMode.Disabled && speed > 0.01f)
         {
-            // If no initial yaw set yet, capture it and move straight forward
-            if (_initialYaw == null)
+            if (_latestOpenVRData == null)
             {
+                // No OpenVR — move straight forward with no yaw compensation
+                vertical = speed;
+                horizontal = 0f;
+            }
+            else if (_initialYaw == null)
+            {
+                // First frame with OpenVR data — lock initial direction and move forward
                 _initialYaw = _latestOpenVRData.Yaw;
                 vertical = speed;
                 horizontal = 0f;
@@ -344,8 +455,6 @@ public class VRChatLocomotionService : IHostedService, IDisposable
                 while (yawDiff < -MathF.PI) yawDiff += 2 * MathF.PI;
 
                 // Vector decomposition to maintain movement in initial direction
-                // Vertical component: speed × cos(yawDiff) - forward in current facing direction
-                // Horizontal component: speed × sin(yawDiff) - strafe to compensate for angle
                 vertical = speed * MathF.Cos(yawDiff);
                 horizontal = speed * MathF.Sin(yawDiff);
             }
@@ -356,10 +465,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         _smoothedVertical = Lerp(_smoothedVertical, vertical, _modeConfig.SmoothingFactor);
         _smoothedStrafe = Lerp(_smoothedStrafe, horizontal, _modeConfig.SmoothingFactor);
 
-        // Send VRChat input parameters via OSC
-        // /input/Vertical: Forward component in facing direction
-        // /input/Horizontal: Strafe component perpendicular to facing direction
-        // Combined result: constant speed movement in initial locked direction
+        // Locomotion inputs must be sent every tick — VRChat resets them to 0 if they stop arriving
         _oscService.SendMessage("/input/Vertical", _smoothedVertical);
         _oscService.SendMessage("/input/Horizontal", _smoothedStrafe);
     }
@@ -469,6 +575,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
     {
         _updateTimer?.Dispose();
         _appState.AppStateUpdated -= OnAppStateUpdated;
+        _appState.YawResetRequested -= OnYawResetRequested;
         _openVRService.OnDataUpdateReceived -= OnOpenVRDataReceived;
         _openVRService.OnActionReceived -= OnActionReceived;
     }
