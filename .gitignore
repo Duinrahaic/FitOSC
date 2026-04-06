@@ -4,3 +4,9 @@
 /FitOSC.Shared/obj/
 /FitOSC.Web/bin/
 /FitOSC.Web/obj/
+
+# Claude notes and development documentation
+/notes/
+.claude/
+*_SUMMARY.md
+*_ANALYSIS.md

@@ -1,0 +1,16 @@
+﻿<div class="led @AdditionalClasses @(GetActiveClass())">
+    <i class="fa fa-circle led-indicator "></i>
+    <div class="led-text">
+        @Text
+    </div>
+</div>
+@code {
+    [Parameter] public string AdditionalClasses { get; set; } = string.Empty;
+    [Parameter] public string Text { get; set; } = string.Empty;
+    [Parameter] public bool IsActive { get; set; } = false;
+    
+    private string GetActiveClass()
+    {
+        return IsActive ? "active" : string.Empty;
+    }
+}

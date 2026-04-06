@@ -1,0 +1,91 @@
+@using FitOSC.Services.Debug
+@inject DebugConsoleService Debug
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@code {
+    private DotNetObjectReference<DebugConsoleService>? _debugRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _debugRef = DotNetObjectReference.Create(Debug);
+
+            // Define initialization function in browser console
+            await JS.InvokeVoidAsync("eval", @"
+                window.initFitOscDebug = function(debugRef) {
+                    window.FitOSC = {
+                        // Treadmill control
+                        scanTreadmills: (duration = 5) =>
+                            debugRef.invokeMethodAsync('Debug_ScanTreadmills', duration)
+                                .then(result => { console.log(result); return result; }),
+                        getDeviceInfo: () =>
+                            debugRef.invokeMethodAsync('Debug_GetConnectedDeviceInfo')
+                                .then(result => { console.log(result); return result; }),
+                        connectTreadmill: (device = '', type = 'FTMS') =>
+                            debugRef.invokeMethodAsync('Debug_ConnectTreadmill', device, type),
+                        disconnectTreadmill: () =>
+                            debugRef.invokeMethodAsync('Debug_DisconnectTreadmill'),
+                        startTreadmill: () =>
+                            debugRef.invokeMethodAsync('Debug_StartTreadmill'),
+                        stopTreadmill: () =>
+                            debugRef.invokeMethodAsync('Debug_StopTreadmill'),
+                        setSpeed: (speed) =>
+                            debugRef.invokeMethodAsync('Debug_SetSpeed', speed),
+                        setIncline: (incline) =>
+                            debugRef.invokeMethodAsync('Debug_SetIncline', incline),
+
+                        // State management
+                        setBluetoothStatus: (status) =>
+                            debugRef.invokeMethodAsync('Debug_SetBluetoothStatus', status),
+                        setWalkingMode: (mode) =>
+                            debugRef.invokeMethodAsync('Debug_SetWalkingMode', mode),
+                        getAppState: () =>
+                            debugRef.invokeMethodAsync('Debug_GetAppState')
+                                .then(json => { console.log(JSON.parse(json)); return json; }),
+
+                        // OSC
+                        sendOSC: (address, value) =>
+                            debugRef.invokeMethodAsync('Debug_SendOSC', address, value),
+                        restartOSC: () =>
+                            debugRef.invokeMethodAsync('Debug_RestartOSC'),
+                        clearOSC: () =>
+                            debugRef.invokeMethodAsync('Debug_ClearOSC'),
+
+                        // VR
+                        reconnectVR: () =>
+                            debugRef.invokeMethodAsync('Debug_ReconnectVR'),
+                        disconnectVR: () =>
+                            debugRef.invokeMethodAsync('Debug_DisconnectVR'),
+
+                        // Walking
+                        getWalkingInfo: () =>
+                            debugRef.invokeMethodAsync('Debug_GetWalkingInfo')
+                                .then(info => { console.log(info); return info; }),
+
+                        // Help
+                        help: () =>
+                            debugRef.invokeMethodAsync('Debug_Help')
+                                .then(help => { console.log(help); return help; })
+                    };
+
+                    console.log('%c🛠️ FitOSC Debug Console Loaded', 'color: #2196f3; font-size: 14px; font-weight: bold');
+                    console.log('%cType FitOSC.help() for available commands', 'color: #4caf50; font-size: 12px');
+                };
+            ");
+
+            // Initialize with the DotNetObjectReference
+            await JS.InvokeVoidAsync("initFitOscDebug", _debugRef);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_debugRef != null)
+        {
+            await JS.InvokeVoidAsync("eval", "delete window.FitOSC;");
+            _debugRef.Dispose();
+        }
+    }
+}

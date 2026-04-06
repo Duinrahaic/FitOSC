@@ -1,0 +1,325 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: transparent;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  i {
+    font-size: 14px;
+  }
+}
+
+.btn-primary {
+  @extend .btn;
+  background: $color-accent;
+  border-color: $color-accent;
+  color: $color-background;
+
+  &:hover:not(:disabled) {
+    background: $color-accent-hover;
+    border-color: $color-accent-hover;
+  }
+
+  &:active:not(:disabled) {
+    background: $color-accent-active;
+    border-color: $color-accent-active;
+  }
+}
+
+.btn-secondary {
+  @extend .btn;
+  background: transparent;
+  border-color: $color-border;
+  color: $color-text;
+
+  &:hover:not(:disabled) {
+    background: rgba($color-text, 0.1);
+    border-color: $color-text-muted;
+  }
+
+  &:active:not(:disabled) {
+    background: rgba($color-text, 0.15);
+  }
+}
+
+.btn-ghost {
+  @extend .btn;
+  background: transparent;
+  border-color: transparent;
+  color: $color-text-muted;
+
+  &:hover:not(:disabled) {
+    background: rgba($color-text, 0.08);
+    color: $color-text;
+  }
+
+  &:active:not(:disabled) {
+    background: rgba($color-text, 0.12);
+  }
+}
+
+.btn-outline {
+  @extend .btn;
+  background: transparent;
+  border-color: $color-accent;
+  color: $color-accent;
+
+  &:hover:not(:disabled) {
+    background: rgba($color-accent, 0.1);
+  }
+
+  &:active:not(:disabled) {
+    background: rgba($color-accent, 0.2);
+  }
+}
+
+.btn-danger {
+  @extend .btn;
+  background: transparent;
+  border-color: $color-border;
+  color: $color-error;
+
+  &:hover:not(:disabled) {
+    background: rgba($color-error, 0.1);
+    border-color: $color-error;
+  }
+
+  &:active:not(:disabled) {
+    background: rgba($color-error, 0.2);
+  }
+}
+
+.btn-danger-filled {
+  @extend .btn;
+  background: $color-error;
+  border-color: $color-error;
+  color: $color-text-inverted;
+
+  &:hover:not(:disabled) {
+    background: lighten($color-error, 8%);
+    border-color: lighten($color-error, 8%);
+  }
+
+  &:active:not(:disabled) {
+    background: darken($color-error, 5%);
+    border-color: darken($color-error, 5%);
+  }
+}
+
+.btn-success {
+  @extend .btn;
+  background: $color-success;
+  border-color: $color-success;
+  color: $color-background;
+
+  &:hover:not(:disabled) {
+    background: lighten($color-success, 8%);
+    border-color: lighten($color-success, 8%);
+  }
+
+  &:active:not(:disabled) {
+    background: darken($color-success, 5%);
+    border-color: darken($color-success, 5%);
+  }
+}
+
+.btn-warning {
+  @extend .btn;
+  background: $color-warning;
+  border-color: $color-warning;
+  color: $color-background;
+
+  &:hover:not(:disabled) {
+    background: lighten($color-warning, 8%);
+    border-color: lighten($color-warning, 8%);
+  }
+
+  &:active:not(:disabled) {
+    background: darken($color-warning, 5%);
+    border-color: darken($color-warning, 5%);
+  }
+}
+
+.btn-icon {
+  @extend .btn;
+  padding: 6px 10px;
+  background: transparent;
+  border-color: $color-border;
+  color: $color-text;
+
+  &:hover:not(:disabled) {
+    background: $color-surface;
+    border-color: $color-accent;
+    color: $color-accent;
+  }
+
+  &:active:not(:disabled) {
+    background: $color-surface-alt;
+  }
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+
+  i {
+    font-size: 12px;
+  }
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 16px;
+
+  i {
+    font-size: 16px;
+  }
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-uppercase {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.btn-group {
+  display: inline-flex;
+  gap: 0;
+  border-radius: 4px;
+  overflow: hidden;
+
+  > .btn,
+  > button {
+    border-radius: 0;
+
+    &:first-child {
+      border-top-left-radius: 4px;
+      border-bottom-left-radius: 4px;
+    }
+
+    &:last-child {
+      border-top-right-radius: 4px;
+      border-bottom-right-radius: 4px;
+    }
+
+    &:not(:last-child) {
+      border-right: none;
+    }
+  }
+}
+
+.btn-toggle-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid $color-border;
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+
+  .btn-toggle {
+    padding: 8px 20px;
+    background: transparent;
+    border: none;
+    color: $color-text-muted;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    user-select: none;
+
+    &:not(:last-child) {
+      border-right: 1px solid $color-border;
+    }
+
+    &:hover:not(.active) {
+      color: $color-text;
+      background: rgba($color-accent, 0.1);
+    }
+
+    &.active {
+      background: $color-accent;
+      color: $color-background;
+    }
+  }
+}
+
+.btn-scan {
+  @extend .btn-primary;
+
+  &.scanning {
+    i {
+      animation: spin 1s linear infinite;
+    }
+  }
+}
+
+.btn-connect {
+  @extend .btn-primary;
+  @extend .btn-sm;
+}
+
+.btn-delete,
+.btn-clear-history {
+  @extend .btn-danger;
+
+  i {
+    font-size: 14px;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  &.btn-primary::after {
+    border-top-color: $color-background;
+  }
+
+  &.btn-secondary::after,
+  &.btn-ghost::after,
+  &.btn-outline::after {
+    border-top-color: $color-text;
+  }
+}

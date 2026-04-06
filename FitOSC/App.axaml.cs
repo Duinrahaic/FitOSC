@@ -5,10 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using FitOSC.Client.ViewModels;
 using FitOSC.Client.Views;
-using FitOSC.Shared.Services;
-using FitOSC.Shared.Utilities;
-using Microsoft.JSInterop;
-using Valve.VR;
+using FitOSC.Services;
 using Application = Avalonia.Application;
 
 namespace FitOSC;
@@ -17,6 +14,11 @@ public class App : Application, IDisposable
 {
     private IClassicDesktopStyleApplicationLifetime? _desktop;
     public static IHost? AppHost { get; private set; }
+
+    /// <summary>
+    /// When true, SteamVR/OpenVR initialization is disabled. Use --no-vr launch argument.
+    /// </summary>
+    public static bool DisableVR { get; private set; }
 
 
     public void Dispose()
@@ -61,27 +63,23 @@ public class App : Application, IDisposable
 
     internal static void RunAvaloniaAppWithHosting(string[] args, Func<AppBuilder> buildAvaloniaApp)
     {
+        // Check for --no-vr flag to disable SteamVR initialization
+        DisableVR = args.Contains("--no-vr", StringComparer.OrdinalIgnoreCase);
+        if (DisableVR)
+        {
+            Console.WriteLine("[FitOSC] SteamVR disabled via --no-vr flag");
+        }
+
         var appBuilder = Host.CreateApplicationBuilder(args);
         appBuilder.Services.AddWindowsFormsBlazorWebView();
         appBuilder.Services.AddBlazorWebViewDeveloperTools();
-
-#if DEBUG
-
-#endif
-
-        appBuilder.Services.RegisterServices();
-        appBuilder.Services.RegisterHostedService<OpenVRService>();
-        appBuilder.Services.AddSingleton<OscService>();
-
-    
-        
-        using var myApp = appBuilder.Build();
-        AppHost = myApp;
         
         try
         {
+            appBuilder.Logging.RegisterLogger();
+            appBuilder.Services.RegisterServices();
+            AppHost = appBuilder.Build();
             AppHost.Start();
-
             buildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)

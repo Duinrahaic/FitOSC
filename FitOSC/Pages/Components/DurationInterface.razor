@@ -1,0 +1,35 @@
+﻿@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@inject AppStateService AppState
+@implements IDisposable
+
+
+<div class="treadmill-info-box-item treadmill-info-box-timer">
+    <div class="treadmill-info-box-value">
+        @_duration.ToString(@"hh\:mm\:ss")
+    </div>
+    <div class="treadmill-info-box-title">
+        DURATION
+    </div>
+</div>
+@code {
+ 
+    private TimeSpan _duration = TimeSpan.Zero;
+ 
+    protected override void OnInitialized()
+    {
+        AppStateOnAppStateUpdated(AppState.GetCurrentAppStateInfo());
+        AppState.AppStateUpdated += AppStateOnAppStateUpdated;
+    }
+
+    private void AppStateOnAppStateUpdated(AppStateInfo stateInfo)
+    {
+        _duration = TimeSpan.FromSeconds((double)stateInfo.TreadmillTelemetry.Values[TreadmillTelemetryProperty.ElapsedTime].Value);
+        InvokeAsync(StateHasChanged);
+    }
+    
+    public void Dispose()
+    {
+        AppState.AppStateUpdated -= AppStateOnAppStateUpdated;
+    }
+}

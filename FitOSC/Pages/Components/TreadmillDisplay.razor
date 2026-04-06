@@ -1,0 +1,232 @@
+﻿@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@using FitOSC.Services.Configuration
+@using FitOSC.Services
+@using FitOSC.Models
+@inject IJSRuntime JSRuntime
+@inject AppStateService AppStateService
+@inject ConfigurationService ConfigService
+@inject OnboardingService OnboardingService
+@inject ILogger<TreadmillDisplay> Logger
+@implements IAsyncDisposable
+
+<div class="treadmill-display">
+    @*<div class="treadmill-display-indicators">
+        <InterfaceStatusIndicator Interface="AppInterface.Bluetooth" />
+        <InterfaceStatusIndicator Interface="AppInterface.VR" />
+        <InterfaceStatusIndicator Interface="AppInterface.OSC" />
+        <div class="icon" @onclick="OpenSettings" style="cursor: pointer;">
+            <i class="fa-solid fa-cog"></i>
+        </div>
+    </div>*@
+    <TreadmillMetrics />
+    <div id="display" class="treadmill-display-visual-container">
+        <div class="treadmill-display-visual-container-overlay @(_isManualOverride ? "visible" : "")">
+            @if (_isManualOverride)
+            {
+                <div class="walking-paused-indicator">
+                    <i class="fa-solid fa-pause"></i>
+                    <span>Walking Paused</span>
+                    <span class="subtext">Release your thumbstick to continue auto-walking</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<SettingsModal @bind-IsOpen="_isSettingsOpen" @ref="_settingsModal" />
+<OnboardingModal @bind-IsOpen="_showOnboarding" />
+
+@code {
+    private SettingsModal? _settingsModal;
+    private bool _isSettingsOpen = false;
+    private bool _showOnboarding = false;
+    private bool _threeJsInitialized = false;
+
+    private float _lastSpeed = -1;
+    private float _lastHorizontal = -999;
+    private float _lastVertical = -999;
+    private bool _lastWalkingMode = false;
+    private bool _isManualOverride = false;
+    private bool _previousManualOverride = false;
+    private PeriodicTimer? _updateTimer;
+    private CancellationTokenSource? _timerCts;
+    private AppStateInfo? _latestData;
+    private bool _hasPendingUpdate = false;
+
+    // Adaptive timing: 30fps when active, idle when no changes
+    private const int ActiveIntervalMs = 33; // ~30fps - matches Three.js target
+
+    private bool HasTelemetry() => _latestData?.HasMetrics ?? false;
+
+    protected override void OnInitialized()
+    {
+        AppStateService.AppStateUpdated += HandleAppStateUpdated;
+        OnboardingService.OnShowOnboarding += HandleShowOnboarding;
+        StartUpdateLoop();
+
+        // Check if onboarding should be shown
+        var config = ConfigService.GetConfiguration();
+        _showOnboarding = !config.User.OnboardingCompleted;
+    }
+
+    private async void HandleShowOnboarding()
+    {
+        try
+        {
+            Logger.LogInformation("ShowOnboarding triggered via OnboardingService");
+
+            // Reset onboarding completed flag so wizard behaves as fresh
+            var config = ConfigService.GetConfiguration();
+            config.User.OnboardingCompleted = false;
+            ConfigService.SaveConfiguration(config);
+            Logger.LogInformation("Onboarding wizard relaunched, OnboardingCompleted reset to false");
+
+            // Close settings and show onboarding
+            await _settingsModal?.Close()!;
+            _isSettingsOpen = false; // Explicitly ensure settings stays closed
+            _showOnboarding = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception e)
+        {
+            // Do Nothing
+        }
+    }
+
+    private void StartUpdateLoop()
+    {
+        _timerCts = new CancellationTokenSource();
+        _ = RunUpdateLoopAsync(_timerCts.Token);
+    }
+
+    private async Task RunUpdateLoopAsync(CancellationToken cancellationToken)
+    {
+        _updateTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(ActiveIntervalMs));
+
+        try
+        {
+            while (await _updateTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (_hasPendingUpdate)
+                {
+                    await ProcessPendingUpdate();
+                    _hasPendingUpdate = false;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on disposal
+        }
+    }
+
+    // Only re-render when manual override state changes (the only UI element)
+    protected override bool ShouldRender()
+    {
+        var shouldRender = _isManualOverride != _previousManualOverride;
+        _previousManualOverride = _isManualOverride;
+        return shouldRender;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_threeJsInitialized)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("TreadmillDisplay.initialize", "display");
+                _threeJsInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to initialize Three.js display: {ex.Message}");
+            }
+        }
+    }
+
+    private void HandleAppStateUpdated(AppStateInfo data)
+    {
+        _latestData = data;
+        _hasPendingUpdate = true; // Signal the update loop to process
+
+        var newOverrideState = data.Walking.IsManualOverride;
+        if (newOverrideState != _isManualOverride)
+        {
+            _isManualOverride = newOverrideState;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ProcessPendingUpdate()
+    {
+        if (!_threeJsInitialized || _latestData == null)
+            return;
+
+        try
+        {
+            var data = _latestData;
+
+            var walkingVelocity = data.Walking.Velocity;
+            var walkingHorizontal = data.Walking.Horizontal;
+            var walkingVertical = data.Walking.Vertical;
+            var isWalkingModeEnabled = data.Walking.Mode != WalkingMode.Disabled;
+            
+            const float threshold = 0.001f;
+
+            if (Math.Abs(walkingVelocity - _lastSpeed) > threshold)
+            {
+                await JSRuntime.InvokeVoidAsync("TreadmillDisplay.setSpeed", walkingVelocity);
+                _lastSpeed = walkingVelocity;
+            }
+
+            if (_lastWalkingMode != isWalkingModeEnabled)
+            {
+                await JSRuntime.InvokeVoidAsync("TreadmillDisplay.setWalkingMode", isWalkingModeEnabled);
+                _lastWalkingMode = isWalkingModeEnabled;
+            }
+
+            if (Math.Abs(walkingHorizontal - _lastHorizontal) > threshold || Math.Abs(walkingVertical - _lastVertical) > threshold)
+            {
+                await JSRuntime.InvokeVoidAsync("TreadmillDisplay.setWalkingDirection", walkingHorizontal, walkingVertical);
+                _lastHorizontal = walkingHorizontal;
+                _lastVertical = walkingVertical;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to update visualization: {ex.Message}");
+        }
+    }
+
+    private void OpenSettings()
+    {
+        _isSettingsOpen = true;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AppStateService.AppStateUpdated -= HandleAppStateUpdated;
+        OnboardingService.OnShowOnboarding -= HandleShowOnboarding;
+
+        // Cancel and dispose timer
+        _timerCts?.Cancel();
+        _timerCts?.Dispose();
+        _timerCts = null;
+
+        _updateTimer?.Dispose();
+        _updateTimer = null;
+
+        if (_threeJsInitialized)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("TreadmillDisplay.dispose");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to dispose Three.js display: {ex.Message}");
+            }
+        }
+    }
+}

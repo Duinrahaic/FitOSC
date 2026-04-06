@@ -1,0 +1,39 @@
+﻿@using System.Diagnostics
+@using System.Runtime.InteropServices
+<button class="settings-info-icon" @onclick="OnClick">
+    <i class="fa-solid fa-info-circle"></i>
+</button>
+@code{
+
+    [Parameter]
+    public string Href { get; set; } = String.Empty;
+
+    private void OnClick()
+    {
+        try
+        {
+            Process.Start(Href);
+        }
+        catch
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Href = Href.Replace("&", "^&");
+                Process.Start(new ProcessStartInfo(Href) { UseShellExecute = true });
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                Process.Start("xdg-open", Href);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Process.Start("open", Href);
+            }
+            else
+            {
+                throw;
+            }
+        }
+    }
+
+}

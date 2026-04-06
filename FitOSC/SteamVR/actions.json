@@ -1,0 +1,156 @@
+{
+  "default_bindings": [
+    {
+      "controller_type": "knuckles",
+      "binding_url": "bindings_knuckles.json"
+    },
+    {
+      "controller_type": "oculus_touch",
+      "binding_url": "bindings_oculus_touch.json"
+    },
+    {
+      "controller_type": "vive_controller",
+      "binding_url": "bindings_vive_controller.json"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/fitosc/in/SpeedModifier",
+      "type": "vector2",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/ToggleWalking",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/RecenterYaw",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/OverrideSpeedUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/OverrideSpeedDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/ManualMovement",
+      "type": "vector2",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TempSpeedUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TempSpeedDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/EnableDynamic",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/WalkingSpeedUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/WalkingSpeedDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/EnableOverride",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillEnable",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillSpeedUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillSlowDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillInclineUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/TreadmillInclineDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset1",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset2",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset3",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fitosc/in/Preset4",
+      "type": "boolean",
+      "requirement": "optional"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/fitosc",
+      "usage": "leftright"
+    }
+  ],
+  "localization": [
+    {
+      "language_tag": "en_US",
+      "/actions/fitosc": "FitOSC",
+      "/actions/fitosc/in/SpeedModifier": "Speed Modifier",
+      "/actions/fitosc/in/ToggleWalking": "Toggle Walking",
+      "/actions/fitosc/in/RecenterYaw": "Recenter Direction",
+      "/actions/fitosc/in/OverrideSpeedUp": "Override Speed Up",
+      "/actions/fitosc/in/OverrideSpeedDown": "Override Speed Down",
+      "/actions/fitosc/in/ManualMovement": "Manual Movement",
+      "/actions/fitosc/in/TempSpeedUp": "Temp Speed Up",
+      "/actions/fitosc/in/TempSpeedDown": "Temp Speed Down",
+      "/actions/fitosc/in/TreadmillEnable": "Treadmill Enable",
+      "/actions/fitosc/in/TreadmillSpeedUp": "Treadmill Speed Up",
+      "/actions/fitosc/in/TreadmillSlowDown": "Treadmill Slow Down",
+      "/actions/fitosc/in/TreadmillInclineUp": "Treadmill Incline Up",
+      "/actions/fitosc/in/TreadmillInclineDown": "Treadmill Incline Down",
+      "/actions/fitosc/in/EnableDynamic": "Enable Dynamic Mode",
+      "/actions/fitosc/in/WalkingSpeedUp": "Walking Speed Up",
+      "/actions/fitosc/in/WalkingSpeedDown": "Walking Speed Down",
+      "/actions/fitosc/in/EnableOverride": "Enable Override Mode",
+      "/actions/fitosc/in/Preset1": "Override Preset 1",
+      "/actions/fitosc/in/Preset2": "Override Preset 2",
+      "/actions/fitosc/in/Preset3": "Override Preset 3",
+      "/actions/fitosc/in/Preset4": "Override Preset 4"
+    }
+  ]
+}

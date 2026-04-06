@@ -1,0 +1,108 @@
+﻿@using FitOSC.Models
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@using FitOSC.Services.OSC
+@using Valve.VR
+@implements IDisposable
+@inject AppStateService AppState
+@inject TreadmillManager Treadmill
+@inject IOscService OscService
+@inject OpenVRService VRService
+
+<div class="icon @GetActiveClass() @GetScanningClass() @GetErrorClass()" id="@GetId()" @onclick="HandleClick" style="cursor: @(IsClickable ? "pointer" : "default")">
+    <i class="@GetIcon()"></i>
+</div>
+@code {
+
+    [Parameter] public required AppInterface Interface { get; set; }
+    
+    private Dictionary<AppInterface, ConnectionStatus> _interfaceStatuses = new();
+    private ConnectionStatus Status => _interfaceStatuses.GetValueOrDefault(Interface, ConnectionStatus.Disconnected);
+    
+    private bool IsActive => Status == ConnectionStatus.Connected;
+    private bool IsScanning => Status == ConnectionStatus.Connecting;
+    private bool IsError => Status == ConnectionStatus.Error;
+    private bool IsClickable => Interface == AppInterface.Bluetooth || Interface == AppInterface.OSC || Interface == AppInterface.VR;
+
+    private string GetScanningClass()
+    {
+        return IsScanning ? "scanning" : string.Empty;
+    }
+
+    private string GetErrorClass()
+    {
+        return IsError ? "error" : string.Empty;
+    }
+
+    private async Task HandleClick()
+    {
+        if (Interface == AppInterface.Bluetooth && Status != ConnectionStatus.Connecting)
+        {
+            // TODO: Get the last connected device name from settings/storage
+            // For now, we'll just try to reconnect to any FTMS device
+            await Treadmill.ConnectAsync("", TreadmillType.FTMS);
+        }
+        else if (Interface == AppInterface.OSC && Status != ConnectionStatus.Connecting)
+        {
+            // Restart OSC service to trigger rediscovery
+            OscService.RestartService();
+        }
+        else if (Interface == AppInterface.VR)
+        {
+            // Toggle VR monitoring
+            if (Status == ConnectionStatus.Connected)
+            {
+                VRService.StopMonitoring();
+            }
+            else if (Status != ConnectionStatus.Connecting)
+            {
+                VRService.StartMonitoring();
+            }
+        }
+    }
+
+    private string GetId()
+    {
+        return Interface switch
+        {
+            AppInterface.Bluetooth => "bt",
+            AppInterface.VR => "vr",
+            AppInterface.OSC => "osc",
+            _ => "unknown"
+        };
+    }
+    
+    private string GetIcon()
+    {
+        return Interface switch
+        {
+            AppInterface.Bluetooth => "fa-brands fa-bluetooth",
+            AppInterface.VR => "fa fa-vr-cardboard",
+            AppInterface.OSC => "fa fa-wifi",
+            _ => "fa-solid fa-circle"
+        };
+    }
+    private string GetActiveClass()
+    {
+        return IsActive ? "active" : string.Empty;
+    }
+    
+    protected override void OnInitialized()
+    {
+        AppState.AppStateUpdated += UpdateAppState;
+    }
+
+    private void UpdateAppState(AppStateInfo info)
+    {
+        _interfaceStatuses = info.ConnectionStates; 
+        InvokeAsync(StateHasChanged);
+    }
+
+
+    public void Dispose()
+    {
+        AppState.AppStateUpdated -= UpdateAppState;
+    }
+    
+
+}

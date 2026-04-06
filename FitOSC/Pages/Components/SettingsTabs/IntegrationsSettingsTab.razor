@@ -1,0 +1,540 @@
+@using FitOSC.Models
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@using FitOSC.Services.Configuration
+@using FitOSC.Services.WebSocket
+@using FitOSC.Services.OpenVR
+@using FitOSC.Services.Pulsoid
+@using FitOSC.Services.Midi
+@using Valve.VR
+@inject AppStateService AppStateService
+@inject TreadmillManager TreadmillManager
+@inject ConfigurationService ConfigService
+@inject WebSocketService WebSocketService
+@inject OpenVRService OpenVRService
+@inject PulsoidService PulsoidService
+@inject MidiService MidiService
+@implements IDisposable
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Treadmill</h3>
+        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/hardware/treadmills"/>
+    </div>
+
+    <div class="settings-item">
+        <label>Treadmill Type</label>
+        <select @bind="_selectedTreadmillType">
+            <option value="FTMS">FTMS (Generic)</option>
+            @*<option value="WalkingPad">Kingston WalkingPad</option>*@
+        </select>
+    </div>
+
+    <div class="settings-item">
+        <label>Currently Connected</label>
+        <div class="connection-status">
+            @if (_isBluetoothConnected)
+            {
+                <div class="connected-device">
+                    <i class="fa-brands fa-bluetooth"></i>
+                    <span>@(_currentDeviceName ?? "Unknown Device")</span>
+                    <div class="connection-buttons">
+                        <button class="btn-icon" @onclick="DisconnectTreadmill" title="Disconnect">
+                            <i class="fa fa-plug-circle-xmark"></i>
+                        </button>
+                        <button class="btn-icon" @onclick="ReconnectTreadmill" title="Reconnect">
+                            <i class="fa fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <span class="no-device">Not connected</span>
+            }
+        </div>
+    </div>
+
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" @bind="_autoConnect" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Automatically connect to last known device on startup</span>
+        </label>
+    </div>
+
+    <div class="settings-item">
+        <label>Scan for Devices</label>
+        <div class="bluetooth-scanner">
+            <button class="btn-scan" @onclick="ScanForDevices" disabled="@_isScanning">
+                <i class="fa @(_isScanning ? "fa-spinner fa-spin" : "fa-search")"></i>
+                @(_isScanning ? "Scanning..." : "Scan for Devices")
+            </button>
+            @if (_discoveredDevices.Any())
+            {
+                <div class="device-list">
+                    @foreach (var device in _discoveredDevices)
+                    {
+                        <div class="device-item @(device == _selectedDevice ? "selected" : "")">
+                            <i class="fa-brands fa-bluetooth"></i>
+                            <span @onclick="() => SelectDevice(device)">@device</span>
+                            <div class="device-indicators">
+                                @if (IsDefaultDevice(device))
+                                {
+                                    <i class="fa fa-check default-indicator" title="Default device"></i>
+                                }
+                                @if (device == _selectedDevice)
+                                {
+                                    <i class="fa-solid fa-plug-circle-plus"></i>
+                                }
+                            </div>
+                            <button class="btn-connect" @onclick="() => ConnectToDevice(device)" title="Connect">
+                                <i class="fa fa-plug-circle-plus"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>SteamVR</h3>
+        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
+    </div>
+
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" checked="@_autoLaunchWithSteamVR" @onchange="OnAutoLaunchToggled" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Auto-launch with SteamVR</span>
+        </label>
+        <p class="settings-hint">
+            @if (_autoLaunchWithSteamVR)
+            {
+                <text>FitOSC will start automatically when SteamVR launches</text>
+            }
+            else
+            {
+                <text>Start FitOSC manually before using VR</text>
+            }
+        </p>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>WebSocket Server</h3>
+        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
+    </div>
+
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" checked="@_webSocketEnabled" @onchange="OnWebSocketToggled" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Enable WebSocket telemetry server</span>
+        </label>
+        <p class="settings-hint">
+            @if (_webSocketEnabled)
+            {
+                <text>Listening on ws://localhost:@(WebSocketService.Port)/ (@WebSocketService.ConnectedClients client(s) connected)</text>
+            }
+            else
+            {
+                <text>WebSocket server is disabled</text>
+            }
+        </p>
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Pulsoid</h3>
+        <SettingInfoButton Href="https://pulsoid.net/"/>
+    </div>
+
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" checked="@_pulsoidEnabled" @onchange="OnPulsoidToggled" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Enable Pulsoid heart rate integration</span>
+        </label>
+        <p class="settings-hint">
+            @if (_pulsoidEnabled && PulsoidService.IsConnected)
+            {
+                <text>Connected - Heart rate: @(PulsoidService.LastHeartRate) bpm</text>
+            }
+            else if (_pulsoidEnabled && !string.IsNullOrWhiteSpace(_pulsoidApiKey))
+            {
+                <text>Connecting to Pulsoid...</text>
+            }
+            else if (_pulsoidEnabled)
+            {
+                <text>Enter your API key to connect</text>
+            }
+            else
+            {
+                <text>Stream heart rate data from your fitness tracker</text>
+            }
+        </p>
+    </div>
+
+    @if (_pulsoidEnabled)
+    {
+        <div class="settings-item">
+            <label>API Key</label>
+            <input type="password" @bind="_pulsoidApiKey" @bind:after="OnPulsoidApiKeyChanged" placeholder="Enter your Pulsoid API key" />
+            <p class="settings-hint">Get your API key from <a href="https://pulsoid.net/ui/keys" target="_blank">pulsoid.net/ui/keys</a></p>
+        </div>
+    }
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>MIDI</h3>
+    </div>
+
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" checked="@_midiEnabled" @onchange="OnMidiToggled" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Enable MIDI output</span>
+        </label>
+        <p class="settings-hint">
+            @if (_midiEnabled && MidiService.IsConnected)
+            {
+                <text>Connected</text>
+            }
+            else if (_midiEnabled)
+            {
+                <text>Select a device below to connect</text>
+            }
+            else
+            {
+                <text>Send telemetry as MIDI CC messages</text>
+            }
+        </p>
+    </div>
+
+    @if (_midiEnabled)
+    {
+        <div class="settings-item">
+            <label>Output Device</label>
+            <select @bind="_midiOutputDevice" @bind:after="OnMidiDeviceChanged">
+                <option value="">None</option>
+                @foreach (var device in _midiOutputDevices)
+                {
+                    <option value="@device.Name">@device.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="settings-item">
+            <label>MIDI Channel</label>
+            <input type="number" min="1" max="16" @bind="_midiChannel" @bind:after="OnMidiSettingsChanged" />
+        </div>
+
+        <div class="settings-item">
+            <label>CC Assignments</label>
+            <div class="cc-assignments">
+                <div class="cc-row">
+                    <span>Speed</span>
+                    <input type="number" min="0" max="127" @bind="_midiSpeedCC" @bind:after="OnMidiSettingsChanged" />
+                </div>
+                <div class="cc-row">
+                    <span>Heart Rate</span>
+                    <input type="number" min="0" max="127" @bind="_midiHeartRateCC" @bind:after="OnMidiSettingsChanged" />
+                </div>
+                <div class="cc-row">
+                    <span>Incline</span>
+                    <input type="number" min="0" max="127" @bind="_midiInclineCC" @bind:after="OnMidiSettingsChanged" />
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // Treadmill settings
+    private string _selectedTreadmillType = "FTMS";
+    private bool _isScanning = false;
+    private List<string> _discoveredDevices = new();
+    private string? _selectedDevice = null;
+    private bool _autoConnect = false;
+    private string? _defaultDeviceName = null;
+
+    private AppStateInfo? _appState;
+    private bool _isBluetoothConnected => _appState?.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var status) == true
+                                          && status == ConnectionStatus.Connected;
+    private string? _currentDeviceName => _appState?.DeviceName;
+
+    // SteamVR settings
+    private bool _autoLaunchWithSteamVR = false;
+
+    // WebSocket settings
+    private bool _webSocketEnabled = true;
+
+    // Pulsoid settings
+    private bool _pulsoidEnabled = false;
+    private string? _pulsoidApiKey;
+
+    // MIDI settings
+    private bool _midiEnabled = false;
+    private string? _midiOutputDevice;
+    private int _midiChannel = 1;
+    private int _midiSpeedCC = 1;
+    private int _midiHeartRateCC = 2;
+    private int _midiInclineCC = 3;
+    private List<MidiDeviceInfo> _midiOutputDevices = new();
+
+    protected override void OnInitialized()
+    {
+        AppStateService.AppStateUpdated += UpdateAppState;
+        PulsoidService.OnConnectionStatusChanged += OnPulsoidConnectionChanged;
+        PulsoidService.OnHeartRateReceived += OnPulsoidHeartRateReceived;
+        _appState = AppStateService.GetCurrentAppStateInfo();
+        LoadConfiguration();
+    }
+
+    private void LoadConfiguration()
+    {
+        var config = ConfigService.GetConfiguration();
+        _selectedTreadmillType = config.Treadmill.TreadmillType.ToString();
+        _autoConnect = config.Treadmill.AutoConnect;
+        _selectedDevice = config.Treadmill.LastDeviceName;
+        _defaultDeviceName = config.Treadmill.LastDeviceName;
+        _autoLaunchWithSteamVR = OpenVRService.GetAutoLaunch();
+        _webSocketEnabled = WebSocketService.IsEnabled;
+        _pulsoidEnabled = config.Pulsoid.Enabled;
+        _pulsoidApiKey = config.Pulsoid.ApiKey;
+
+        // MIDI settings
+        _midiEnabled = config.Midi.Enabled;
+        _midiOutputDevice = config.Midi.OutputDeviceName;
+        _midiChannel = config.Midi.Channel;
+        _midiSpeedCC = config.Midi.SpeedCC;
+        _midiHeartRateCC = config.Midi.HeartRateCC;
+        _midiInclineCC = config.Midi.InclineCC;
+
+        // Load available MIDI output devices
+        _midiOutputDevices = MidiService.GetOutputDevices();
+    }
+
+    private void UpdateAppState(AppStateInfo info)
+    {
+        _appState = info;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ScanForDevices()
+    {
+        _isScanning = true;
+        _discoveredDevices.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var devices = await TreadmillManager.ScanAsync(TimeSpan.FromSeconds(10));
+            _discoveredDevices = devices.ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error scanning for devices: {ex.Message}");
+        }
+        finally
+        {
+            _isScanning = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SelectDevice(string deviceName)
+    {
+        _selectedDevice = deviceName;
+        StateHasChanged();
+    }
+
+    private async Task DisconnectTreadmill()
+    {
+        await TreadmillManager.DisconnectAsync();
+    }
+
+    private async Task ReconnectTreadmill()
+    {
+        var treadmillType = _selectedTreadmillType == "FTMS" ? TreadmillType.FTMS : TreadmillType.WalkingPad;
+        await TreadmillManager.ConnectAsync(_currentDeviceName ?? "", treadmillType);
+    }
+
+    private async Task ConnectToDevice(string deviceName)
+    {
+        var treadmillType = _selectedTreadmillType == "FTMS" ? TreadmillType.FTMS : TreadmillType.WalkingPad;
+
+        if (_isBluetoothConnected)
+        {
+            await TreadmillManager.DisconnectAsync();
+        }
+
+        await TreadmillManager.ConnectAsync(deviceName, treadmillType);
+    }
+
+    private bool IsDefaultDevice(string deviceName)
+    {
+        return !string.IsNullOrEmpty(_defaultDeviceName) && deviceName == _defaultDeviceName;
+    }
+
+    private void OnAutoLaunchToggled(ChangeEventArgs e)
+    {
+        _autoLaunchWithSteamVR = (bool)(e.Value ?? false);
+
+        // Apply to SteamVR immediately
+        OpenVRService.SetAutoLaunch(_autoLaunchWithSteamVR);
+
+        // Save configuration
+        var config = ConfigService.GetConfiguration();
+        config.OpenVR.AutoLaunch = _autoLaunchWithSteamVR;
+        ConfigService.SaveConfiguration(config);
+
+        StateHasChanged();
+    }
+
+    private async Task OnWebSocketToggled(ChangeEventArgs e)
+    {
+        _webSocketEnabled = (bool)(e.Value ?? false);
+
+        if (_webSocketEnabled)
+        {
+            WebSocketService.Enable();
+        }
+        else
+        {
+            await WebSocketService.DisableAsync();
+        }
+
+        // Save configuration immediately
+        var config = ConfigService.GetConfiguration();
+        config.WebSocket.Enabled = _webSocketEnabled;
+        ConfigService.SaveConfiguration(config);
+
+        StateHasChanged();
+    }
+
+    private async Task OnPulsoidToggled(ChangeEventArgs e)
+    {
+        _pulsoidEnabled = (bool)(e.Value ?? false);
+
+        // Save configuration immediately
+        var config = ConfigService.GetConfiguration();
+        config.Pulsoid.Enabled = _pulsoidEnabled;
+        config.Pulsoid.ApiKey = _pulsoidApiKey;
+        ConfigService.SaveConfiguration(config);
+
+        // Reconnect or disconnect based on new state
+        await PulsoidService.ReconnectAsync();
+
+        StateHasChanged();
+    }
+
+    private async Task OnPulsoidApiKeyChanged()
+    {
+        // Save and reconnect when API key changes
+        var config = ConfigService.GetConfiguration();
+        config.Pulsoid.Enabled = _pulsoidEnabled;
+        config.Pulsoid.ApiKey = _pulsoidApiKey;
+        ConfigService.SaveConfiguration(config);
+
+        if (_pulsoidEnabled && !string.IsNullOrWhiteSpace(_pulsoidApiKey))
+        {
+            await PulsoidService.ReconnectAsync();
+        }
+    }
+
+    private void OnPulsoidConnectionChanged(bool connected)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnPulsoidHeartRateReceived(PulsoidHeartRateEvent e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnMidiToggled(ChangeEventArgs e)
+    {
+        _midiEnabled = (bool)(e.Value ?? false);
+        SaveMidiConfiguration();
+
+        if (_midiEnabled)
+        {
+            MidiService.Reconnect();
+        }
+        else
+        {
+            MidiService.Disconnect();
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnMidiDeviceChanged()
+    {
+        SaveMidiConfiguration();
+        MidiService.Reconnect();
+    }
+
+    private void OnMidiSettingsChanged()
+    {
+        SaveMidiConfiguration();
+        MidiService.Reconnect();
+    }
+
+    private void SaveMidiConfiguration()
+    {
+        var config = ConfigService.GetConfiguration();
+        config.Midi.Enabled = _midiEnabled;
+        config.Midi.OutputDeviceName = _midiOutputDevice;
+        config.Midi.Channel = _midiChannel;
+        config.Midi.SpeedCC = _midiSpeedCC;
+        config.Midi.HeartRateCC = _midiHeartRateCC;
+        config.Midi.InclineCC = _midiInclineCC;
+        ConfigService.SaveConfiguration(config);
+    }
+
+    public AppConfiguration GetConfiguration()
+    {
+        var config = ConfigService.GetConfiguration();
+        config.Treadmill.TreadmillType = Enum.Parse<TreadmillType>(_selectedTreadmillType);
+        config.Treadmill.AutoConnect = _autoConnect;
+        config.OpenVR.AutoLaunch = _autoLaunchWithSteamVR;
+        config.WebSocket.Enabled = _webSocketEnabled;
+        config.Pulsoid.Enabled = _pulsoidEnabled;
+        config.Pulsoid.ApiKey = _pulsoidApiKey;
+
+        // MIDI settings
+        config.Midi.Enabled = _midiEnabled;
+        config.Midi.OutputDeviceName = _midiOutputDevice;
+        config.Midi.Channel = _midiChannel;
+        config.Midi.SpeedCC = _midiSpeedCC;
+        config.Midi.HeartRateCC = _midiHeartRateCC;
+        config.Midi.InclineCC = _midiInclineCC;
+
+        if (!string.IsNullOrEmpty(_currentDeviceName))
+        {
+            config.Treadmill.LastDeviceName = _currentDeviceName;
+        }
+        else if (!string.IsNullOrEmpty(_selectedDevice))
+        {
+            config.Treadmill.LastDeviceName = _selectedDevice;
+        }
+
+        return config;
+    }
+
+    public void Dispose()
+    {
+        AppStateService.AppStateUpdated -= UpdateAppState;
+        PulsoidService.OnConnectionStatusChanged -= OnPulsoidConnectionChanged;
+        PulsoidService.OnHeartRateReceived -= OnPulsoidHeartRateReceived;
+    }
+}

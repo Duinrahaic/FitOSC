@@ -1,0 +1,188 @@
+﻿@using FitOSC.Models
+@using FitOSC.Services.OSC
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@using FitOSC.Utilities
+@inject AppStateService AppState
+@inject TreadmillManager Treadmill
+@inject ILogger<ButtonAdjuster> Logger
+@inject IOscService OSC
+@implements IDisposable
+
+<div class="treadmill-control-adjuster-container @(_enabled ? string.Empty : "disabled")">
+    <div class="treadmill-control-adjuster-indicator">
+        <div class="treadmill-control-adjuster-indicator-value">
+            @_value.ToString(_valueFormat)
+        </div>
+        <div class="treadmill-control-adjuster-indicator-title">
+            @_unit
+        </div>
+    </div>
+    <button class="treadmill-control-adjuster increase"
+            @onclick="Increase"
+            disabled="@(!_enabled)">
+        <i class="fa fa-add"></i>
+    </button>
+    <div class="treadmill-control-adjuster-title @(!_enabled ? "disabled" : "")">
+        @_title
+    </div>
+    <button class="treadmill-control-adjuster decrease"
+            @onclick="Decrease"
+            disabled="@(!_enabled)">
+        <i class="fa fa-minus"></i>
+    </button>
+</div>
+
+@code {
+    [Parameter]
+    public required TreadmillControlType ControlType { get; set; }
+
+    private bool _enabled = false;
+    private string _title = "Speed";
+    private string _unit = "MPH";
+    private decimal _value = 0m;
+    private string _valueFormat = "F2";
+    private TreadmillTelemetryValue? _data;
+    private TreadmillConfiguration? _configuration;
+ 
+    
+    protected override void OnInitialized()
+    {
+        AppStateOnAppStateUpdated(AppState.GetCurrentAppStateInfo());
+        AppState.AppStateUpdated += AppStateOnAppStateUpdated;
+        
+    }
+
+    private void AppStateOnAppStateUpdated(AppStateInfo stateInfo)
+    {
+        _configuration = stateInfo.TreadmillConfiguration;
+
+        // Check if Bluetooth is fully connected (not connecting/scanning)
+        bool isBluetoothReady = stateInfo.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var btStatus)
+                                     && btStatus == ConnectionStatus.Connected;
+
+        if (ControlType == TreadmillControlType.Incline &&
+            stateInfo.TreadmillTelemetry.Values.TryGetValue(TreadmillTelemetryProperty.Incline, out _data))
+        {
+            _title = "INCLINE";
+            // Enabled only if: Bluetooth fully connected (not scanning) AND feature supported AND feature enabled
+            _enabled = isBluetoothReady && _data.Enabled;
+            _unit = "DEGREES";
+            _valueFormat = "0.0";
+            _value = _data.Value;
+        }
+        else if (ControlType == TreadmillControlType.Speed &&
+                 stateInfo.TreadmillTelemetry.Values.TryGetValue(TreadmillTelemetryProperty.InstantaneousSpeed, out _data))
+        {
+            // Enabled only if: Bluetooth fully connected (not scanning) AND feature supported AND feature enabled
+            _enabled = isBluetoothReady && _data.Enabled;
+            _title = "SPEED";
+            _unit = stateInfo.UserMeasurementType == MeasurementType.Metric ? _data.MetricUnit : _data.ImperialUnit;
+            var val = stateInfo.UserMeasurementType == MeasurementType.Metric ? _data.AsMetric().Value :  _data.AsImperial().Value;
+            _value = Math.Round(val, 1, MidpointRounding.AwayFromZero);
+            _valueFormat = "0.0";
+        }
+        else
+        {
+            // Feature not supported by treadmill
+            _data = null;
+            _enabled = false;
+        }
+         InvokeAsync(StateHasChanged);
+    }
+    
+    // Fixed increment: 0.2 mph (converted to km/h for treadmill)
+    private readonly decimal _speedStepMph = 0.2m;
+    private readonly decimal _speedStepKph = 0.2m * 1.609344m; // 0.2 mph = 0.321869 km/h
+
+    private async Task Increase()
+    {
+        if (!_enabled || _data is null)
+        {
+            Logger?.LogDebug("Increase skipped: Enabled={Enabled}, Data={Data}", _enabled, _data?.Value);
+            return;
+        }
+        if(_configuration is null)
+        {
+            Logger.LogWarning("Increase skipped: Configuration is null");
+            return;
+        }
+        switch (ControlType)
+        {
+            case TreadmillControlType.Incline:
+                await SetInclineByStep(true,
+                    _configuration.InclineIncrement,
+                    _configuration.MinIncline,
+                    _configuration.MaxIncline
+                );
+                break;
+            case TreadmillControlType.Speed:
+                // Use fixed 0.2 mph increment with realistic minimum (0.5 km/h = 0.3 mph)
+                await SetSpeedByStep(true,
+                    _speedStepKph,
+                    0.5m, // Realistic minimum instead of FTMS-reported minimum
+                    _configuration.MaxSpeed
+                );
+                break;
+        }
+    }
+
+    private async Task Decrease()
+    {
+        if (!_enabled || _data is null || _data.Value <= 0)
+        {
+            Logger.LogDebug("Decrease skipped: Enabled={Enabled}, Data={Data}", _enabled, _data?.Value);
+            return;
+        }
+        if(_configuration is null)
+        {
+            Logger.LogWarning("Decrease skipped: Configuration is null");
+            return;
+        }
+        switch (ControlType)
+        {
+            case TreadmillControlType.Incline:
+                await SetInclineByStep(false,
+                       _configuration.InclineIncrement,
+                            _configuration.MinIncline,
+                            _configuration.MaxIncline
+                        );
+                break;
+            case TreadmillControlType.Speed:
+                // Use fixed 0.2 mph decrement with realistic minimum (0.5 km/h = 0.3 mph)
+                await SetSpeedByStep(false,
+                       _speedStepKph,
+                            0.5m, // Realistic minimum instead of FTMS-reported minimum
+                            _configuration.MaxSpeed
+                        );
+                break;
+        }
+    }
+ 
+    
+    private async Task SetSpeedByStep(bool increase, decimal step, decimal min = 0.0m, decimal max = 12.0m)
+    {
+        var appState = AppState.GetCurrentAppStateInfo();
+        var data = appState.TreadmillTelemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed];
+        var currentSpeed = data.AsMetric().Value;
+        var target = increase ? currentSpeed + step : currentSpeed - step;
+        target = Math.Clamp(target, min, max);
+        await Treadmill.SetSpeedAsync(target);
+    }
+    
+    private async Task SetInclineByStep(bool increase, decimal step, decimal min = 0, decimal max = 15)
+    {
+        var appState = AppState.GetCurrentAppStateInfo();
+        var data = appState.TreadmillTelemetry.Values[TreadmillTelemetryProperty.Incline];
+        var currentIncline = data.Value;
+        var target = increase ? currentIncline + step : currentIncline - step;
+        target = Math.Clamp(target, min, max);
+        await Treadmill.SetInclineAsync(target);
+    }
+    
+ 
+    public void Dispose()
+    {
+        AppState.AppStateUpdated -= AppStateOnAppStateUpdated;
+    }
+}

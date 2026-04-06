@@ -1,6 +1,12 @@
 ﻿@page "/"
-@using FitOSC.Shared.Pages
 @using Valve.VR
-@inject OpenVRService Ovr
+@using FitOSC.Pages.Components
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@using FitOSC.Utilities
+@inject TreadmillManager Treadmill
 
-<MainPage @ref="@MainPage" OnWalkingStateChanged="SetWalkingState"/>
+<div class="treadmill-interaction">
+    <TreadmillDisplay/>
+    <TreadmillControls/>
+</div>

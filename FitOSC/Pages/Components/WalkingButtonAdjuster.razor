@@ -1,0 +1,273 @@
+﻿@using FitOSC.Models
+@using FitOSC.Services.Configuration
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@inject AppStateService AppState
+@inject ConfigurationService ConfigService
+@implements IDisposable
+
+<div class="treadmill-control-adjuster-container wide @(Enabled ? string.Empty : "disabled")">
+    <div class="treadmill-control-adjuster-indicator-row" @onclick="RotateWalkingMode">
+        <div class="treadmill-control-adjuster-indicator">
+            <div class="treadmill-control-adjuster-indicator-value">
+                @SpeedPercentage.ToString("N0")
+            </div>
+            <div class="treadmill-control-adjuster-indicator-title">
+                SPEED %
+            </div>
+        </div>
+        <div class="treadmill-control-adjuster-indicator">
+
+
+            <div class="treadmill-control-adjuster-indicator-led">
+                <WalkingModeLed Text="DISABLED" AdditionalClasses="led-disabled" IsActive="@(CurrentMode == WalkingMode.Disabled)"/>
+                @switch (ConfigService.GetConfiguration().WalkingMode.DefaultMode)
+                {
+                    case WalkingMode.Dynamic:
+                        <WalkingModeLed Text="DYNAMIC" IsActive="@(CurrentMode == WalkingMode.Dynamic)"/>
+                        break;
+                    case WalkingMode.Override:
+                        <WalkingModeLed Text="OVERRIDE" IsActive="@(CurrentMode == WalkingMode.Override)"/>
+                        break;
+                }
+            </div>
+
+        </div>
+
+    </div>
+    <div class="treadmill-control-group">
+        <div class="treadmill-control-adjuster-container">
+            <button class="treadmill-control-adjuster increase"
+                    @onclick="Increase"
+                    disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
+                <i class="fa fa-add"></i>
+            </button>
+            <div class="treadmill-control-adjuster-title @(CurrentMode == WalkingMode.Disabled ? "disabled" : "")">
+                @GetAdjustmentLabel()
+            </div>
+            <button class="treadmill-control-adjuster decrease"
+                    @onclick="Decrease"
+                    disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
+                <i class="fa fa-minus"></i>
+            </button>
+        </div>
+        <div class="treadmill-control-adjuster-container walking">
+            @if (ConfigService.GetConfiguration().WalkingMode.DefaultMode == WalkingMode.Override)
+            {
+                @for (int i = Config.OverrideSpeeds.Count - 1; i >= 0; i--)
+                {
+                    int index = i;
+                    var speed = Config.OverrideSpeeds[i];
+                    var isActive = CurrentMode == WalkingMode.Override && Config.CurrentOverrideIndex == i;
+                    <button class="treadmill-control-adjuster walking @(isActive ? "active" : "")"
+                            @onclick="() => SetOverrideIndex(index)"
+                            disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
+
+                        <div class="led @(isActive ? "active" : string.Empty)">
+                            <div class="led-indicator"></div>
+                            <div class="led-text">
+                                @((speed * 100).ToString("N0"))
+                            </div>
+                        </div>
+                    </button>
+                }
+                
+            }
+            else
+            {
+                <div class="treadmill-dynamic-indicator-container">
+                    <div class="treadmill-dynamic-indicator-background"></div>
+                    <div class="treadmill-dynamic-indicator-clipper">
+                        <div class="treadmill-dynamic-indicator-mask" style="transform: translateY(-@((MaskPosition* Config.WalkingTrim).ToString("F2"))%)">
+                        </div>
+                    </div>
+                    <div class="treadmill-dynamic-indicator-trim-bar" style="transform: translateY(-@((Config.WalkingTrim * 50).ToString("F2"))%)">
+                        <div class="treadmill-dynamic-indicator-trim-bar-text @(_showTrimText ? "visible" : "") @(Config.WalkingTrim >= 1.8f ? "below" : "")">
+                            @("x"+(Config.WalkingTrim).ToString("F2"))
+                        </div>
+                    </div>
+
+                </div>
+            }
+        
+        </div>
+    </div>
+</div>
+@code
+{
+    [Parameter]
+    public bool Enabled { get; set; } = true;
+
+    private WalkingMode CurrentMode => AppState.CurrentWalkingMode;
+    private WalkingModeConfiguration Config => AppState.WalkingModeConfig;
+
+    private bool _showTrimText = false;
+    private System.Threading.Timer? _trimTextTimer;
+
+    private double SpeedPercentage
+    {
+        get
+        {
+            if (CurrentMode == WalkingMode.Disabled)
+                return 0.0;
+
+            if (CurrentMode == WalkingMode.Dynamic)
+                return MaskPosition;
+
+            if (CurrentMode == WalkingMode.Override &&
+                Config.CurrentOverrideIndex >= 0 &&
+                Config.CurrentOverrideIndex < Config.OverrideSpeeds.Count)
+                return Config.OverrideSpeeds[Config.CurrentOverrideIndex] * 100;
+
+            return 0.0;
+        }
+    }
+    
+    
+    
+
+    private double MaskPosition
+    {
+        get
+        {
+            if (WalkingMode.Disabled == AppState.GetCurrentAppStateInfo().Walking.Mode) return 0;
+            
+            
+            var currentSpeed = AppState.GetCurrentAppStateInfo().TreadmillTelemetry.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0;
+            var maxSpeed = AppState.GetCurrentAppStateInfo().Walking?.Config.MaxSpeed ?? 0;
+
+            if (maxSpeed == 0)
+                return 100.0; // Mask covers everything when no speed data
+
+            // Calculate current speed as percentage of max
+            var speedPercentage = ((double)currentSpeed / (double)maxSpeed) * 100;
+            var trimPercentage = Config.WalkingTrim;
+
+            // Clamp speed to trim (trim is the maximum allowed)
+            var visiblePercentage = speedPercentage * trimPercentage;
+
+            // Mask position: visible percentage (mask covers the top, reveals the bottom)
+            return double.Clamp(visiblePercentage,0,100);
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.AppStateUpdated += HandleAppStateUpdated;
+    }
+
+    private void HandleAppStateUpdated(AppStateInfo state)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AppState.AppStateUpdated -= HandleAppStateUpdated;
+        _trimTextTimer?.Dispose();
+    }
+
+    private void ShowTrimText()
+    {
+        _showTrimText = true;
+        StateHasChanged();
+
+        // Cancel existing timer if any
+        _trimTextTimer?.Dispose();
+
+        // Set up new timer to fade out after 2 seconds
+        _trimTextTimer = new System.Threading.Timer(_ =>
+        {
+            _showTrimText = false;
+            InvokeAsync(StateHasChanged);
+        }, null, 2000, System.Threading.Timeout.Infinite);
+    }
+
+    private string GetAdjustmentLabel()
+    {
+        return CurrentMode switch
+        {
+            WalkingMode.Dynamic => "TRIM",
+            WalkingMode.Override => "PRESET",
+            _ => "WALK"
+        };
+    }
+
+    private void Increase()
+    {
+        if (!Enabled) return;
+
+        var config = AppState.WalkingModeConfig;
+
+        if (CurrentMode == WalkingMode.Dynamic)
+        {
+            // Increase trim by 0.05 (multiplier range: 0.0 to 2.0)
+            config.WalkingTrim = Math.Min(2.0f, config.WalkingTrim + 0.05f);
+            AppState.UpdateWalkingModeConfig(config);
+            ShowTrimText();
+        }
+        else if (CurrentMode == WalkingMode.Override)
+        {
+            // Move to next preset
+            config.CurrentOverrideIndex = Math.Min(config.OverrideSpeeds.Count - 1, config.CurrentOverrideIndex + 1);
+            AppState.UpdateWalkingModeConfig(config);
+        }
+    }
+
+    private void Decrease()
+    {
+        if (!Enabled) return;
+
+        var config = AppState.WalkingModeConfig;
+
+        if (CurrentMode == WalkingMode.Dynamic)
+        {
+            // Decrease trim by 0.05 (multiplier range: 0.0 to 2.0)
+            config.WalkingTrim = Math.Max(0.0f, config.WalkingTrim - 0.05f);
+            AppState.UpdateWalkingModeConfig(config);
+            ShowTrimText();
+        }
+        else if (CurrentMode == WalkingMode.Override)
+        {
+            // Move to previous preset
+            config.CurrentOverrideIndex = Math.Max(0, config.CurrentOverrideIndex - 1);
+            AppState.UpdateWalkingModeConfig(config);
+        }
+    }
+
+    private void SetOverrideIndex(int index)
+    {
+        if (!Enabled) return;
+
+        var config = AppState.WalkingModeConfig;
+        config.CurrentOverrideIndex = index;
+        AppState.UpdateWalkingModeConfig(config);
+
+        // Automatically switch to Override mode if not already
+        if (CurrentMode != WalkingMode.Override)
+        {
+            AppState.SetWalkingMode(WalkingMode.Override);
+        }
+    }
+
+    private void RotateWalkingMode()
+    {
+        if (!Enabled) return;
+
+        // Toggle between Disabled and the configured default mode
+        var config = ConfigService.GetConfiguration();
+        var defaultMode = config.WalkingMode.DefaultMode;
+
+        // If default mode is somehow Disabled, fall back to Dynamic
+        if (defaultMode == WalkingMode.Disabled)
+            defaultMode = WalkingMode.Dynamic;
+
+        WalkingMode nextMode = CurrentMode == WalkingMode.Disabled
+            ? defaultMode
+            : WalkingMode.Disabled;
+
+        AppState.SetWalkingMode(nextMode);
+        StateHasChanged();
+    }
+
+}

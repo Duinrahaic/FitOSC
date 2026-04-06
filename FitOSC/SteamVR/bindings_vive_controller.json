@@ -1,0 +1,47 @@
+{
+  "name": "FitOSC Default Bindings for HTC Vive Controllers",
+  "controller_type": "vive_controller",
+  "category": "steamvr_input",
+  "bindings": {
+    "/actions/fitosc": {
+      "sources": [
+        {
+          "path": "/user/hand/right/input/trackpad",
+          "mode": "trackpad",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/SpeedModifier"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trackpad",
+          "mode": "trackpad",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/ManualMovement"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/trackpad",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/ToggleWalking"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trackpad",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/RecenterYaw"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

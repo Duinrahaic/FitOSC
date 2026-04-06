@@ -1,0 +1,148 @@
+@using FitOSC.Services.Configuration
+@using FitOSC.Pages.Components.SettingsTabs
+@inject ConfigurationService ConfigService
+@implements IDisposable
+
+@if (IsOpen)
+{
+    <div class="modal-overlay" @onclick="Close">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="modal-close" @onclick="Close">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-tabs">
+                    <button class="tab-button @(_activeTab == "user" ? "active" : "")" @onclick='() => SetActiveTab("user")'>
+                        <i class="fa-solid fa-user"></i>
+                        <span>User</span>
+                    </button>
+                    <button class="tab-button @(_activeTab == "walking" ? "active" : "")" @onclick='() => SetActiveTab("walking")'>
+                        <i class="fa-solid fa-walking"></i>
+                        <span>Walking</span>
+                    </button>
+                    <button class="tab-button @(_activeTab == "integrations" ? "active" : "")" @onclick='() => SetActiveTab("integrations")'>
+                        <i class="fa-solid fa-plug"></i>
+                        <span>Integrations</span>
+                    </button>
+                    <button class="tab-button @(_activeTab == "debug" ? "active" : "")" @onclick='() => SetActiveTab("debug")'>
+                        <i class="fa-solid fa-bug"></i>
+                        <span>Debug</span>
+                    </button>
+                    <button class="tab-button @(_activeTab == "about" ? "active" : "")" @onclick='() => SetActiveTab("about")'>
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>About</span>
+                    </button>
+                </div>
+
+                <div class="tab-content">
+                    @if (_activeTab == "user")
+                    {
+                        <UserSettingsTab @ref="_userTab" OnPreferMetricChanged="NotifyPreferMetricChanged" ShouldCloseSettings="Close" />
+                    }
+                    else if (_activeTab == "walking")
+                    {
+                        <WalkingSettingsTab @ref="_walkingTab" />
+                    }
+                    else if (_activeTab == "integrations")
+                    {
+                        <IntegrationsSettingsTab @ref="_integrationsTab" />
+                    }
+                    else if (_activeTab == "debug")
+                    {
+                        <DebugSettingsTab />
+                    }
+                    else if (_activeTab == "about")
+                    {
+                        <AboutSettingsTab />
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" @onclick="Close">Cancel</button>
+                <button class="btn-primary" @onclick="SaveSettings">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+
+    private string _activeTab = "user";
+    private IntegrationsSettingsTab? _integrationsTab;
+    private UserSettingsTab? _userTab;
+    private WalkingSettingsTab? _walkingTab;
+
+    // Event for unit preference changes
+    public event Action<bool>? PreferMetricChanged;
+
+    protected override void OnInitialized()
+    {
+        // Subscribe walking tab to preference changes
+        PreferMetricChanged += OnPreferMetricChangedHandler;
+    }
+
+    private void OnPreferMetricChangedHandler(bool preferMetric)
+    {
+        _walkingTab?.UpdatePreferMetric(preferMetric);
+    }
+
+    private void NotifyPreferMetricChanged(bool preferMetric)
+    {
+        PreferMetricChanged?.Invoke(preferMetric);
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        _activeTab = tab;
+        StateHasChanged();
+    }
+
+    public async Task Close()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(IsOpen);
+    }
+
+    private async Task SaveSettings()
+    {
+        var config = ConfigService.GetConfiguration();
+
+        // Merge settings from all tabs
+        if (_integrationsTab != null)
+        {
+            var integrationsConfig = _integrationsTab.GetConfiguration();
+            config.Treadmill = integrationsConfig.Treadmill;
+            config.OpenVR = integrationsConfig.OpenVR;
+            config.WebSocket = integrationsConfig.WebSocket;
+            config.Pulsoid = integrationsConfig.Pulsoid;
+            config.Midi = integrationsConfig.Midi;
+        }
+
+        if (_userTab != null)
+        {
+            var userConfig = _userTab.GetConfiguration();
+            config.User = userConfig.User;
+        }
+
+        if (_walkingTab != null)
+        {
+            var walkingConfig = _walkingTab.GetConfiguration();
+            config.WalkingMode = walkingConfig.WalkingMode;
+        }
+
+        ConfigService.SaveConfiguration(config);
+        await Close();
+    }
+
+    public void Dispose()
+    {
+        _integrationsTab?.Dispose();
+        _userTab?.Dispose();
+    }
+
+}

@@ -1,0 +1,149 @@
+@using FitOSC.Models
+@using FitOSC.Services.Configuration
+@using FitOSC.Utilities
+@inject ConfigurationService ConfigService
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Walking Mode</h3>
+        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
+    </div>
+
+    <div class="settings-item">
+        <label>Default Walking Mode</label>
+        <select @bind="_defaultMode">
+            <option value="@WalkingMode.Dynamic">Dynamic (Treadmill Speed)</option>
+            <option value="@WalkingMode.Override">Override (Fixed Presets)</option>
+        </select>
+        <p class="settings-hint">The mode used when walking is enabled</p>
+    </div>
+
+    <div class="settings-item">
+        <label>Max Speed (@(_preferMetric ? "km/h" : "mph"))</label>
+        <input type="number" step="0.1" @bind="_maxSpeed" placeholder="@(_preferMetric ? "8.0" : "5.0")" />
+    </div>
+
+    <div class="settings-item">
+        <label>Default Walking Trim</label>
+        <input type="number" step="0.05" min="0" max="2" @bind="_defaultTrim" placeholder="0.80" />
+    </div>
+</div>
+
+<div class="settings-section">
+    <div class="settings-header">
+        <h3>Advanced Settings</h3>
+        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
+    </div>
+
+    <div class="settings-item">
+        <label>
+            Smoothing Factor
+            <p class="settings-hint">Lower = smoother, Higher = more responsive (0.0 - 1.0)</p>
+        </label>
+        <input type="number" @bind="_smoothingFactor" step="0.05" min="0" max="1" placeholder="0.80" />
+    </div>
+
+    <div class="settings-item">
+        <label>
+            Max Turn Angle (degrees)
+            <p class="settings-hint">Maximum head rotation angle (total range = 2x this value)</p>
+        </label>
+        <input type="number" @bind="_maxTurnAngle" step="5" min="45" max="180" placeholder="90" />
+    </div>
+
+    <div class="settings-item">
+        <label>
+            Update Rate (ms)
+            <p class="settings-hint">OSC send interval - Lower = more responsive (@((int)(1000.0 / _updateIntervalMs))Hz)</p>
+        </label>
+        <input type="number" @bind="_updateIntervalMs" step="5" min="10" max="100" placeholder="25" />
+    </div>
+
+    <div class="settings-item">
+        <label>
+            Thumbstick Ramp Speed
+            <p class="settings-hint">Speed modifier ramp rate - Lower = gradual, Higher = snappy (0.01 - 0.5)</p>
+        </label>
+        <input type="number" @bind="_thumbstickRampSpeed" step="0.01" min="0.01" max="0.5" placeholder="0.05" />
+    </div>
+</div>
+
+@code {
+    private bool _preferMetric = true;
+    private WalkingMode _defaultMode = WalkingMode.Dynamic;
+    private decimal _maxSpeed = 8.0m;
+    private float _defaultTrim = 0.80f;
+    private float _smoothingFactor = 0.8f;
+    private float _maxTurnAngle = 90f;
+    private int _updateIntervalMs = 25;
+    private float _thumbstickRampSpeed = 0.05f;
+
+    protected override void OnInitialized()
+    {
+        var config = ConfigService.GetConfiguration();
+        _preferMetric = config.User.PreferMetric;
+        _defaultMode = config.WalkingMode.DefaultMode;
+        _defaultTrim = config.WalkingMode.DefaultTrim;
+        _smoothingFactor = config.WalkingMode.SmoothingFactor;
+        _maxTurnAngle = config.WalkingMode.MaxTurnAngle;
+        _updateIntervalMs = config.WalkingMode.UpdateIntervalMs;
+        _thumbstickRampSpeed = config.WalkingMode.ThumbstickRampSpeed;
+
+        // Max speed is always stored in km/h, convert to mph if user prefers imperial
+        if (_preferMetric)
+        {
+            _maxSpeed = config.WalkingMode.MaxSpeed;
+        }
+        else
+        {
+            // Convert km/h to mph for display
+            _maxSpeed = Math.Round(config.WalkingMode.MaxSpeed * 0.621371m, 1);
+        }
+    }
+
+    public AppConfiguration GetConfiguration()
+    {
+        var config = ConfigService.GetConfiguration();
+
+        // Always store max speed in metric (km/h)
+        if (_preferMetric)
+        {
+            config.WalkingMode.MaxSpeed = _maxSpeed;
+        }
+        else
+        {
+            // Convert mph to km/h for storage
+            config.WalkingMode.MaxSpeed = Math.Round(_maxSpeed * 1.60934m, 1);
+        }
+
+        config.WalkingMode.DefaultMode = _defaultMode;
+        config.WalkingMode.DefaultTrim = _defaultTrim;
+        config.WalkingMode.SmoothingFactor = _smoothingFactor;
+        config.WalkingMode.MaxTurnAngle = _maxTurnAngle;
+        config.WalkingMode.UpdateIntervalMs = _updateIntervalMs;
+        config.WalkingMode.ThumbstickRampSpeed = _thumbstickRampSpeed;
+
+        return config;
+    }
+
+    public void UpdatePreferMetric(bool preferMetric)
+    {
+        // Convert max speed when unit preference changes
+        if (_preferMetric != preferMetric)
+        {
+            if (preferMetric)
+            {
+                // Convert mph to km/h
+                _maxSpeed = Math.Round(_maxSpeed * 1.60934m, 1);
+            }
+            else
+            {
+                // Convert km/h to mph
+                _maxSpeed = Math.Round(_maxSpeed * 0.621371m, 1);
+            }
+
+            _preferMetric = preferMetric;
+            StateHasChanged();
+        }
+    }
+}
