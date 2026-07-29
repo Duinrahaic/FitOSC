@@ -4,7 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*' # Trigger on version tag pushes
-  workflow_dispatch: # Enables manual triggering
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to publish, for example v2.1.1
+        required: true
+        default: v2.1.1
 
 jobs:
   build:
@@ -22,11 +27,16 @@ jobs:
       - name: Set build version from release tag
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "${{ inputs.release_tag }}"
+          } else {
+            "${{ github.ref_name }}"
+          }
           if ($tag -notmatch '^[vV]\d+\.\d+\.\d+([\-][0-9A-Za-z.-]+)?$') {
             throw "Release builds must run from a semantic version tag such as v2.1.0. Received: $tag"
           }
 
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
           "RELEASE_VERSION=$($tag.Substring(1))" >> $env:GITHUB_ENV
 
       # Build without runtime (Framework-dependent)
@@ -63,7 +73,15 @@ jobs:
 
     - name: Extract Tag
       id: extract_tag
-      run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV  # Extract tag and set as env var
+      shell: pwsh
+      run: |
+        $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+          "${{ inputs.release_tag }}"
+        } else {
+          "${{ github.ref_name }}"
+        }
+
+        "TAG=$tag" >> $env:GITHUB_ENV
 
     - name: Download artifact (without runtime)
       uses: actions/download-artifact@v4
