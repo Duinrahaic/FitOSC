@@ -40,13 +40,13 @@ jobs:
         run: dotnet publish --configuration Release --output ./output/with-runtime --self-contained --runtime win-x64 -p:Version=$env:RELEASE_VERSION
 
       - name: Upload release artifact (without runtime)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fitosc-no-runtime # Name the artifact for no-runtime version
           path: ./FitOSC/output/no-runtime # Path to no-runtime build
 
       - name: Upload release artifact (with runtime)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fitosc-with-runtime # Name the artifact for the runtime version (contains .exe)
           path: ./FitOSC/output/with-runtime # Path to runtime build (contains .exe)
@@ -66,13 +66,13 @@ jobs:
       run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV  # Extract tag and set as env var
 
     - name: Download artifact (without runtime)
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: fitosc-no-runtime
         path: ./FitOSC/output/no-runtime
 
     - name: Download artifact (with runtime)
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: fitosc-with-runtime
         path: ./FitOSC/output/with-runtime
