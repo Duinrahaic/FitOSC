@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+ROOT_DIR=$(git rev-parse --show-toplevel)
+cd "$ROOT_DIR"
+
+if ! git diff --cached --check; then
+    echo "Commit blocked: staged whitespace errors were found."
+    exit 1
+fi
+
+STAGED_CODE_FILES=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r path; do
+    case "$path" in
+        *.cs|*.razor) printf '%s\n' "$path" ;;
+    esac
+done)
+
+if [ -n "$STAGED_CODE_FILES" ]; then
+    if ! command -v dotnet >/dev/null 2>&1; then
+        echo "Commit blocked: dotnet SDK is required for formatting verification."
+        exit 1
+    fi
+
+    # The repository contains generated OpenVR code and legacy files that are
+    # intentionally outside the formatting scope. Check only changed source.
+    dotnet format FitOSC.sln --no-restore --verify-no-changes --severity warn --include $STAGED_CODE_FILES
+fi

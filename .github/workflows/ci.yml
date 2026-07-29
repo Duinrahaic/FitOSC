@@ -19,15 +19,25 @@ jobs:
         with:
           dotnet-version: '8.0.x' # Adjust based on the .NET version you are using
 
+      - name: Set build version from release tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^[vV]\d+\.\d+\.\d+([\-][0-9A-Za-z.-]+)?$') {
+            throw "Release builds must run from a semantic version tag such as v2.1.0. Received: $tag"
+          }
+
+          "RELEASE_VERSION=$($tag.Substring(1))" >> $env:GITHUB_ENV
+
       # Build without runtime (Framework-dependent)
       - name: Build FitOSC without runtime (Framework-dependent)
         working-directory: ./FitOSC
-        run: dotnet publish --configuration Release --output ./output/no-runtime --no-self-contained --runtime win-x64
+        run: dotnet publish --configuration Release --output ./output/no-runtime --no-self-contained --runtime win-x64 -p:Version=$env:RELEASE_VERSION
 
       # Build with runtime (Self-contained, will create .exe)
       - name: Build FitOSC with runtime (Self-contained)
         working-directory: ./FitOSC
-        run: dotnet publish --configuration Release --output ./output/with-runtime --self-contained --runtime win-x64
+        run: dotnet publish --configuration Release --output ./output/with-runtime --self-contained --runtime win-x64 -p:Version=$env:RELEASE_VERSION
 
       - name: Upload release artifact (without runtime)
         uses: actions/upload-artifact@v3
