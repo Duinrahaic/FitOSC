@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+ROOT_DIR=$(git rev-parse --show-toplevel)
+cd "$ROOT_DIR"
+
+if ! command -v dotnet >/dev/null 2>&1; then
+    echo "Push blocked: dotnet SDK is required for the Release build."
+    exit 1
+fi
+
+dotnet build FitOSC.sln --configuration Release --no-restore
