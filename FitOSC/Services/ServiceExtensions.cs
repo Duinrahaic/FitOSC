@@ -5,6 +5,8 @@ using FitOSC.Platform.Windows;
 using FitOSC.Platform.Linux;
 #endif
 using FitOSC.Platform.Midi;
+using FitOSC.Overlay;
+using FitOSC.Services.OpenVR;
 using FitOSC.Services;
 using FitOSC.Services.Configuration;
 using FitOSC.Services.Debug;
@@ -39,6 +41,8 @@ public static class ServiceExtensions
         services.AddHostedService(sp => sp.GetRequiredService<AppLifecycleService>());
 
         // Register OpenVRService as both singleton (for injection) and hosted service (for auto-start)
+        services.AddSingleton<SteamVROverlay>();
+        services.AddSingleton<IOpenVROverlay>(sp => sp.GetRequiredService<SteamVROverlay>());
         services.AddSingleton<OpenVRService>();
         services.AddHostedService(sp => sp.GetRequiredService<OpenVRService>());
 

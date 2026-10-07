@@ -1,4 +1,5 @@
 @using FitOSC.Models
+@using FitOSC.Overlay
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
 @using FitOSC.Services.Configuration
@@ -8,6 +9,7 @@
 @using FitOSC.Services.Midi
 @using Valve.VR
 @inject AppStateService AppStateService
+@inject SteamVROverlay SteamVROverlay
 @inject TreadmillManager TreadmillManager
 @inject ConfigurationService ConfigService
 @inject WebSocketService WebSocketService
@@ -121,6 +123,27 @@
                 <text>Start FitOSC manually before using VR</text>
             }
         </p>
+    </div>
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" @bind="_hudEnabled" @bind:after="SaveOverlaySettings" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Show HUD in SteamVR</span>
+        </label>
+    </div>
+    <div class="settings-item">
+        <label class="toggle-switch">
+            <input type="checkbox" @bind="_wristEnabled" @bind:after="SaveOverlaySettings" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Show wrist panel (look at your wrist; click with the other hand's laser)</span>
+        </label>
+    </div>
+    <div class="settings-item">
+        <label>Wrist panel hand</label>
+        <select @bind="_wristHand" @bind:after="SaveOverlaySettings">
+            <option value="@WristHand.Left">Left</option>
+            <option value="@WristHand.Right">Right</option>
+        </select>
     </div>
 </div>
 
@@ -272,6 +295,9 @@
 
     // SteamVR settings
     private bool _autoLaunchWithSteamVR = false;
+    private bool _hudEnabled;
+    private bool _wristEnabled;
+    private WristHand _wristHand;
 
     // WebSocket settings
     private bool _webSocketEnabled = true;
@@ -306,6 +332,9 @@
         _selectedDevice = config.Treadmill.LastDeviceName;
         _defaultDeviceName = config.Treadmill.LastDeviceName;
         _autoLaunchWithSteamVR = OpenVRService.GetAutoLaunch();
+        _hudEnabled = config.Overlay.HudEnabled;
+        _wristEnabled = config.Overlay.WristEnabled;
+        _wristHand = config.Overlay.WristHand;
         _webSocketEnabled = WebSocketService.IsEnabled;
         _pulsoidEnabled = config.Pulsoid.Enabled;
         _pulsoidApiKey = config.Pulsoid.ApiKey;
@@ -382,6 +411,21 @@
     private bool IsDefaultDevice(string deviceName)
     {
         return !string.IsNullOrEmpty(_defaultDeviceName) && deviceName == _defaultDeviceName;
+    }
+
+    private OverlaySettings GetOverlaySettings() => new()
+    {
+        HudEnabled = _hudEnabled,
+        WristEnabled = _wristEnabled,
+        WristHand = _wristHand
+    };
+
+    private void SaveOverlaySettings()
+    {
+        var config = ConfigService.GetConfiguration();
+        config.Overlay = GetOverlaySettings();
+        ConfigService.SaveConfiguration(config);
+        SteamVROverlay.ApplySettings(config.Overlay);
     }
 
     private void OnAutoLaunchToggled(ChangeEventArgs e)
@@ -507,6 +551,7 @@
         config.Treadmill.TreadmillType = Enum.Parse<TreadmillType>(_selectedTreadmillType);
         config.Treadmill.AutoConnect = _autoConnect;
         config.OpenVR.AutoLaunch = _autoLaunchWithSteamVR;
+        config.Overlay = GetOverlaySettings();
         config.WebSocket.Enabled = _webSocketEnabled;
         config.Pulsoid.Enabled = _pulsoidEnabled;
         config.Pulsoid.ApiKey = _pulsoidApiKey;

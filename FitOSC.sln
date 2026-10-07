@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitOSC.Platform.Midi", "Fit
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitOSC.Platform.Linux", "FitOSC.Platform.Linux\FitOSC.Platform.Linux.csproj", "{C134AF68-68CE-4306-82D2-CB5601FD1E0D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitOSC.Overlay", "FitOSC.Overlay\FitOSC.Overlay.csproj", "{2C828A99-5A5E-4F38-BE66-40E6537232A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,6 +38,10 @@ Global
 		{C134AF68-68CE-4306-82D2-CB5601FD1E0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C134AF68-68CE-4306-82D2-CB5601FD1E0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C134AF68-68CE-4306-82D2-CB5601FD1E0D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2C828A99-5A5E-4F38-BE66-40E6537232A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C828A99-5A5E-4F38-BE66-40E6537232A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C828A99-5A5E-4F38-BE66-40E6537232A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C828A99-5A5E-4F38-BE66-40E6537232A6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

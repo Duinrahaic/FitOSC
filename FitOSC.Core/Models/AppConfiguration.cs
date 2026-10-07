@@ -38,6 +38,11 @@ public class AppConfiguration
     public OpenVRSettings OpenVR { get; set; } = new();
 
     /// <summary>
+    /// SteamVR HUD and wrist panel settings
+    /// </summary>
+    public OverlaySettings Overlay { get; set; } = new();
+
+    /// <summary>
     /// Pulsoid heart rate settings
     /// </summary>
     public PulsoidSettings Pulsoid { get; set; } = new();
@@ -223,4 +228,22 @@ public class MidiSettings
     /// CC number for incline (0-127)
     /// </summary>
     public int InclineCC { get; set; } = 3;
+}
+
+public class OverlaySettings
+{
+    /// <summary>
+    /// Show the head-locked HUD in SteamVR
+    /// </summary>
+    public bool HudEnabled { get; set; }
+
+    /// <summary>
+    /// Show the wrist panel when looking at the wrist
+    /// </summary>
+    public bool WristEnabled { get; set; }
+
+    /// <summary>
+    /// Controller the wrist panel is attached to
+    /// </summary>
+    public WristHand WristHand { get; set; } = WristHand.Left;
 }

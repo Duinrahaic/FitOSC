@@ -1,0 +1,2 @@
+# Third-party licence files are byte copies of their packages; keep them exact.
+FitOSC/SkiaSharp/*.txt -text -whitespace
