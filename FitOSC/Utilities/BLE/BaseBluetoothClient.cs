@@ -1,8 +1,4 @@
-﻿using System.Windows;
-using System.Windows.Forms;
-using Application = System.Windows.Application;
-
-namespace FitOSC.Utilities.BLE
+﻿namespace FitOSC.Utilities.BLE
 {
     /// <summary>
     /// Abstract base class for Bluetooth client implementations.
@@ -12,9 +8,9 @@ namespace FitOSC.Utilities.BLE
     {
         protected BaseBluetoothClient()
         {
-            AppDomain.CurrentDomain.ProcessExit += async (s, e)=> await DisposeAsync(); 
+            AppDomain.CurrentDomain.ProcessExit += async (s, e) => await DisposeAsync();
         }
-        
+
         /// <summary>
         /// Whether the client is currently connected to a device.
         /// </summary>
@@ -40,14 +36,14 @@ namespace FitOSC.Utilities.BLE
         /// Queues a write command to a given characteristic.
         /// </summary>
         public abstract Task WriteAsync(Guid characteristicUuid, byte[] command);
-        
+
         /// <summary>
         /// Reads the current value of a given characteristic.
         /// </summary>
         /// <param name="characteristicUuid">The characteristic UUID to read from.</param>
         /// <returns>The raw byte array read from the characteristic.</returns>
         public abstract Task<byte[]?> ReadAsync(Guid characteristicUuid);
-        
+
         /// <summary>
         /// Disconnects from the current device and cleans up resources.
         /// </summary>
