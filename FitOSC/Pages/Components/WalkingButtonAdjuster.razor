@@ -197,20 +197,17 @@
     {
         if (!Enabled) return;
 
-        var config = AppState.WalkingModeConfig;
-
         if (CurrentMode == WalkingMode.Dynamic)
         {
             // Increase trim by 0.05 (multiplier range: 0.0 to 2.0)
-            config.WalkingTrim = Math.Min(2.0f, config.WalkingTrim + 0.05f);
-            AppState.UpdateWalkingModeConfig(config);
+            AppState.AdjustWalkingTrim(0.05f);
             ShowTrimText();
         }
         else if (CurrentMode == WalkingMode.Override)
         {
             // Move to next preset
-            config.CurrentOverrideIndex = Math.Min(config.OverrideSpeeds.Count - 1, config.CurrentOverrideIndex + 1);
-            AppState.UpdateWalkingModeConfig(config);
+            var config = AppState.WalkingModeConfig;
+            AppState.SetOverrideSpeedIndex(Math.Min(config.OverrideSpeeds.Count - 1, config.CurrentOverrideIndex + 1));
         }
     }
 
@@ -218,20 +215,17 @@
     {
         if (!Enabled) return;
 
-        var config = AppState.WalkingModeConfig;
-
         if (CurrentMode == WalkingMode.Dynamic)
         {
             // Decrease trim by 0.05 (multiplier range: 0.0 to 2.0)
-            config.WalkingTrim = Math.Max(0.0f, config.WalkingTrim - 0.05f);
-            AppState.UpdateWalkingModeConfig(config);
+            AppState.AdjustWalkingTrim(-0.05f);
             ShowTrimText();
         }
         else if (CurrentMode == WalkingMode.Override)
         {
             // Move to previous preset
-            config.CurrentOverrideIndex = Math.Max(0, config.CurrentOverrideIndex - 1);
-            AppState.UpdateWalkingModeConfig(config);
+            var config = AppState.WalkingModeConfig;
+            AppState.SetOverrideSpeedIndex(Math.Max(0, config.CurrentOverrideIndex - 1));
         }
     }
 
@@ -239,9 +233,7 @@
     {
         if (!Enabled) return;
 
-        var config = AppState.WalkingModeConfig;
-        config.CurrentOverrideIndex = index;
-        AppState.UpdateWalkingModeConfig(config);
+        AppState.SetOverrideSpeedIndex(index);
 
         // Automatically switch to Override mode if not already
         if (CurrentMode != WalkingMode.Override)

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 
 namespace FitOSC;
 
@@ -7,7 +7,7 @@ internal class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        var globalMutex = new Mutex(true, @"Local\FitOSC.exe", out var mutexSuccess);
+        using var globalMutex = new Mutex(true, @"Local\FitOSC.exe", out var mutexSuccess);
         if (!mutexSuccess)
         {
             Debug.Print("App is already running. Quitting...");
@@ -15,7 +15,13 @@ internal class Program
             return;
         }
 
-        SetupClient.Start(args);
-        globalMutex.Close();
+        try
+        {
+            SetupClient.Start(args);
+        }
+        finally
+        {
+            globalMutex.ReleaseMutex();
+        }
     }
 }

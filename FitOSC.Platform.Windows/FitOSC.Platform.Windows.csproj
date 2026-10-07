@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
+        <RootNamespace>FitOSC.Platform.Windows</RootNamespace>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+    <ItemGroup>
+        <Using Include="Microsoft.Extensions.DependencyInjection" />
+        <Using Include="Microsoft.Extensions.Logging" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="NAudio.Midi" Version="2.2.1" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\FitOSC.Core\FitOSC.Core.csproj" />
+    </ItemGroup>
+</Project>
