@@ -7,6 +7,7 @@
   padding: 8px 16px;
   border-radius: 4px;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 500;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -284,7 +285,9 @@ html {
   background: #121212;
   position: relative;
   color: #e0e0e0;
-  font-family: Tahoma, sans-serif;
+  font-family: "Roboto", sans-serif;
+  color-scheme: dark;
+  line-height: 1.25;
 }
 html body {
   height: 100%;
@@ -308,9 +311,20 @@ html .app main {
   padding: 0 16px;
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #2c2c2c #121212;
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+input[type=number] {
+  appearance: textfield;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 *::-webkit-scrollbar {
@@ -415,7 +429,8 @@ html .app main {
 }
 .treadmill-interaction .treadmill-display {
   width: 100%;
-  flex-grow: 1;
+  flex: 1;
+  min-height: 0;
   background: #1e1e1e;
   border: 1px solid #2c2c2c;
   border-radius: 4px;
@@ -463,7 +478,8 @@ html .app main {
 .treadmill-interaction .treadmill-display-visual-container {
   width: 100%;
   height: 100%;
-  position: relative;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
 }
 .treadmill-interaction .treadmill-display-visual-container canvas {
@@ -589,8 +605,9 @@ html .app main {
   letter-spacing: 4px;
   color: #e0e0e0;
   user-select: none;
-  font-family: fantasy;
+  font-family: "Anton", sans-serif;
   height: 57px;
+  line-height: 57px;
 }
 .treadmill-interaction .treadmill-controls .treadmill-controls-group img {
   width: 160px;
@@ -651,6 +668,7 @@ html .app main {
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-title {
   font-size: 14px;
+  line-height: 18px;
   color: #a0a0a0;
   letter-spacing: 2px;
 }
@@ -675,6 +693,7 @@ html .app main {
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-title {
   font-size: 14px;
+  line-height: 18px;
   color: #a0a0a0;
   letter-spacing: 2px;
 }
@@ -724,6 +743,7 @@ html .app main {
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-title {
   letter-spacing: 4px;
   font-size: 18px;
+  line-height: 23px;
   user-select: none;
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-title.disabled {
@@ -738,6 +758,7 @@ html .app main {
   aspect-ratio: 1/0.9;
   width: 99px;
   font-size: 24px;
+  padding: 1px 6px;
   border: 2px solid #e0e0e0;
   color: #e0e0e0;
   outline: none;
@@ -785,6 +806,7 @@ html .app main {
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking .led .led-text {
   font-size: 30px;
+  line-height: 38px;
   color: #2c2c2c;
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking .led .led-indicator {
@@ -855,7 +877,7 @@ html .app main {
   bottom: 4px;
   left: 50%;
   transform: translateX(-50%) translateY(0);
-  font-family: Tahoma, sans-serif;
+  font-family: "Roboto", sans-serif;
   font-size: 12px;
   font-weight: bold;
   color: #e0e0e0;
@@ -990,7 +1012,8 @@ html .app main {
 
 .modal-body {
   padding: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  min-height: 0;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
@@ -1004,16 +1027,19 @@ html .app main {
   padding: 0 24px;
 }
 .settings-tabs .tab-button {
+  flex: 1 1 auto;
+  justify-content: center;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 20px;
+  padding: 12px 10px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   color: #a0a0a0;
   font-size: 14px;
   font-weight: 500;
+  line-height: 18px;
   letter-spacing: 0.5px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -1041,8 +1067,12 @@ html .app main {
 
 .tab-content {
   padding: 24px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
   flex-grow: 1;
-  overflow-y: auto;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 .modal-footer {
@@ -1084,6 +1114,12 @@ html .app main {
   margin: 0;
 }
 .settings-section .settings-header .settings-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 14px;
+  line-height: 18px;
   background: none;
   border: none;
   color: #2196f3;
@@ -1115,6 +1151,7 @@ html .app main {
   color: #a0a0a0;
   font-size: 12px;
   letter-spacing: 1px;
+  line-height: 15px;
   margin-bottom: 6px;
   text-transform: uppercase;
 }
@@ -1127,6 +1164,8 @@ html .app main {
   border-radius: 4px;
   color: #e0e0e0;
   font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
   transition: border-color 0.2s ease;
   box-sizing: border-box;
 }
@@ -1142,6 +1181,11 @@ html .app main {
 }
 .settings-item select {
   cursor: pointer;
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23e0e0e0' stroke-width='2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
 }
 .settings-item .unit-toggle {
   display: flex;
@@ -1157,6 +1201,7 @@ html .app main {
   border: none;
   color: #a0a0a0;
   font-size: 13px;
+  line-height: 17px;
   font-weight: 600;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -1183,10 +1228,14 @@ html .app main {
   user-select: none;
 }
 .settings-item .toggle-switch input[type=checkbox] {
+  margin: 0;
   position: absolute;
   opacity: 0;
   width: 0;
   height: 0;
+}
+.settings-item .toggle-switch input[type=checkbox]:disabled ~ .toggle-track, .settings-item .toggle-switch input[type=checkbox]:disabled ~ .toggle-label {
+  opacity: 0.5;
 }
 .settings-item .toggle-switch .toggle-track {
   position: relative;
@@ -1231,11 +1280,13 @@ html .app main {
 .settings-item .toggle-switch .toggle-label {
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
 }
 .settings-item .settings-hint {
   color: #a0a0a0;
   font-size: 11px;
   font-style: italic;
+  line-height: 14px;
   margin: 6px 0 0 0;
   opacity: 0.8;
 }
@@ -1268,11 +1319,13 @@ html .app main {
 .session-history-list .session-item .session-info .session-date {
   color: #e0e0e0;
   font-size: 13px;
+  line-height: 17px;
   font-weight: 600;
 }
 .session-history-list .session-item .session-info .session-stats {
   color: #a0a0a0;
   font-size: 11px;
+  line-height: 14px;
 }
 .connection-status .connected-device {
   display: flex;
@@ -1291,6 +1344,7 @@ html .app main {
   flex-grow: 1;
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
 }
 .connection-status .connected-device .connection-buttons {
   display: flex;
@@ -1301,6 +1355,7 @@ html .app main {
   padding: 10px 12px;
   color: #a0a0a0;
   font-size: 14px;
+  line-height: 18px;
   font-style: italic;
 }
 
@@ -1318,6 +1373,7 @@ html .app main {
 .auto-connect-option .checkbox-label span {
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
   user-select: none;
 }
 
@@ -1369,6 +1425,7 @@ html .app main {
   flex-grow: 1;
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
   cursor: pointer;
 }
 .bluetooth-scanner .device-item .device-indicators {
@@ -1378,6 +1435,7 @@ html .app main {
 }
 .bluetooth-scanner .device-item .device-indicators i {
   font-size: 14px;
+  line-height: 18px;
 }
 .bluetooth-scanner .device-item .device-indicators .default-indicator {
   color: #4caf50;
@@ -1410,6 +1468,7 @@ html .app main {
 .about-app-info .about-version {
   color: #2196f3;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
   letter-spacing: 1px;
   margin: 0 0 8px 0;
@@ -1417,7 +1476,7 @@ html .app main {
 .about-app-info .about-description {
   color: #a0a0a0;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 20px;
   margin: 0;
 }
 
@@ -1437,6 +1496,7 @@ html .app main {
   color: #e0e0e0;
   text-decoration: none;
   font-size: 13px;
+  line-height: 17px;
   font-weight: 500;
   transition: all 0.2s ease;
 }
@@ -1500,8 +1560,9 @@ kbd {
   background: #121212;
   border: 1px solid #2c2c2c;
   border-radius: 3px;
-  font-family: monospace;
+  font-family: "Roboto Mono", monospace;
   font-size: 11px;
+  line-height: 14px;
   color: #e0e0e0;
 }
 
@@ -1547,6 +1608,7 @@ kbd {
 .debug-section .debug-group .debug-group-header h4 {
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
   letter-spacing: 1px;
   margin: 0;
@@ -1567,6 +1629,7 @@ kbd {
   border: none;
   color: #a0a0a0;
   font-size: 11px;
+  line-height: 14px;
   font-weight: 600;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -1588,6 +1651,7 @@ kbd {
 .debug-section .debug-group h4 {
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
   letter-spacing: 1px;
   margin: 0 0 12px 0;
@@ -1608,12 +1672,14 @@ kbd {
 .debug-section .debug-group .debug-item .debug-label {
   color: #a0a0a0;
   font-size: 13px;
+  line-height: 17px;
   font-weight: 500;
   letter-spacing: 0.5px;
 }
 .debug-section .debug-group .debug-item .debug-value {
   color: #e0e0e0;
   font-size: 13px;
+  line-height: 17px;
   font-weight: 600;
 }
 .debug-section .debug-group .debug-item .debug-value.status-connected {
@@ -1696,12 +1762,14 @@ kbd {
 .cc-assignments .cc-row span {
   color: #e0e0e0;
   font-size: 13px;
+  line-height: 17px;
   min-width: 80px;
 }
 .cc-assignments .cc-row input[type=number] {
   width: 70px;
   padding: 6px 8px;
   font-size: 13px;
+  line-height: 17px;
   text-align: center;
 }
 
@@ -1742,6 +1810,7 @@ kbd {
   align-items: center;
   justify-content: center;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
   transition: all 0.3s ease;
 }
@@ -1812,13 +1881,14 @@ kbd {
   margin: 0 0 12px 0;
   color: #e0e0e0;
   font-size: 22px;
+  line-height: 28px;
   font-weight: 600;
   letter-spacing: 1px;
 }
 .wizard-step-content p {
   color: #a0a0a0;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 22px;
   margin: 0 0 8px 0;
 }
 .wizard-step-content p.step-question {
@@ -1846,6 +1916,7 @@ kbd {
   border-radius: 8px;
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1905,8 +1976,48 @@ kbd {
 .unit-option input[type=radio] {
   width: 18px;
   height: 18px;
-  accent-color: #2196f3;
+  appearance: none;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  border: 2px solid #2c2c2c;
+  border-radius: 50%;
+  background: #121212;
   cursor: pointer;
+}
+.driver-option input[type=radio]::before,
+.mode-option input[type=radio]::before,
+.unit-option input[type=radio]::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2196f3;
+  transform: scale(0);
+}
+.driver-option input[type=radio]:checked,
+.mode-option input[type=radio]:checked,
+.unit-option input[type=radio]:checked {
+  border-color: #2196f3;
+}
+.driver-option input[type=radio]:checked::before,
+.mode-option input[type=radio]:checked::before,
+.unit-option input[type=radio]:checked::before {
+  transform: scale(1);
+}
+.driver-option input[type=radio]:disabled,
+.mode-option input[type=radio]:disabled,
+.unit-option input[type=radio]:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.driver-option input[type=radio]:focus-visible,
+.mode-option input[type=radio]:focus-visible,
+.unit-option input[type=radio]:focus-visible {
+  outline: 2px solid #2196f3;
+  outline-offset: 3px;
 }
 .driver-option .driver-info,
 .driver-option .mode-info,
@@ -1950,6 +2061,7 @@ kbd {
 .unit-option .unit-info .unit-name {
   color: #e0e0e0;
   font-size: 15px;
+  line-height: 19px;
   font-weight: 600;
 }
 .driver-option .driver-info .driver-desc,
@@ -2007,6 +2119,7 @@ kbd {
   border-radius: 4px;
   color: #121212;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -2031,6 +2144,7 @@ kbd {
   border-radius: 4px;
   color: #f44336;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -2075,11 +2189,13 @@ kbd {
   flex-grow: 1;
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
   text-align: left;
 }
 .scan-section .device-item .connection-badge {
   flex-grow: 0;
   font-size: 11px;
+  line-height: 14px;
   font-weight: 600;
   color: #4caf50;
   background: rgba(76, 175, 80, 0.15);
@@ -2121,6 +2237,7 @@ kbd {
 .scan-section .no-devices {
   color: #a0a0a0;
   font-size: 13px;
+  line-height: 17px;
   font-style: italic;
   margin-top: 16px;
   padding: 16px;
@@ -2140,6 +2257,7 @@ kbd {
   border-radius: 8px;
   color: #4caf50;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 500;
 }
 .connection-success i {
@@ -2160,6 +2278,7 @@ kbd {
   padding: 12px 0;
   color: #e0e0e0;
   font-size: 14px;
+  line-height: 18px;
   border-bottom: 1px solid #2c2c2c;
 }
 .community-benefits li:last-child {
@@ -2190,6 +2309,7 @@ kbd {
   border-radius: 8px;
   color: white;
   font-size: 15px;
+  line-height: 19px;
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
@@ -2211,12 +2331,14 @@ kbd {
 .community-links .group-code .code-label {
   color: #a0a0a0;
   font-size: 13px;
+  line-height: 17px;
 }
 .community-links .group-code .code-value {
   color: #2196f3;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
-  font-family: monospace;
+  font-family: "Roboto Mono", monospace;
   letter-spacing: 1px;
 }
 
@@ -2242,6 +2364,7 @@ kbd {
   padding: 10px 20px;
   border-radius: 4px;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 600;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -2299,6 +2422,7 @@ kbd {
 .dismiss-option .checkbox-label span {
   color: #a0a0a0;
   font-size: 13px;
+  line-height: 17px;
   user-select: none;
 }
 
@@ -2318,6 +2442,34 @@ kbd {
   50% {
     opacity: 0.6;
   }
+}
+@font-face {
+  font-family: "Anton";
+  src: url("../fonts/Anton-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Roboto";
+  src: url("../fonts/Roboto.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Roboto Mono";
+  src: url("../fonts/RobotoMono.ttf") format("truetype");
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Roboto";
+  src: url("../fonts/Roboto-Italic.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
 }
 
 /*# sourceMappingURL=app.css.map */

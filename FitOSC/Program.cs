@@ -95,6 +95,8 @@ internal class Program
                     .SetUserDataFolder(Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                         "FitOSC", "WebView2"));
+                window.RegisterCreatedHandler((_, _) =>
+                    WindowsWindowSizing.SetContentSize(window, 700, 800));
 #endif
             });
 

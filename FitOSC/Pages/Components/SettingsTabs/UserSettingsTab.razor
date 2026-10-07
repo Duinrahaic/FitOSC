@@ -49,8 +49,6 @@
     </div>
 </div>
 
-@if (OperatingSystem.IsWindows())
-{
     <div class="settings-section">
         <div class="settings-header">
             <h3>Performance</h3>
@@ -58,14 +56,13 @@
 
         <div class="settings-item">
             <label class="toggle-switch">
-                <input type="checkbox" @bind="_useHardwareAcceleration" />
+                <input type="checkbox" @bind="_useHardwareAcceleration" disabled="@(!OperatingSystem.IsWindows())" />
                 <span class="toggle-track"></span>
                 <span class="toggle-label">Use hardware acceleration</span>
             </label>
-            <p class="settings-hint">Disabling may reduce GPU usage. Requires app restart to take effect.</p>
+            <p class="settings-hint">Windows setting; requires app restart. Linux acceleration is managed by WebKitGTK.</p>
         </div>
     </div>
-}
 
 <div class="settings-section">
     <div class="settings-header">
