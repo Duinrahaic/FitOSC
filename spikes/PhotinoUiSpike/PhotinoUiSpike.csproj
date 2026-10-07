@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="PhotinoX.Blazor" Version="5.3.5" />
+    </ItemGroup>
+    <ItemGroup>
+        <!-- Serve the real FitOSC stylesheet, fonts and three.js display so the spike renders what users see. -->
+        <Content Include="..\..\FitOSC\wwwroot\css\**\*;..\..\FitOSC\wwwroot\fonts\**\*;..\..\FitOSC\wwwroot\js\**\*"
+                 Link="wwwroot\$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)..\..\FitOSC\wwwroot\', '%(FullPath)'))"
+                 CopyToOutputDirectory="PreserveNewest" />
+        <Content Update="wwwroot\index.html" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+</Project>

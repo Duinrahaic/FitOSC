@@ -10,3 +10,7 @@
 .claude/
 *_SUMMARY.md
 *_ANALYSIS.md
+
+# Build output for every project
+bin/
+obj/
