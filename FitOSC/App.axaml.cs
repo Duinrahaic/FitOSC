@@ -12,25 +12,13 @@ namespace FitOSC;
 
 public class App : Application, IDisposable
 {
-    private IClassicDesktopStyleApplicationLifetime? _desktop;
     public static IHost? AppHost { get; private set; }
 
-    /// <summary>
-    /// When true, SteamVR/OpenVR initialization is disabled. Use --no-vr launch argument.
-    /// </summary>
-    public static bool DisableVR { get; private set; }
 
 
     public void Dispose()
     {
-        if (_desktop != null)
-        {
-            _desktop.Exit -= Exit;
-            _desktop = null;
-        }
-
-        AppHost?.Dispose();
-        AppHost = null;
+        StopHost();
     }
 
     public override void Initialize()
@@ -42,10 +30,8 @@ public class App : Application, IDisposable
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _desktop = desktop;
-            _desktop.Exit += Exit;
-            _desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
-            _desktop.MainWindow = new ClientWindow
+            desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+            desktop.MainWindow = new ClientWindow
             {
                 DataContext = new ClientWindowViewModel()
             };
@@ -55,25 +41,20 @@ public class App : Application, IDisposable
     }
 
 
-    private void Exit(object? sender, EventArgs e)
-    {
-        Environment.Exit(0);
-    }
-
-
     internal static void RunAvaloniaAppWithHosting(string[] args, Func<AppBuilder> buildAvaloniaApp)
     {
         // Check for --no-vr flag to disable SteamVR initialization
-        DisableVR = args.Contains("--no-vr", StringComparer.OrdinalIgnoreCase);
-        if (DisableVR)
+        var disableVR = args.Contains("--no-vr", StringComparer.OrdinalIgnoreCase);
+        if (disableVR)
         {
             Console.WriteLine("[FitOSC] SteamVR disabled via --no-vr flag");
         }
 
         var appBuilder = Host.CreateApplicationBuilder(args);
+        appBuilder.Services.AddSingleton(new FitOSC.Services.OpenVR.OpenVROptions { Disabled = disableVR });
         appBuilder.Services.AddWindowsFormsBlazorWebView();
         appBuilder.Services.AddBlazorWebViewDeveloperTools();
-        
+
         try
         {
             appBuilder.Logging.RegisterLogger();
@@ -86,7 +67,32 @@ public class App : Application, IDisposable
         {
             MessageBox.Show(ex.ToString(), "FitOSC Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Console.WriteLine(ex);
-            Environment.Exit(0);
+            Environment.ExitCode = 1;
+        }
+        finally
+        {
+            StopHost();
+        }
+    }
+
+    private static void StopHost()
+    {
+        var host = AppHost;
+        if (host == null) return;
+        AppHost = null;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            Task.Run(() => host.StopAsync(timeout.Token)).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Host shutdown failed: {ex}");
+            Environment.ExitCode = 1;
+        }
+        finally
+        {
+            host.Dispose();
         }
     }
 }

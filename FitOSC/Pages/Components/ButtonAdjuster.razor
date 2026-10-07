@@ -1,4 +1,4 @@
-﻿@using FitOSC.Models
+@using FitOSC.Models
 @using FitOSC.Services.OSC
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
@@ -42,7 +42,7 @@
     private string _unit = "MPH";
     private decimal _value = 0m;
     private string _valueFormat = "F2";
-    private TreadmillTelemetryValue? _data;
+    private TreadmillTelemetryValueSnapshot? _data;
     private TreadmillConfiguration? _configuration;
  
     

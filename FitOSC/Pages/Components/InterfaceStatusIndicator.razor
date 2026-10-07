@@ -16,7 +16,7 @@
 
     [Parameter] public required AppInterface Interface { get; set; }
     
-    private Dictionary<AppInterface, ConnectionStatus> _interfaceStatuses = new();
+    private IReadOnlyDictionary<AppInterface, ConnectionStatus> _interfaceStatuses = new Dictionary<AppInterface, ConnectionStatus>();
     private ConnectionStatus Status => _interfaceStatuses.GetValueOrDefault(Interface, ConnectionStatus.Disconnected);
     
     private bool IsActive => Status == ConnectionStatus.Connected;

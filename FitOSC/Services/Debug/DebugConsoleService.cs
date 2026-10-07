@@ -31,51 +31,15 @@ public class DebugConsoleService(
         var scanDuration = TimeSpan.FromSeconds(durationSeconds);
         var deviceInfo = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>>();
 
-        // Use Windows BLE API directly to capture service UUIDs
-        var watcher = new Windows.Devices.Bluetooth.Advertisement.BluetoothLEAdvertisementWatcher
+        var devices = await treadmill.ScanDevicesAsync(scanDuration);
+        foreach (var device in devices)
         {
-            ScanningMode = Windows.Devices.Bluetooth.Advertisement.BluetoothLEScanningMode.Active
-        };
-
-        watcher.Received += (sender, args) =>
-        {
-            try
-            {
-                string name = args.Advertisement.LocalName;
-                if (string.IsNullOrEmpty(name)) return;
-
-                if (!deviceInfo.ContainsKey(name))
-                {
-                    deviceInfo[name] = new System.Collections.Generic.List<string>();
-                }
-
-                // Check for FTMS service
-                if (args.Advertisement.ServiceUuids.Contains(FtmsServiceUuid) && !deviceInfo[name].Contains("FTMS"))
-                {
-                    deviceInfo[name].Add("FTMS");
-                }
-
-                // Check for WalkingPad service
-                if (args.Advertisement.ServiceUuids.Contains(WalkingPadServiceUuid) && !deviceInfo[name].Contains("WalkingPad"))
-                {
-                    deviceInfo[name].Add("WalkingPad");
-                }
-
-                // If device doesn't advertise any treadmill services but has a name, still track it
-                if (deviceInfo[name].Count == 0 && !deviceInfo[name].Contains("Unknown"))
-                {
-                    deviceInfo[name].Add("Unknown");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Error processing BLE advertisement during scan");
-            }
-        };
-
-        watcher.Start();
-        await Task.Delay(scanDuration);
-        watcher.Stop();
+            var drivers = new List<string>();
+            if (device.ServiceUuids.Contains(FtmsServiceUuid)) drivers.Add("FTMS");
+            if (device.ServiceUuids.Contains(WalkingPadServiceUuid)) drivers.Add("WalkingPad");
+            if (drivers.Count == 0) drivers.Add("Unknown");
+            deviceInfo[device.Name] = drivers;
+        }
 
         // Format output
         var output = new System.Text.StringBuilder();

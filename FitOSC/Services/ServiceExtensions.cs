@@ -1,4 +1,6 @@
-﻿using FitOSC.Models;
+using System.Reflection;
+using FitOSC.Models;
+using FitOSC.Platform.Windows;
 using FitOSC.Services;
 using FitOSC.Services.Configuration;
 using FitOSC.Services.Debug;
@@ -25,11 +27,12 @@ public static class ServiceExtensions
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
         services.AddSingleton<ConfigurationService>();
-        services.AddSingleton<WindowsBluetoothClient>(sp =>
-            new WindowsBluetoothClient(sp.GetRequiredService<ILogger<WindowsBluetoothClient>>()));
+        services.AddWindowsPlatform();
         services.AddSingleton<TreadmillManager>();
-        services.AddSingleton<IOscService,OscService>();
+        services.AddSingleton<IOscService, OscService>();
         services.AddSingleton<AppStateService>();
+        services.AddSingleton<AppLifecycleService>();
+        services.AddHostedService(sp => sp.GetRequiredService<AppLifecycleService>());
 
         // Register OpenVRService as both singleton (for injection) and hosted service (for auto-start)
         services.AddSingleton<OpenVRService>();
@@ -60,26 +63,49 @@ public static class ServiceExtensions
         services.AddHostedService(sp => sp.GetRequiredService<MidiService>());
 
         // Register UpdateCheckService for GitHub update checking
-        services.AddSingleton<UpdateCheckService>();
+        services.AddSingleton(sp => new UpdateCheckService(
+            sp.GetRequiredService<ILogger<UpdateCheckService>>(), GetApplicationVersion()));
         services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
 
         return services;
     }
-    
+
+    private static string GetApplicationVersion()
+    {
+        var assembly = typeof(App).Assembly;
+        // Try to get InformationalVersion first (supports semantic versioning with pre-release tags)
+        var infoVersionAttr = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+        if (infoVersionAttr != null && !string.IsNullOrEmpty(infoVersionAttr.InformationalVersion))
+        {
+            var version = infoVersionAttr.InformationalVersion;
+            // Strip build metadata (everything after '+')
+            var plusIndex = version.IndexOf('+');
+            if (plusIndex > 0)
+            {
+                version = version.Substring(0, plusIndex);
+            }
+            return version;
+        }
+
+        // Fallback to numeric version
+        var assemblyVersion = assembly.GetName().Version;
+        return assemblyVersion != null ? $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}" : "0.0.0";
+    }
+
     public static ILoggingBuilder RegisterLogger(this ILoggingBuilder builder)
     {
         builder
             .ClearProviders()
-            .AddSerilog( new LoggerConfiguration()
+            .AddSerilog(new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
                 .WriteTo.Sink(SinkInstance)
-                .CreateLogger());   
-        return builder; 
+                .CreateLogger());
+        return builder;
     }
- 
+
     public static void AttachWebViewConsole(this CoreWebView2 core)
     {
         // Thread-safe check-then-act using Interlocked
