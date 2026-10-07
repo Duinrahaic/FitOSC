@@ -35,6 +35,7 @@
     align-items: center;
     justify-content: center;
     font-size: 14px;
+    line-height: 18px;
     font-weight: 600;
     transition: all 0.3s ease;
   }
@@ -116,6 +117,7 @@
     margin: 0 0 12px 0;
     color: $color-text;
     font-size: 22px;
+    line-height: 28px;
     font-weight: 600;
     letter-spacing: 1px;
   }
@@ -123,7 +125,7 @@
   p {
     color: $color-text-muted;
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 22px;
     margin: 0 0 8px 0;
 
     &.step-question {
@@ -153,6 +155,7 @@
     border-radius: 8px;
     color: $color-text;
     font-size: 14px;
+    line-height: 18px;
     cursor: pointer;
     transition: all 0.2s ease;
 
@@ -217,8 +220,43 @@
   input[type="radio"] {
     width: 18px;
     height: 18px;
-    accent-color: $color-accent;
+    appearance: none;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    display: grid;
+    place-content: center;
+    margin: 0;
+    border: 2px solid $color-border;
+    border-radius: 50%;
+    background: $color-background;
     cursor: pointer;
+
+    &::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: $color-accent;
+      transform: scale(0);
+    }
+
+    &:checked {
+      border-color: $color-accent;
+
+      &::before {
+        transform: scale(1);
+      }
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $color-accent;
+      outline-offset: 3px;
+    }
   }
 
   .driver-info,
@@ -233,6 +271,7 @@
     .unit-name {
       color: $color-text;
       font-size: 15px;
+      line-height: 19px;
       font-weight: 600;
     }
 
@@ -267,6 +306,7 @@
     border-radius: 4px;
     color: $color-background;
     font-size: 14px;
+    line-height: 18px;
     font-weight: 600;
     letter-spacing: 0.5px;
     cursor: pointer;
@@ -294,6 +334,7 @@
     border-radius: 4px;
     color: $color-error;
     font-size: 14px;
+    line-height: 18px;
     font-weight: 600;
     letter-spacing: 0.5px;
     cursor: pointer;
@@ -342,12 +383,14 @@
       flex-grow: 1;
       color: $color-text;
       font-size: 14px;
+      line-height: 18px;
       text-align: left;
     }
 
     .connection-badge {
       flex-grow: 0;
       font-size: 11px;
+      line-height: 14px;
       font-weight: 600;
       color: $color-success;
       background: rgba($color-success, 0.15);
@@ -397,6 +440,7 @@
   .no-devices {
     color: $color-text-muted;
     font-size: 13px;
+    line-height: 17px;
     font-style: italic;
     margin-top: 16px;
     padding: 16px;
@@ -417,6 +461,7 @@
   border-radius: 8px;
   color: $color-success;
   font-size: 14px;
+  line-height: 18px;
   font-weight: 500;
 
   i {
@@ -438,6 +483,7 @@
     padding: 12px 0;
     color: $color-text;
     font-size: 14px;
+    line-height: 18px;
     border-bottom: 1px solid $color-border;
 
     &:last-child {
@@ -471,6 +517,7 @@
     border-radius: 8px;
     color: white;
     font-size: 15px;
+    line-height: 19px;
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;
@@ -494,13 +541,15 @@
     .code-label {
       color: $color-text-muted;
       font-size: 13px;
+      line-height: 17px;
     }
 
     .code-value {
       color: $color-accent;
       font-size: 14px;
+      line-height: 18px;
       font-weight: 600;
-      font-family: monospace;
+      font-family: "Roboto Mono", monospace;
       letter-spacing: 1px;
     }
   }
@@ -527,6 +576,7 @@
     padding: 10px 20px;
     border-radius: 4px;
     font-size: 14px;
+    line-height: 18px;
     font-weight: 600;
     letter-spacing: 0.5px;
     cursor: pointer;
@@ -590,6 +640,7 @@
     span {
       color: $color-text-muted;
       font-size: 13px;
+      line-height: 17px;
       user-select: none;
     }
   }
