@@ -21,7 +21,6 @@
         <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\FitOSC.Overlay\FitOSC.Overlay.csproj" />
         <ProjectReference Include="..\FitOSC.Core\FitOSC.Core.csproj" />
         <ProjectReference Include="..\FitOSC.Platform.Midi\FitOSC.Platform.Midi.csproj" />
         <ProjectReference Include="..\FitOSC.Platform.Windows\FitOSC.Platform.Windows.csproj" Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041'" />
@@ -63,7 +62,6 @@
         </ContentWithTargetPath>
     </ItemGroup>
     <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-        <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="[4.153.1]" />
         <ContentWithTargetPath Include="OpenVR\libopenvr_api.so">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -84,18 +82,6 @@
         </ContentWithTargetPath>
     </ItemGroup>
     <ItemGroup>
-        <ContentWithTargetPath Include="SkiaSharp\LICENSE.txt">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            <TargetPath>SkiaSharp\LICENSE.txt</TargetPath>
-            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-        </ContentWithTargetPath>
-        <ContentWithTargetPath Include="SkiaSharp\THIRD-PARTY-NOTICES.txt">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            <TargetPath>SkiaSharp\THIRD-PARTY-NOTICES.txt</TargetPath>
-            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-        </ContentWithTargetPath>
         <ContentWithTargetPath Include="OpenVR\LICENSE">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

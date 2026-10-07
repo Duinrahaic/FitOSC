@@ -25,11 +25,6 @@ public class OpenVRActionEvent
     public bool ToggleWalkingPressed { get; set; } = false;
 
     /// <summary>
-    /// True on the frame when the toggle HUD button was pressed.
-    /// </summary>
-    public bool ToggleHudPressed { get; set; }
-
-    /// <summary>
     /// True on the frame when recenter yaw button was pressed.
     /// </summary>
     public bool RecenterYawPressed { get; set; } = false;

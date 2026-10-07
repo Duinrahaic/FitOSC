@@ -62,7 +62,6 @@ Self-contained .NET publishing includes the managed runtime, not the host's desk
 - GTK 3, WebKitGTK **4.1** (including JavaScriptCore 4.1) and `libnotify4`.
 - `libasound2` and the ALSA sequencer (`snd-seq`) for MIDI, with device access for the current user.
 - BlueZ and access to the system D-Bus for BLE, with the Bluetooth adapter and appropriate host permissions.
-- `libfontconfig1` (`libfontconfig.so.1`) for SkiaSharp text rendering, including when overlays are disabled.
 - A graphical session/display for the desktop shell.
 - FUSE 3 and `fusermount3` for normal AppImage execution, or the extraction mode below.
 
@@ -72,7 +71,7 @@ Example Ubuntu 22.04 host packages (hardware/kernel configuration and permission
 sudo apt-get update
 sudo apt-get install libicu70 libssl3 ca-certificates libgssapi-krb5-2 tzdata \
   libstdc++6 libgcc-s1 libgtk-3-0 libwebkit2gtk-4.1-0 libnotify4 \
-  libasound2 libfontconfig1 bluez libfuse3-3 fuse3
+  libasound2 bluez libfuse3-3 fuse3
 chmod +x FitOSC-2.1.0-x86_64.AppImage
 ./FitOSC-2.1.0-x86_64.AppImage
 # Alternative where FUSE mounting is unavailable:
@@ -167,55 +166,3 @@ pairing, reconnect, connected cleanup, physical MIDI ports, SteamVR AppImage
 auto-launch, OSCQuery under Proton, memory and real CI/release gates remain
 unverified. Packaging success does not accept those gates. No tests were added
 or run, and no production release was published.
-
-
-## Phase 5 overlay packaging proof (2026-10-07)
-
-The app now references `FitOSC.Overlay` and pins SkiaSharp and the Linux native
-asset to `[4.153.1]`. The Linux publish keeps `libSkiaSharp.so`,
-`SkiaSharp/LICENSE.txt` and `SkiaSharp/THIRD-PARTY-NOTICES.txt` loose. Windows
-keeps `libSkiaSharp.dll`, its native PDB and the same two licences loose. The
-new project's managed PDB is also loose: five added physical files on Windows,
-four on Linux, relative to the Phase 4 outputs. Including existing symbols and
-web content, the actual outputs contain 84 Windows framework-dependent files,
-85 Windows self-contained files and 81 Linux self-contained files (excluding
-smoke logs). The native Windows PDB is 95,985,664 bytes; it is retained as
-provided by NuGet. SkiaSharp.dll and FitOSC.Overlay.dll are in each single-file
-bundle. No opposite-OS Skia native asset was found.
-
-Fresh downloads of the three Skia packages match the local cache byte-for-byte;
-[provenance](../FitOSC/SkiaSharp/PROVENANCE.md) records the full package and native
-hashes. Published native libraries and both licences match those packages.
-`readelf -d libSkiaSharp.so` reports libstdc++, libpthread, libfontconfig, libdl,
-libm, libc, librt and the ELF loader `ld-linux-x86-64.so.2` as NEEDED entries.
-The approved design's dependency list omitted the loader; no extra application
-library dependency was found.
-
-An actual pinned Ubuntu 22.04 Docker container used SDK 10.0.111, a task-local
-offline NuGet feed and `NuGetAudit=false` (no online advisory audit in that
-restore). No targeting overrides were needed:
-
-```bash
-dotnet build FitOSC/FitOSC.csproj -c Release -f net10.0   -p:RestoreSources=/feed -p:RestorePackagesPath=/nuget -p:NuGetAudit=false
-dotnet publish FitOSC/FitOSC.csproj -c Release -f net10.0 -r linux-x64   --self-contained true -p:PublishSelfContained=true   --artifacts-path /out/linux-build -p:RestoreSources=/feed   -p:RestorePackagesPath=/nuget -p:NuGetAudit=false -o /out/linux-sc
-```
-
-Build and publish exited 0 with five existing warnings each. The container was
-created, populated using `docker cp`, started with `docker start -a`, checked
-for exit code 0, copied out and removed; no drive mount or global Docker change
-was used. The unchanged package script and the existing pinned tooling produced
-`bin/phase5-linux/appimage/FitOSC-2.1.0-x86_64.AppImage`: **50,276,856 bytes**,
-SHA-256 `fdf4bbf6f29270b480e6fe6278e7d6093693d4dd53e8e6a7e22fd0f12f4b0ea7`.
-All 81 published files match the extracted AppImage byte-for-byte. The image
-increased by 4,624,384 bytes from Phase 4, rather than the design's approximate
-12 MB estimate. Packaging used epoch zero; no reproducibility claim is made.
-Evidence: `bin/phase5-linux/{build,publish,appimage,skia-readelf}.log` and
-`bin/phase5-verification/artifact-proof.json`.
-
-A first no-display launch failed before hosted services because this minimal
-container lacked an ApplicationData directory. A separate pinned container
-created `/root/.config` and set `XDG_CONFIG_HOME` there. With the host libraries
-installed, `--no-vr` logged hosted service startup, loaded the renderer/font
-without errors, then GTK reported `cannot open display` and exited 1. See
-`bin/phase5-linux-smoke/{stdout,stderr}.log`. This is partial startup evidence,
-not desktop or SteamVR acceptance.

@@ -118,11 +118,6 @@
       "name": "/actions/fitosc/in/Preset4",
       "type": "boolean",
       "requirement": "optional"
-    },
-    {
-      "name": "/actions/fitosc/in/ToggleHud",
-      "type": "boolean",
-      "requirement": "optional"
     }
   ],
   "action_sets": [
@@ -155,8 +150,7 @@
       "/actions/fitosc/in/Preset1": "Override Preset 1",
       "/actions/fitosc/in/Preset2": "Override Preset 2",
       "/actions/fitosc/in/Preset3": "Override Preset 3",
-      "/actions/fitosc/in/Preset4": "Override Preset 4",
-      "/actions/fitosc/in/ToggleHud": "Toggle HUD"
+      "/actions/fitosc/in/Preset4": "Override Preset 4"
     }
   ]
 }

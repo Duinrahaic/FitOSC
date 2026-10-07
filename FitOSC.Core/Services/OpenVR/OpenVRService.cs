@@ -7,7 +7,7 @@ using FitOSC.Services.State;
 // ReSharper disable once CheckNamespace
 namespace Valve.VR;
 
-public class OpenVRService(IServiceProvider services, OpenVROptions options, IOpenVROverlay overlay) : IHostedService, IDisposable
+public class OpenVRService(IServiceProvider services, OpenVROptions options) : IHostedService, IDisposable
 {
     public const string AppKey = "fitosc.treadmill";
 
@@ -18,18 +18,12 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
 
     private readonly ILogger<OpenVRService>? _logger = services.GetService<ILogger<OpenVRService>>();
     private readonly AppStateService? _appStateService = services.GetService<AppStateService>();
-    private readonly CancellationTokenSource _stopping = new();
-    private readonly SemaphoreSlim _wake = new(0);
-    private readonly Lock _wakeLock = new();
-    private readonly Lock _runtimeLock = new();
-    private Task? _loop;
-    private volatile bool _monitoringRequested;
-    private volatile bool _reconnectRequested;
-    private bool _connected;
-    private bool _overlayActive;
-    private int _disposed;
+    private CancellationTokenSource? _cancellationTokenSource;
     private EVRInitError _initError;
-    private bool _actionsInitialized;
+    private bool _isRunning;
+    private bool _isReconnecting = false;
+    private int _reconnectionAttempts = 0;
+    private bool _actionsInitialized = false;
 
     // Polling rate constants (in milliseconds)
     private const int ActivePollingRateMs = 100;  // 10Hz when walking mode is active
@@ -40,7 +34,6 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
     private ulong _speedModifierHandle;
     private ulong _manualMovementHandle;
     private ulong _toggleWalkingHandle;
-    private ulong _toggleHudHandle;
     private ulong _recenterYawHandle;
     private ulong _overrideSpeedUpHandle;
     private ulong _overrideSpeedDownHandle;
@@ -65,156 +58,57 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        _stopping.Dispose();
-        _wake.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
-
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _monitoringRequested = !options.Disabled;
+        // Check if VR is disabled via launch argument
         if (options.Disabled)
         {
             _logger?.LogInformation("OpenVR service disabled via --no-vr flag");
-            PublishStatus(ConnectionStatus.Disconnected);
+            _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Disconnected);
+            return;
         }
-        _loop = Task.Run(() => RunAsync(_stopping.Token));
+
+        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        _logger?.LogInformation("OpenVR service starting...");
+        _isRunning = true;
+
+        // Auto-start VR monitoring
+        StartMonitoring();
+
+        try
+        {
+            Task.Run(() => PollVrEvents(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger?.LogWarning("VR event polling was canceled.");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"An error occurred in VR event polling: {ex.Message}");
+        }
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _isRunning = false;
+
+        // Signal the cancellation of the VR event polling task
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource = null;
+        OpenVR.Shutdown();
+        // Shutdown OpenVR when the service stops
         return Task.CompletedTask;
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        _stopping.Cancel();
-        if (_loop != null) await _loop.ConfigureAwait(false);
-    }
 
-    private void Wake()
+    ~OpenVRService()
     {
-        // Serialize producers; the consumer can only decrease the count.
-        lock (_wakeLock)
-        {
-            if (_wake.CurrentCount == 0) _wake.Release();
-        }
-    }
-
-    public void StartMonitoring()
-    {
-        lock (_runtimeLock)
-        {
-            if (_connected) _reconnectRequested = true;
-            _monitoringRequested = true;
-        }
-        Wake();
-    }
-
-    public void StopMonitoring()
-    {
-        _monitoringRequested = false;
-        Wake();
-    }
-
-    private void PublishStatus(ConnectionStatus status) =>
-        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, status);
-
-    private bool Connected
-    {
-        get { lock (_runtimeLock) return _connected; }
-    }
-
-    private bool TakeReconnectRequest()
-    {
-        lock (_runtimeLock)
-        {
-            var requested = _reconnectRequested;
-            _reconnectRequested = false;
-            return requested;
-        }
-    }
-
-    // One serialized logical owner; awaits may resume on a different OS thread.
-    private async Task RunAsync(CancellationToken token)
-    {
-        var attempt = 0;
-        try
-        {
-            while (!token.IsCancellationRequested)
-            {
-                if (!_monitoringRequested)
-                {
-                    if (Connected) Disconnect(ConnectionStatus.Disconnected);
-                    await _wake.WaitAsync(token).ConfigureAwait(false);
-                    continue;
-                }
-                try
-                {
-                    if (TakeReconnectRequest())
-                    {
-                        if (Connected) Disconnect(ConnectionStatus.Connecting);
-                    }
-                    if (!Connected)
-                    {
-                        if (attempt > 0)
-                        {
-                            if (attempt % 6 == 0) _logger?.LogInformation("Attempting to reconnect to SteamVR...");
-                            PublishStatus(ConnectionStatus.Connecting);
-                        }
-                        if (!TryConnect())
-                        {
-                            attempt++;
-                            await _wake.WaitAsync(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
-                            continue;
-                        }
-                        attempt = 0;
-                    }
-                    if (!Tick())
-                    {
-                        Disconnect(ConnectionStatus.Disconnected);
-                        await _wake.WaitAsync(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
-                        continue;
-                    }
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger?.LogError(ex, "OpenVR connection or polling failed");
-                    if (Connected) Disconnect(ConnectionStatus.Error);
-                    else PublishStatus(ConnectionStatus.Error);
-                    await _wake.WaitAsync(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
-                    continue;
-                }
-                var rate = _appStateService?.CurrentWalkingMode != WalkingMode.Disabled
-                    ? ActivePollingRateMs : IdlePollingRateMs;
-                await _wake.WaitAsync(rate, token).ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        finally
-        {
-            if (Connected) Disconnect(ConnectionStatus.Disconnected);
-        }
-    }
-
-    private void DisconnectOverlay()
-    {
-        try { overlay.Disconnect(); }
-        catch (Exception ex) { _logger?.LogError(ex, "Failed to disconnect overlays"); }
-        finally { _overlayActive = false; }
-    }
-
-    private void Disconnect(ConnectionStatus status)
-    {
-        lock (_runtimeLock)
-        {
-            if (_overlayActive) DisconnectOverlay();
-            try { OpenVR.Shutdown(); }
-            finally
-            {
-                _connected = false;
-                _actionsInitialized = false;
-                IsMonitoring = false;
-                _initialDirection = null;
-            }
-        }
-        PublishStatus(status);
+        Dispose(false);
     }
 
     public event DataUpdateReceivedEventHandler? OnDataUpdateReceived;
@@ -264,10 +158,6 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
                 _logger?.LogError("Failed to get action set handle: {Error}", error);
                 return false;
             }
-
-            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/ToggleHud", ref _toggleHudHandle);
-            if (error != EVRInputError.None)
-                _logger?.LogWarning("Failed to get ToggleHud action handle: {Error}", error);
 
             // Get action handles
             error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/SpeedModifier", ref _speedModifierHandle);
@@ -366,204 +256,278 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
     }
 
 
-    private bool TryConnect()
+    private bool TryInitialize()
     {
-        bool success;
-        lock (_runtimeLock)
+        OpenVR.Shutdown();
+        _actionsInitialized = false;
+
+        OpenVR.Init(ref _initError, EVRApplicationType.VRApplication_Overlay);
+        if (_initError != EVRInitError.None)
         {
-            OpenVR.Shutdown();
-            _actionsInitialized = false;
-
-            OpenVR.Init(ref _initError, EVRApplicationType.VRApplication_Overlay);
-            if (_initError != EVRInitError.None)
+            var errorMessage = _initError switch
             {
-                var errorMessage = _initError switch
-                {
-                    EVRInitError.Init_HmdNotFound => "VR headset not found. Make sure your headset is connected.",
-                    EVRInitError.Init_VRClientDLLNotFound => "SteamVR is not installed or not found.",
-                    EVRInitError.Init_InterfaceNotFound => "SteamVR is not running. Please start SteamVR.",
-                    EVRInitError.Init_PathRegistryNotFound => "SteamVR path registry not found. Try reinstalling SteamVR.",
-                    EVRInitError.Init_NoConfigPath => "SteamVR configuration path not found.",
-                    _ => ""
-                };
-                _logger?.LogError("OpenVR initialization failed: {Error}. {Message}", _initError, errorMessage);
-                success = false;
-            }
-            else
-            {
-                _connected = true;
-                IsMonitoring = true;
+                EVRInitError.Init_HmdNotFound => "VR headset not found. Make sure your headset is connected.",
+                EVRInitError.Init_VRClientDLLNotFound => "SteamVR is not installed or not found.",
+                EVRInitError.Init_InterfaceNotFound => "SteamVR is not running. Please start SteamVR.",
+                EVRInitError.Init_PathRegistryNotFound => "SteamVR path registry not found. Try reinstalling SteamVR.",
+                EVRInitError.Init_NoConfigPath => "SteamVR configuration path not found.",
+                _ => ""
+            };
+            if (string.IsNullOrEmpty(errorMessage))
+                return false;
 
-                _logger?.LogInformation("OpenVR initialized successfully. VR headset detected.");
-
-                // Initialize SteamVR actions
-                _actionsInitialized = InitializeActions();
-                if (!_actionsInitialized)
-                {
-                    _logger?.LogWarning("SteamVR actions not available. Controller bindings will not work.");
-                }
-
-                // Reset logging flags so warnings surface again after reconnection
-                _loggedActionDebug = false;
-                _loggedActionSuccess = false;
-
-                try
-                {
-                    overlay.Connect();
-                    _overlayActive = true;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "Overlays unavailable for this connection");
-                    DisconnectOverlay();
-                }
-                success = true;
-            }
+            _logger?.LogError(errorMessage);
+            return false;
         }
-        PublishStatus(success ? ConnectionStatus.Connected : ConnectionStatus.Error);
-        return success;
+
+        _logger?.LogInformation("OpenVR initialized successfully. VR headset detected.");
+
+        // Initialize SteamVR actions
+        _actionsInitialized = InitializeActions();
+        if (!_actionsInitialized)
+        {
+            _logger?.LogWarning("SteamVR actions not available. Controller bindings will not work.");
+        }
+
+        // Reset logging flags so warnings surface again after reconnection
+        _loggedActionDebug = false;
+        _loggedActionSuccess = false;
+
+        return true;
+    }
+
+    public void StartMonitoring()
+    {
+        bool success = TryInitialize();
+        IsMonitoring = success;
+
+        // Publish connection status
+        if (success)
+        {
+            _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Connected);
+            _isReconnecting = false; // Stop any reconnection attempts
+        }
+        else
+        {
+            _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Error);
+            // Start auto-reconnect loop
+            _ = StartReconnectLoop();
+        }
+    }
+
+    public void StopMonitoring()
+    {
+        IsMonitoring = false;
+        _isReconnecting = false; // Stop reconnection attempts
+
+        // Publish disconnected status
+        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Disconnected);
     }
 
     public bool GetAutoLaunch()
     {
-        lock (_runtimeLock)
+        try
         {
-            try
-            {
-                if (!_connected)
-                    return false;
-
-                return OpenVR.Applications.GetApplicationAutoLaunch(AppKey);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Failed to get auto-launch status");
+            if (OpenVR.Applications == null)
                 return false;
-            }
+
+            return OpenVR.Applications.GetApplicationAutoLaunch(AppKey);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to get auto-launch status");
+            return false;
         }
     }
 
     public bool SetAutoLaunch(bool enabled)
     {
-        lock (_runtimeLock)
+        try
         {
-            try
+            if (OpenVR.Applications == null)
             {
-                if (!_connected)
-                {
-                    _logger?.LogWarning("Cannot set auto-launch: OpenVR.Applications not available");
-                    return false;
-                }
-
-                var error = OpenVR.Applications.SetApplicationAutoLaunch(AppKey, enabled);
-                if (error != EVRApplicationError.None)
-                {
-                    _logger?.LogError("Failed to set auto-launch: {Error}", error);
-                    return false;
-                }
-
-                _logger?.LogInformation("SteamVR auto-launch {Status}", enabled ? "enabled" : "disabled");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Failed to set auto-launch status");
+                _logger?.LogWarning("Cannot set auto-launch: OpenVR.Applications not available");
                 return false;
             }
+
+            var error = OpenVR.Applications.SetApplicationAutoLaunch(AppKey, enabled);
+            if (error != EVRApplicationError.None)
+            {
+                _logger?.LogError("Failed to set auto-launch: {Error}", error);
+                return false;
+            }
+
+            _logger?.LogInformation("SteamVR auto-launch {Status}", enabled ? "enabled" : "disabled");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to set auto-launch status");
+            return false;
         }
     }
 
-    private readonly TrackedDevicePose_t[] _poses = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
-
-    private bool Tick()
+    private async Task StartReconnectLoop()
     {
-        OpenVRActionEvent? actionEvent;
-        OpenVRActionEvent vrInput;
-        bool wristPressed = false;
-        bool hmdValid;
-        HmdMatrix34_t poseMatrix;
-        lock (_runtimeLock)
+        if (_isReconnecting) return;
+        _isReconnecting = true;
+        _reconnectionAttempts = 0;
+
+        try
         {
-            var vrSystem = OpenVR.System;
-            var ev = new VREvent_t();
-            while (vrSystem.PollNextEvent(ref ev, (uint)Marshal.SizeOf<VREvent_t>()))
-                if (ev.eventType == (uint)EVREventType.VREvent_Quit) return false;
-            vrSystem.GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin.TrackingUniverseStanding, 0, _poses);
-            var actionSet = new VRActiveActionSet_t
+            while (!IsMonitoring && _isReconnecting && _isRunning && _cancellationTokenSource != null && !_cancellationTokenSource.Token.IsCancellationRequested)
             {
-                ulActionSet = _actionSetHandle,
-                ulRestrictedToDevice = OpenVR.k_ulInvalidInputValueHandle,
-                nPriority = 0
-            };
-            actionEvent = _actionsInitialized ? PollActions(ref actionSet, (uint)Marshal.SizeOf<VRActiveActionSet_t>()) : null;
-            vrInput = actionEvent ?? new OpenVRActionEvent();
-            if (_overlayActive)
-            {
-                try { wristPressed = overlay.Update(_poses, vrInput); }
-                catch (Exception ex)
+                // Only log every 6 attempts (every minute) to reduce spam
+                if (_reconnectionAttempts % 6 == 0)
                 {
-                    _logger?.LogError(ex, "Overlay update failed; disabling overlays for this connection");
-                    DisconnectOverlay();
+                    _logger?.LogInformation("Attempting to reconnect to SteamVR...");
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(10), _cancellationTokenSource.Token).ConfigureAwait(false);
+
+                if (!_cancellationTokenSource.Token.IsCancellationRequested && _isReconnecting)
+                {
+                    _reconnectionAttempts++;
+                    _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Connecting);
+
+                    bool success = TryInitialize();
+                    IsMonitoring = success;
+
+                    if (success)
+                    {
+                        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Connected);
+                        _isReconnecting = false;
+                        _reconnectionAttempts = 0;
+                        _logger?.LogInformation("Successfully connected to SteamVR");
+                    }
+                    else
+                    {
+                        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Error);
+                    }
                 }
             }
-            hmdValid = _poses[OpenVR.k_unTrackedDeviceIndex_Hmd].bDeviceIsConnected &&
-                _poses[OpenVR.k_unTrackedDeviceIndex_Hmd].bPoseIsValid;
-            poseMatrix = _poses[OpenVR.k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
         }
-        if (hmdValid)
+        catch (OperationCanceledException)
         {
-            var position = (X: poseMatrix.m3, Y: poseMatrix.m7, Z: poseMatrix.m11);
-            var quaternion = GetRotationFromMatrix(poseMatrix);
-            var euler = QuaternionToEuler(quaternion);
-
-            if (_initialDirection == null)
-            {
-                _initialDirection = euler;
-                _logger?.LogInformation($"Initial Direction: {_initialDirection}");
-            }
-
-            var yawDifference = NormalizeAngleDifference(euler.yaw - _initialDirection.Value.yaw);
-            var verticalInput = 1f;
-            var horizontalInput = Math.Clamp(yawDifference, -1f, 1f);
-
-            var turnCmd = euler.roll switch
-            {
-                > 0.6f => OpenVRTurn.Left,
-                < -0.6f => OpenVRTurn.Right,
-                _ => OpenVRTurn.None
-            };
-
-            // Use action-based input if available, otherwise use values from action polling
-            float rightThumbstickY = vrInput.SpeedModifier;
-            float leftThumbstickX = vrInput.ManualMovementX;
-            float leftThumbstickY = vrInput.ManualMovementY;
-
-            // Publish to AppStateService for centralized state management
-            _appStateService?.PublishOpenVRData(euler.yaw, euler.pitch, euler.roll, rightThumbstickY);
-
-            OnDataUpdateReceived?.Invoke(new OpenVRDataEvent
-            {
-                Turn = turnCmd,
-                VerticalAdjustment = verticalInput,
-                HorizontalAdjustment = horizontalInput,
-                Yaw = euler.yaw,
-                Pitch = euler.pitch,
-                Roll = euler.roll,
-                PositionX = position.X,
-                PositionY = position.Y,
-                PositionZ = position.Z,
-                RightThumbstickY = rightThumbstickY,
-                LeftThumbstickX = leftThumbstickX,
-                LeftThumbstickY = leftThumbstickY
-            });
-
-            // Fire action event if we have one
-            if (actionEvent != null || wristPressed)
-            {
-                OnActionReceived?.Invoke(vrInput);
-            }
+            // Silently handle cancellation - no need to log
         }
-        return true;
+        catch (Exception ex)
+        {
+            // Only log unexpected errors
+            _logger?.LogError(ex, "Unexpected error in VR reconnection loop");
+        }
+        finally
+        {
+            _isReconnecting = false;
+            _reconnectionAttempts = 0;
+        }
+    }
+
+    private async Task PollVrEvents(CancellationToken cancellationToken)
+    {
+        var poses = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
+        HmdMatrix34_t poseMatrix;
+        Quaternion quaternion;
+        (float yaw, float pitch, float roll) euler;
+        (float X, float Y, float Z) position = (0, 0, 0);
+
+        // Action set for updating — ulActionSet refreshed each iteration after reconnect
+        var actionSet = new VRActiveActionSet_t
+        {
+            ulRestrictedToDevice = OpenVR.k_ulInvalidInputValueHandle,
+            nPriority = 0
+        };
+        var actionSetSize = (uint)Marshal.SizeOf(typeof(VRActiveActionSet_t));
+
+        while (_isRunning && !cancellationToken.IsCancellationRequested)
+        {
+            // Re-fetch vrSystem and actionSetHandle each iteration so reconnections are picked up
+            var vrSystem = OpenVR.System;
+            if (vrSystem == null)
+            {
+                await Task.Delay(IdlePollingRateMs, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            actionSet.ulActionSet = _actionSetHandle;
+
+            vrSystem.GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin.TrackingUniverseStanding, 0, poses);
+
+            // Poll SteamVR actions if initialized
+            OpenVRActionEvent? actionEvent = null;
+            if (_actionsInitialized)
+            {
+                actionEvent = PollActions(ref actionSet, actionSetSize);
+            }
+
+            if (vrSystem.IsTrackedDeviceConnected(OpenVR.k_unTrackedDeviceIndex_Hmd) &&
+                poses[OpenVR.k_unTrackedDeviceIndex_Hmd].bPoseIsValid)
+            {
+                if (!IsMonitoring)
+                {
+                    _initialDirection = null;
+                }
+                else
+                {
+                    poseMatrix = poses[OpenVR.k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
+                    position = (poseMatrix.m3, poseMatrix.m7, poseMatrix.m11);
+                    quaternion = GetRotationFromMatrix(poseMatrix);
+                    euler = QuaternionToEuler(quaternion);
+
+                    if (_initialDirection == null)
+                    {
+                        _initialDirection = euler;
+                        _logger?.LogInformation($"Initial Direction: {_initialDirection}");
+                    }
+
+                    var yawDifference = NormalizeAngleDifference(euler.yaw - _initialDirection.Value.yaw);
+                    var verticalInput = 1f;
+                    var horizontalInput = Math.Clamp(yawDifference, -1f, 1f);
+
+                    var turnCmd = euler.roll switch
+                    {
+                        > 0.6f => OpenVRTurn.Left,
+                        < -0.6f => OpenVRTurn.Right,
+                        _ => OpenVRTurn.None
+                    };
+
+                    // Use action-based input if available, otherwise use values from action polling
+                    float rightThumbstickY = actionEvent?.SpeedModifier ?? 0f;
+                    float leftThumbstickX = actionEvent?.ManualMovementX ?? 0f;
+                    float leftThumbstickY = actionEvent?.ManualMovementY ?? 0f;
+
+                    // Publish to AppStateService for centralized state management
+                    _appStateService?.PublishOpenVRData(euler.yaw, euler.pitch, euler.roll, rightThumbstickY);
+
+                    OnDataUpdateReceived?.Invoke(new OpenVRDataEvent
+                    {
+                        Turn = turnCmd,
+                        VerticalAdjustment = verticalInput,
+                        HorizontalAdjustment = horizontalInput,
+                        Yaw = euler.yaw,
+                        Pitch = euler.pitch,
+                        Roll = euler.roll,
+                        PositionX = position.X,
+                        PositionY = position.Y,
+                        PositionZ = position.Z,
+                        RightThumbstickY = rightThumbstickY,
+                        LeftThumbstickX = leftThumbstickX,
+                        LeftThumbstickY = leftThumbstickY
+                    });
+
+                    // Fire action event if we have one
+                    if (actionEvent != null)
+                    {
+                        OnActionReceived?.Invoke(actionEvent);
+                    }
+                }
+            }
+
+            // Adaptive polling rate: faster when walking mode is active, slower when idle
+            var walkingMode = _appStateService?.CurrentWalkingMode ?? WalkingMode.Disabled;
+            var pollingRate = walkingMode != WalkingMode.Disabled ? ActivePollingRateMs : IdlePollingRateMs;
+            await Task.Delay(pollingRate, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private bool _loggedActionDebug = false;
@@ -635,12 +599,6 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
             // Get digital action data for buttons
             var digitalData = new InputDigitalActionData_t();
             var digitalDataSize = (uint)Marshal.SizeOf(typeof(InputDigitalActionData_t));
-
-            if (_toggleHudHandle != 0)
-            {
-                error = OpenVR.Input.GetDigitalActionData(_toggleHudHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
-                actionEvent.ToggleHudPressed = error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState;
-            }
 
             if (_toggleWalkingHandle != 0)
             {
@@ -812,50 +770,47 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
     /// </summary>
     public ControllerInfo GetControllerInfo()
     {
-        lock (_runtimeLock)
+        var info = new ControllerInfo();
+
+        if (!IsMonitoring || OpenVR.System == null)
+            return info;
+
+        try
         {
-            var info = new ControllerInfo();
-
-            if (!_connected)
-                return info;
-
-            try
+            // Find left and right controller indices
+            for (uint i = 0; i < OpenVR.k_unMaxTrackedDeviceCount; i++)
             {
-                // Find left and right controller indices
-                for (uint i = 0; i < OpenVR.k_unMaxTrackedDeviceCount; i++)
+                var deviceClass = OpenVR.System.GetTrackedDeviceClass(i);
+                if (deviceClass != ETrackedDeviceClass.Controller)
+                    continue;
+
+                var role = OpenVR.System.GetControllerRoleForTrackedDeviceIndex(i);
+                var controllerType = GetStringProperty(i, ETrackedDeviceProperty.Prop_ControllerType_String);
+                var modelNumber = GetStringProperty(i, ETrackedDeviceProperty.Prop_ModelNumber_String);
+                var renderModel = GetStringProperty(i, ETrackedDeviceProperty.Prop_RenderModelName_String);
+
+                if (role == ETrackedControllerRole.LeftHand)
                 {
-                    var deviceClass = OpenVR.System.GetTrackedDeviceClass(i);
-                    if (deviceClass != ETrackedDeviceClass.Controller)
-                        continue;
-
-                    var role = OpenVR.System.GetControllerRoleForTrackedDeviceIndex(i);
-                    var controllerType = GetStringProperty(i, ETrackedDeviceProperty.Prop_ControllerType_String);
-                    var modelNumber = GetStringProperty(i, ETrackedDeviceProperty.Prop_ModelNumber_String);
-                    var renderModel = GetStringProperty(i, ETrackedDeviceProperty.Prop_RenderModelName_String);
-
-                    if (role == ETrackedControllerRole.LeftHand)
-                    {
-                        info.LeftControllerType = controllerType;
-                        info.LeftModelNumber = modelNumber;
-                        info.LeftRenderModel = renderModel;
-                        info.LeftConnected = true;
-                    }
-                    else if (role == ETrackedControllerRole.RightHand)
-                    {
-                        info.RightControllerType = controllerType;
-                        info.RightModelNumber = modelNumber;
-                        info.RightRenderModel = renderModel;
-                        info.RightConnected = true;
-                    }
+                    info.LeftControllerType = controllerType;
+                    info.LeftModelNumber = modelNumber;
+                    info.LeftRenderModel = renderModel;
+                    info.LeftConnected = true;
+                }
+                else if (role == ETrackedControllerRole.RightHand)
+                {
+                    info.RightControllerType = controllerType;
+                    info.RightModelNumber = modelNumber;
+                    info.RightRenderModel = renderModel;
+                    info.RightConnected = true;
                 }
             }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Failed to get controller info");
-            }
-
-            return info;
         }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to get controller info");
+        }
+
+        return info;
     }
 
     private string GetStringProperty(uint deviceIndex, ETrackedDeviceProperty prop)
@@ -866,4 +821,16 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options, IOp
         return error == ETrackedPropertyError.TrackedProp_Success ? buffer.ToString() : string.Empty;
     }
 
+    private void ReleaseUnmanagedResources()
+    {
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource = null;
+        OpenVR.Shutdown();
+    }
+
+    private void Dispose(bool disposing)
+    {
+        ReleaseUnmanagedResources();
+        if (disposing) _cancellationTokenSource?.Dispose();
+    }
 }
