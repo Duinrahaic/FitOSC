@@ -1,0 +1,27 @@
+name: Core tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Core tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run core tests
+        run: dotnet test FitOSC.Core.Tests/FitOSC.Core.Tests.csproj --configuration Release --artifacts-path FitOSC.Core.Tests/obj/test-artifacts
