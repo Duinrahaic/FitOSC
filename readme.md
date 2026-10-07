@@ -58,7 +58,7 @@ For additional support, please consider joining my Discord server [here](https:/
 
 FitOSC is built on the shoulders of these open-source libraries:
 
-- [Avalonia](https://github.com/AvaloniaUI/Avalonia) - Cross-platform UI framework for .NET. 
+- [PhotinoX](https://github.com/ivanvoyager/PhotinoX.Blazor) - Cross-platform Blazor desktop shell for .NET.
 - [LucHeart.CoreOSC](https://github.com/LucHeart/CoreOSC-UTF8-ASYNC) - OSC protocol implementation for .NET.
 - [OscQueryLibrary](https://github.com/Natsumi-sama/OscQueryLibrary) - OSCQuery auto-negotiation library for VRChat.
 - [NAudio](https://github.com/naudio/NAudio) - Audio and MIDI library for .NET. 

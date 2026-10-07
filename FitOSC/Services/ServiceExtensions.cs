@@ -1,5 +1,4 @@
 using System.Reflection;
-using FitOSC.Models;
 using FitOSC.Platform.Windows;
 using FitOSC.Services;
 using FitOSC.Services.Configuration;
@@ -13,8 +12,6 @@ using FitOSC.Services.Midi;
 using FitOSC.Services.Pulsoid;
 using FitOSC.Services.VRChat;
 using FitOSC.Services.WebSocket;
-using FitOSC.Utilities.BLE;
-using Microsoft.Web.WebView2.Core;
 using Serilog;
 using Valve.VR;
 
@@ -22,8 +19,6 @@ namespace FitOSC.Services;
 
 public static class ServiceExtensions
 {
-    private static readonly WebViewSink SinkInstance = new WebViewSink();
-    private static int _sinkAttached = 0; // 0 = false, 1 = true (for Interlocked operations)
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
         services.AddSingleton<ConfigurationService>();
@@ -72,7 +67,7 @@ public static class ServiceExtensions
 
     private static string GetApplicationVersion()
     {
-        var assembly = typeof(App).Assembly;
+        var assembly = typeof(Program).Assembly;
         // Try to get InformationalVersion first (supports semantic versioning with pre-release tags)
         var infoVersionAttr = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
         if (infoVersionAttr != null && !string.IsNullOrEmpty(infoVersionAttr.InformationalVersion))
@@ -92,7 +87,7 @@ public static class ServiceExtensions
         return assemblyVersion != null ? $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}" : "0.0.0";
     }
 
-    public static ILoggingBuilder RegisterLogger(this ILoggingBuilder builder)
+    public static ILoggingBuilder RegisterLogger(this ILoggingBuilder builder, LogStreamService logStream)
     {
         builder
             .ClearProviders()
@@ -101,17 +96,8 @@ public static class ServiceExtensions
                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
-                .WriteTo.Sink(SinkInstance)
+                .WriteTo.Sink(new LogStreamSink(logStream))
                 .CreateLogger());
         return builder;
-    }
-
-    public static void AttachWebViewConsole(this CoreWebView2 core)
-    {
-        // Thread-safe check-then-act using Interlocked
-        if (Interlocked.CompareExchange(ref _sinkAttached, 1, 0) == 0)
-        {
-            SinkInstance.AttachWebView(core);
-        }
     }
 }
