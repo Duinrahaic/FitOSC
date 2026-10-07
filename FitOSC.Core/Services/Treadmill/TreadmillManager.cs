@@ -239,11 +239,21 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         _active = null;
         try
         {
-            await service.DisconnectAsync().ConfigureAwait(false);
+            try
+            {
+                await service.DisconnectAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                await service.DisposeAsync().ConfigureAwait(false);
+            }
         }
-        finally
+        catch (Exception ex)
         {
-            await service.DisposeAsync().ConfigureAwait(false);
+            appState.SetConnectedDeviceName(null);
+            appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Error);
+            _logger.LogError(ex, "Failed to disconnect the active treadmill.");
+            throw;
         }
     }
 

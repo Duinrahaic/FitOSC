@@ -1,16 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
     <PropertyGroup>
-        <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
-        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0-windows10.0.19041;net10.0</TargetFrameworks>
+        <RuntimeIdentifier Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041' and '$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
         <OutputType>WinExe</OutputType>
-        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ApplicationManifest Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041'">app.manifest</ApplicationManifest>
         <PackageIcon>icon.ico</PackageIcon>
-        <EnableWindowsTargeting>true</EnableWindowsTargeting>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <PublishSingleFile>true</PublishSingleFile>
-        <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+        <ApplicationIcon Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041'">Assets\icon.ico</ApplicationIcon>
         <Version>2.1.0</Version>
+        <Authors>Duinrahaic</Authors>
     </PropertyGroup>
     <PropertyGroup>
         <ServerGarbageCollection>false</ServerGarbageCollection>
@@ -21,17 +22,15 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\FitOSC.Core\FitOSC.Core.csproj" />
-        <ProjectReference Include="..\FitOSC.Platform.Windows\FitOSC.Platform.Windows.csproj" />
+        <ProjectReference Include="..\FitOSC.Platform.Midi\FitOSC.Platform.Midi.csproj" />
+        <ProjectReference Include="..\FitOSC.Platform.Windows\FitOSC.Platform.Windows.csproj" Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041'" />
+        <ProjectReference Include="..\FitOSC.Platform.Linux\FitOSC.Platform.Linux.csproj" Condition="'$(TargetFramework)' == 'net10.0'" />
     </ItemGroup>
     <ItemGroup>
         <Content Update="wwwroot\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
-        <None Update="Assets\icon.ico">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-        </None>
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="PhotinoX.Blazor" Version="5.3.5" />
@@ -42,10 +41,58 @@
         <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
         <PackageReference Include="Serilog.Sinks.File" Version="6.0.0"/>
     </ItemGroup>
-    <ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041'">
         <ContentWithTargetPath Include="OpenVR\openvr_api.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             <TargetPath>openvr_api.dll</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </ContentWithTargetPath>
+        <ContentWithTargetPath Include="RtMidi\rtmidi.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>rtmidi.dll</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </ContentWithTargetPath>
+        <ContentWithTargetPath Include="Assets\icon.ico">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>Assets\icon.ico</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </ContentWithTargetPath>
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <ContentWithTargetPath Include="OpenVR\libopenvr_api.so">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>libopenvr_api.so</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </ContentWithTargetPath>
+        <ContentWithTargetPath Include="RtMidi\librtmidi.so">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>librtmidi.so</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </ContentWithTargetPath>
+        <ContentWithTargetPath Include="Assets\icon.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>Assets\icon.png</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </ContentWithTargetPath>
+    </ItemGroup>
+    <ItemGroup>
+        <ContentWithTargetPath Include="OpenVR\LICENSE">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>OpenVR\LICENSE</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </ContentWithTargetPath>
+        <ContentWithTargetPath Include="RtMidi\LICENSE">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>RtMidi\LICENSE</TargetPath>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
         </ContentWithTargetPath>
     </ItemGroup>
     <ItemGroup>
@@ -55,6 +102,8 @@
         </None>
         <Content Update="SteamVR\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
         </Content>
     </ItemGroup>
 </Project>

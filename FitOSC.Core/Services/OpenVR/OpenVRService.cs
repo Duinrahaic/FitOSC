@@ -121,7 +121,7 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
             // Get the path to the action manifest
             var exePath = AppContext.BaseDirectory;
             var actionManifestPath = Path.Combine(exePath, "SteamVR", "actions.json");
-            var appManifestPath = Path.Combine(exePath, "SteamVR", "fitosc.vrmanifest");
+            var appManifestPath = options.ApplicationManifestPath;
 
             if (!File.Exists(actionManifestPath))
             {

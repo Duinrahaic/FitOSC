@@ -10,9 +10,6 @@
         <Using Include="Microsoft.Extensions.Logging" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="NAudio.Midi" Version="2.2.1" />
-    </ItemGroup>
-    <ItemGroup>
         <ProjectReference Include="..\FitOSC.Core\FitOSC.Core.csproj" />
     </ItemGroup>
 </Project>

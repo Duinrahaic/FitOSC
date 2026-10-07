@@ -40,6 +40,8 @@
 
 Full documentation is available at [me.duinrahaic.app/fitosc](https://me.duinrahaic.app/fitosc).
 
+For the Phase 4 Linux x64 AppImage, see [Linux packaging](docs/linux-packaging.md) for publish commands, pinned packaging tools, host dependencies and pending acceptance gates.
+
 ## Contact & Support
 
 For additional support, please consider joining my Discord server [here](https://discord.gg/aZQfy6H9fA).
@@ -61,7 +63,7 @@ FitOSC is built on the shoulders of these open-source libraries:
 - [PhotinoX](https://github.com/ivanvoyager/PhotinoX.Blazor) - Cross-platform Blazor desktop shell for .NET.
 - [LucHeart.CoreOSC](https://github.com/LucHeart/CoreOSC-UTF8-ASYNC) - OSC protocol implementation for .NET.
 - [OscQueryLibrary](https://github.com/Natsumi-sama/OscQueryLibrary) - OSCQuery auto-negotiation library for VRChat.
-- [NAudio](https://github.com/naudio/NAudio) - Audio and MIDI library for .NET. 
+- [RtMidi](https://github.com/thestk/rtmidi) - Portable MIDI input/output library.
 - [Three.js](https://github.com/mrdoob/three.js) - JavaScript 3D library.
 - [Lucide Icons](https://github.com/lucide-icons/lucide) - Open-source icon toolkit. 
 - [Font Awesome](https://github.com/FortAwesome/Font-Awesome) - Icon toolkit. 
