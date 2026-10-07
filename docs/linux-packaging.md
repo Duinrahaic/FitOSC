@@ -129,9 +129,12 @@ Linux GUI, BLE, physical MIDI and OpenVR acceptance remain unverified. The OSCQu
 
 ## Final corrected package proof (2026-10-07)
 
-The final actual Ubuntu publish used SDK **10.0.111**, the default Linux target
+This records refreshed artifacts including the shared C4 release-state and
+discovery/filter ownership-intent corrections approved by independent narrow review.
+
+The refreshed actual Ubuntu publish used SDK **10.0.111**, the default Linux target
 without targeting overrides, offline package sources and `NuGetAudit=false`.
-It exited 0 with six preexisting warnings. Its exact command and final Windows
+It exited 0 with three existing Core warnings in the incremental build. Its exact command and final Windows
 publish/artifact/smoke results are recorded in
 [the migration plan](migration-plan.md#phase-4-final-artifact-and-smoke-proof-2026-10-07).
 Input was `bin/phase4-final-linux-sc`, including the BLE corrections.
@@ -144,15 +147,21 @@ publish files were byte-equal after extraction. `desktop-file-validate` passed;
 `AppRun -> usr/bin/FitOSC` and `.DirIcon -> fitosc.png` were verified, and the
 embedded runtime reported version `dd6cebe`.
 
-Final artifact: `bin/phase4-final-appimage/FitOSC-2.1.0-x86_64.AppImage`,
+Final artifact: `bin/phase4-reviewed-appimage/FitOSC-2.1.0-x86_64.AppImage`,
 **45,652,472 bytes**, SHA-256
-`47f7642f82d7e305804677edd0bca7a3403c62e14b78c071febcfb0aebc34c6e`.
-Evidence: `bin/phase4-final-appimage/verification.json` and
-`bin/phase4-final-appimage-inspection/`. The container was removed. This corrected
+`f4cc23a49c1f8ad18bbc9b8e86a0eaef47aea28dc7589185bacd3d4e6a9d88c5`.
+Evidence: `bin/phase4-reviewed-appimage/verification.json` and
+`bin/phase4-reviewed-appimage-inspection/`. The container was removed. This corrected
 image replaces the historical pre-BLE image as final artifact proof. Epoch zero
 differs from CI's commit timestamp, so these results do not claim bit reproducibility.
 
-Independent code review remains pending. Linux X11/Wayland, FTMS/WalkingPad,
+Final Opus code review found no blockers and approved republish and repackaging.
+Its one low-severity C4 release-state follow-up now uses shared failure handling
+for connect and disconnect, including disposal failures. Independent narrow
+review approved that change and the discovery/filter ownership-intent correction.
+Ownership is recorded before awaited filter/start mutations so an unknown reply
+state triggers awaited rollback; original errors propagate and nonterminal
+cleanup failures retain ownership for retry. Linux X11/Wayland, FTMS/WalkingPad,
 pairing, reconnect, connected cleanup, physical MIDI ports, SteamVR AppImage
 auto-launch, OSCQuery under Proton, memory and real CI/release gates remain
 unverified. Packaging success does not accept those gates. No tests were added

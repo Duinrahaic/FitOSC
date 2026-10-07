@@ -41,12 +41,13 @@ public sealed class LinuxBluetoothDiscoveryCoordinator
         try
         {
             token.ThrowIfCancellationRequested();
+            // Record ownership before mutation so an uncertain reply still triggers awaited rollback.
+            state.FilterOwned = true;
             await adapter.SetDiscoveryFilterAsync(new Dictionary<string, object> { ["Transport"] = "le" })
                 .ConfigureAwait(false);
-            state.FilterOwned = true;
             token.ThrowIfCancellationRequested();
-            await adapter.StartDiscoveryAsync().ConfigureAwait(false);
             state.DiscoveryOwned = true;
+            await adapter.StartDiscoveryAsync().ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             return lease;
         }

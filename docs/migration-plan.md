@@ -13,7 +13,7 @@ wrist panel remain planned for Phase 5; Linux AppImage packaging is Phase 4 work
 | 1 | Remove unused code and packages; retarget to .NET 10 | Build and publish on Windows | Build verified; hardware behavior unverified |
 | 2 | Extract Core and Windows adapters; move lifecycle into services; immutable state snapshots | Windows behavior unchanged with FTMS and WalkingPad | Build, publish and Windows close/relaunch smoke checks pass; hardware gate unverified |
 | 3 | Replace Avalonia/WinForms shell with PhotinoX.Blazor; replace WebView logging and fatal dialog | Desktop risk gate passes; Windows UI and release verified | Shell implemented; Windows build, publish and close/relaunch smoke verified; visual, hardware and Linux gates unverified |
-| 4 | BlueZ Linux adapter; RtMidi; Linux OpenVR loader and AppImage | Linux BLE risk gate passes; both treadmill types stable on Linux; OSCQuery checked under Proton | Implementation, final Windows/Linux publishes and corrected AppImage assembly verified; independent code review pending; desktop, hardware and CI/release acceptance unverified |
+| 4 | BlueZ Linux adapter; RtMidi; Linux OpenVR loader and AppImage | Linux BLE risk gate passes; both treadmill types stable on Linux; OSCQuery checked under Proton | Implementation, final Windows/Linux publishes and refreshed AppImage verified; independent reviews found no blockers; desktop, hardware and CI/release acceptance unverified |
 | 5 | Skia HUD and interactive controller wrist panel; overlay settings and bindings | Overlay risk gate passes; both OSes render and accept clicks without a visible VRChat frame-time hit | Pending |
 
 Phase 1 deleted the spike programs before the full Phase 0 gate was satisfied.
@@ -260,8 +260,11 @@ Exact error predicates were checked against BlueZ 5.72/5.83 and libdbus
 1.12.20/1.14.10; older daemon behavior remains unverified.
 
 Adapter discovery/filter ownership survives failed cleanup and is retried under
-the adapter gate. Failed final device cleanup is handed atomically to the next
-connect for that same device path; local watch cleanup remains reachable even
+the adapter gate. Ownership intent is recorded before each awaited filter/start
+mutation, so an unknown reply state triggers awaited rollback. The original
+failure still propagates; nonterminal cleanup failures retain ownership for the
+next acquire, including NotReady. Failed final device cleanup is handed atomically
+to the next connect for that same device path; local watch cleanup remains reachable even
 when remote ownership has already ended. No background retry is introduced.
 Loss handlers record state without invoking the logger; awaited cleanup logs
 loss, so the warning may be delayed until the next client operation. BlueZ owner
@@ -270,7 +273,8 @@ The shared system connection and its continuation behavior remain unchanged.
 
 FTMS enables required Control Point indications and logs response codes. Required
 subscription failure throws, the manager owns one Request Control write, and
-failed disconnect clears the displayed device and publishes Error. Write
+failed release clears the displayed device and publishes Error from the shared
+release method for both connect and disconnect, including disposal failures. Write
 strictness remains unchanged. Pairing/encryption, actual indications and ATT
 0xFD/0xFE behavior require hardware acceptance; devices lacking the already
 required Control Point/Indicate support report Error. No procedure queue, retry
@@ -293,15 +297,32 @@ DOTNET_ROOT=/tmp/fitosc-dotnet /tmp/fitosc-dotnet/dotnet build FitOSC/FitOSC.csp
 
 Manual execution of the workflow PowerShell and Bash validation/version
 extraction accepted `V2.0.0-Beta` and produced `2.0.0-Beta`. No test files were
-added and no real CI, release or hardware run was performed. Final independent
-code review remains pending. Final republish and repackaging completed as
-recorded below; the hardware gates remain unaccepted.
+added and no real CI, release or hardware run was performed. Final Opus code
+review found no blockers and approved republish and repackaging; M1–M5,
+L1–L5 and C1–C3 are closed. Its one low-severity C4 follow-up moved release-failure
+state handling into the shared release method. Independent narrow review also
+approved that change and the discovery/filter ownership-intent correction.
+Fresh publish and packaging evidence is recorded below; hardware gates remain
+unaccepted.
+
+The narrow corrections built successfully with SDK **10.0.111** and offline
+packages (`NuGetAudit=false`): Core on Windows and actual WSL Ubuntu, plus the
+Linux platform project on WSL Ubuntu. Each build reported the same three existing
+Core warnings and zero errors. Separate output paths were
+`bin/phase4-c4-shared-release-windows-20261007`,
+`/tmp/fitosc-phase4-c4-shared-release-linux-20261007` and
+`/tmp/fitosc-phase4-c4-ownership-linux-20261007`. These are build results, not
+fresh published-artifact verification or Phase 4 acceptance.
 
 
 ## Phase 4 final artifact and smoke proof (2026-10-07)
 
-All three final publishes used SDK **10.0.111**, exited 0 and reported six
-preexisting warnings. Windows used default NuGet restore auditing; the actual
+These refreshed artifacts include the shared C4 release-state and discovery/filter
+ownership-intent corrections approved by the independent narrow review.
+
+All three refreshed publishes used SDK **10.0.111** and exited 0. Each Windows
+publish reported six preexisting warnings; the incremental Linux publish reported
+three existing Core warnings. Windows used default NuGet restore auditing; the actual
 Ubuntu Linux publish used offline packages with `NuGetAudit=false` and no
 targeting overrides:
 
@@ -338,7 +359,7 @@ standalone advisory audit was performed. Evidence:
 The final hidden `--no-vr` smoke script (`powershell -NoProfile -ExecutionPolicy
 Bypass -File bin/phase4-final-verification/verify_hidden_smoke.ps1`, exit 0)
 ran Windows framework-dependent once and self-contained twice. All runs exited
-0 with empty stderr; close-to-exit took 104 ms, 136 ms and 191 ms respectively.
+0 with empty stderr; close-to-exit took 190 ms, 180 ms and 236 ms respectively.
 The second self-contained run confirms mutex release. The script pinned each
 process handle, located windows by PID and title, and sent `WM_CLOSE` with a
 20-second bound. Startup's automatic BLE scan was canceled during shutdown;
@@ -351,12 +372,14 @@ The corrected Linux self-contained output was packaged and extracted in pinned
 Ubuntu 22.04 Docker with pinned tools and `SOURCE_DATE_EPOCH=0`. All 77 publish
 files were byte-equal after extraction; desktop-file validation and launcher/icon
 symlinks passed. The final AppImage is **45,652,472 bytes**, SHA-256
-`47f7642f82d7e305804677edd0bca7a3403c62e14b78c071febcfb0aebc34c6e`.
+`f4cc23a49c1f8ad18bbc9b8e86a0eaef47aea28dc7589185bacd3d4e6a9d88c5`.
 See [Linux packaging](linux-packaging.md) for the final artifact and evidence
 paths. This replaces the pre-BLE image as final artifact proof. Epoch zero differs
 from CI's commit timestamp; no bit-reproducibility claim is made.
 
-Independent code review remains pending. Real Linux X11/Wayland rendering,
+Final code review and independent narrow review of the shared C4 release-state
+and discovery/filter ownership-intent corrections found no blockers.
+Real Linux X11/Wayland rendering,
 FTMS and WalkingPad discovery/control, pairing, reconnect and connected cleanup,
 physical MIDI ports, SteamVR AppImage auto-launch, OSCQuery under Proton, memory
 measurement and CI/release gates remain unverified. WSL1's missing GUI, BlueZ,
