@@ -1,105 +1,164 @@
-name: Build and Deploy FitOSC (Windows) - Runtime and No Runtime
+name: Build and Deploy FitOSC (Windows and Linux)
 
 on:
   push:
     tags:
-      - 'v*.*.*' # Trigger on version tag pushes
-  workflow_dispatch: # Enables manual triggering
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to publish, for example v2.1.1
+        required: true
+        default: v2.1.1
+
+env:
+  SELECTED_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 jobs:
   build:
-    runs-on: windows-latest # Use Windows runner
-
+    runs-on: windows-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
       - name: Set build version from release tag
+        id: version
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          if ($tag -notmatch '^[vV]\d+\.\d+\.\d+([\-][0-9A-Za-z.-]+)?$') {
-            throw "Release builds must run from a semantic version tag such as v2.1.0. Received: $tag"
+          $tag = $env:SELECTED_RELEASE_TAG
+          if ($tag -cnotmatch '^[vV](0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') {
+            throw "Release builds must run from a version tag such as v2.1.0. Received: $tag"
           }
-
           "RELEASE_VERSION=$($tag.Substring(1))" >> $env:GITHUB_ENV
+          "release_tag=$tag" >> $env:GITHUB_OUTPUT
 
-      # Build without runtime (Framework-dependent)
       - name: Build FitOSC without runtime (Framework-dependent)
         working-directory: ./FitOSC
-        run: dotnet publish --configuration Release --output ./output/no-runtime --no-self-contained --runtime win-x64 -p:Version=$env:RELEASE_VERSION
+        run: dotnet publish --configuration Release -f net10.0-windows10.0.19041 --output ../publish/no-runtime --no-self-contained --runtime win-x64 -p:PublishSelfContained=false -p:Version=$env:RELEASE_VERSION
 
-      # Build with runtime (Self-contained, will create .exe)
       - name: Build FitOSC with runtime (Self-contained)
         working-directory: ./FitOSC
-        run: dotnet publish --configuration Release --output ./output/with-runtime --self-contained --runtime win-x64 -p:Version=$env:RELEASE_VERSION
+        run: dotnet publish --configuration Release -f net10.0-windows10.0.19041 --output ../publish/with-runtime --self-contained true --runtime win-x64 -p:PublishSelfContained=true -p:Version=$env:RELEASE_VERSION
 
       - name: Upload release artifact (without runtime)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: fitosc-no-runtime # Name the artifact for no-runtime version
-          path: ./FitOSC/output/no-runtime # Path to no-runtime build
+          name: fitosc-no-runtime
+          path: ./publish/no-runtime
+          if-no-files-found: error
 
       - name: Upload release artifact (with runtime)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: fitosc-with-runtime # Name the artifact for the runtime version (contains .exe)
-          path: ./FitOSC/output/with-runtime # Path to runtime build (contains .exe)
+          name: fitosc-with-runtime
+          path: ./publish/with-runtime
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set build version from release tag
+        shell: bash
+        run: |
+          tag="$SELECTED_RELEASE_TAG"
+          if [[ ! $tag =~ ^[vV](0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            printf 'Release builds require a version tag such as v2.1.0. Received: %s\n' "$tag" >&2
+            exit 1
+          fi
+          printf 'RELEASE_VERSION=%s\n' "${tag:1}" >> "$GITHUB_ENV"
+
+      - name: Install packaging dependencies
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y desktop-file-utils file
+
+      - name: Build FitOSC for Linux (Self-contained)
+        working-directory: ./FitOSC
+        run: dotnet publish --configuration Release -f net10.0 -r linux-x64 --output ../publish/linux-x64 --self-contained true -p:PublishSelfContained=true -p:Version="$RELEASE_VERSION"
+
+      - name: Package AppImage
+        run: |
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          bash build/appimage/package.sh ./publish/linux-x64 ./publish/appimage "$RELEASE_VERSION"
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: fitosc-linux-appimage
+          path: ./publish/appimage/*.AppImage
+          if-no-files-found: error
 
   deploy:
-    needs: build
-    runs-on: windows-latest # Ensure deploy job also runs on Windows
+    needs: [build, build-linux]
+    runs-on: windows-latest
     permissions:
       contents: write
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
-    - name: Extract Tag
-      id: extract_tag
-      run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV  # Extract tag and set as env var
+      - name: Download artifact (without runtime)
+        uses: actions/download-artifact@v4
+        with:
+          name: fitosc-no-runtime
+          path: ./publish/no-runtime
 
-    - name: Download artifact (without runtime)
-      uses: actions/download-artifact@v3
-      with:
-        name: fitosc-no-runtime
-        path: ./FitOSC/output/no-runtime
+      - name: Download artifact (with runtime)
+        uses: actions/download-artifact@v4
+        with:
+          name: fitosc-with-runtime
+          path: ./publish/with-runtime
 
-    - name: Download artifact (with runtime)
-      uses: actions/download-artifact@v3
-      with:
-        name: fitosc-with-runtime
-        path: ./FitOSC/output/with-runtime
+      - name: Download Linux AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: fitosc-linux-appimage
+          path: ./publish/appimage
 
-    - name: Zip framework-dependent build (without runtime)
-      shell: pwsh
-      run: |
-        Compress-Archive -Path ./FitOSC/output/no-runtime/* -DestinationPath ../../../fitosc-no-runtime.zip
-    - name: Zip self-contained build (with runtime)
-      shell: pwsh
-      run: |
-        Compress-Archive -Path ./FitOSC/output/with-runtime/* -DestinationPath ../../../fitosc-with-runtime.zip
-    - name: Create GitHub Release
-      uses: ncipollo/release-action@v1.14.0
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
-        tag: ${{ env.TAG }}  # Use the extracted tag
-        name: Release ${{ env.TAG }}  # Use the extracted tag for release name
-        body: |
-          Release notes for FitOSC version ${{ env.TAG }}
-          
-          - **Without runtime**: Framework-dependent deployment.
-          - **With runtime**: Self-contained deployment (includes .exe).
-        draft: false
-        prerelease: false
-        artifacts: |
-          ./fitosc-no-runtime.zip
-          ./fitosc-with-runtime.zip
+      - name: Zip framework-dependent build (without runtime)
+        shell: pwsh
+        run: Compress-Archive -Path ./publish/no-runtime/* -DestinationPath ./fitosc-no-runtime.zip
 
+      - name: Zip self-contained build (with runtime)
+        shell: pwsh
+        run: Compress-Archive -Path ./publish/with-runtime/* -DestinationPath ./fitosc-with-runtime.zip
 
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1.14.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ needs.build.outputs.release_tag }}
+          name: Release ${{ needs.build.outputs.release_tag }}
+          body: |
+            Release notes for FitOSC version ${{ needs.build.outputs.release_tag }}
+
+            - **Windows without runtime**: Framework-dependent deployment.
+            - **Windows with runtime**: Self-contained deployment (includes .exe).
+            - **Linux x64 AppImage**: Self-contained .NET deployment; host desktop and hardware dependencies are required. Linux GUI/hardware acceptance and the OSCQuery Proton gate remain pending.
+          draft: false
+          prerelease: false
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          artifacts: |
+            ./fitosc-no-runtime.zip
+            ./fitosc-with-runtime.zip
+            ./publish/appimage/*.AppImage

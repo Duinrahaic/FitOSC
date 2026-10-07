@@ -32,16 +32,12 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
         }
 
         // Subscribe to critical characteristics
-        bool controlPointOk = await Client.SubscribeAsync(ControlPoint, null, cancellationToken).ConfigureAwait(false);
+        bool controlPointOk = await Client.SubscribeAsync(ControlPoint, HandleControlPointResponse, cancellationToken).ConfigureAwait(false);
         bool treadmillDataOk = await Client.SubscribeAsync(TreadmillData, HandleTelemetryData, cancellationToken).ConfigureAwait(false);
 
         if (!controlPointOk || !treadmillDataOk)
         {
-            logger.LogError("Failed to subscribe to critical characteristics. Control Point: {CP}, Treadmill Data: {TD}",
-                controlPointOk, treadmillDataOk);
-
-            // Don't continue with connection if critical subscriptions fail
-            return;
+            throw new InvalidOperationException($"Failed to subscribe to critical characteristics. Control Point: {controlPointOk}, Treadmill Data: {treadmillDataOk}");
         }
 
         // Subscribe to optional characteristics
@@ -50,8 +46,31 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
         await Client.SubscribeAsync(SupportedIncline, null, cancellationToken).ConfigureAwait(false);
 
         await GetTreadmillConfigurationAsync(cancellationToken).ConfigureAwait(false);
-        logger.LogInformation($"Buffering before sending control request...");
-        await RequestControlAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void HandleControlPointResponse(byte[] payload)
+    {
+        // FTMS v1.0 Tables 4.23/4.24: Response Code, request opcode, result.
+        if (payload.Length < 3 || payload[0] != 0x80)
+        {
+            logger.LogWarning("Unexpected FTMS Control Point response: {Payload}", BitConverter.ToString(payload));
+            return;
+        }
+        if (payload[2] == 0x01)
+        {
+            logger.LogDebug("FTMS Control Point opcode {Opcode:X2} succeeded.", payload[1]);
+            return;
+        }
+        var result = payload[2] switch
+        {
+            0x02 => "Op Code not supported",
+            0x03 => "Invalid Parameter",
+            0x04 => "Operation Failed",
+            0x05 => "Control Not Permitted",
+            _ => "Unknown result"
+        };
+        logger.LogWarning("FTMS Control Point opcode {Opcode:X2} returned {Result:X2} ({ResultName}).",
+            payload[1], payload[2], result);
     }
 
     public override async Task DisconnectAsync()

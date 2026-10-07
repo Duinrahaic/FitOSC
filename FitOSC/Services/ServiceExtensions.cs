@@ -1,5 +1,10 @@
 using System.Reflection;
+#if WINDOWS
 using FitOSC.Platform.Windows;
+#else
+using FitOSC.Platform.Linux;
+#endif
+using FitOSC.Platform.Midi;
 using FitOSC.Services;
 using FitOSC.Services.Configuration;
 using FitOSC.Services.Debug;
@@ -22,7 +27,11 @@ public static class ServiceExtensions
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
         services.AddSingleton<ConfigurationService>();
+#if WINDOWS
         services.AddWindowsPlatform();
+#else
+        services.AddLinuxPlatform();
+#endif
         services.AddSingleton<TreadmillManager>();
         services.AddSingleton<IOscService, OscService>();
         services.AddSingleton<AppStateService>();
@@ -54,6 +63,7 @@ public static class ServiceExtensions
         services.AddHostedService(sp => sp.GetRequiredService<PulsoidService>());
 
         // Register MidiService for MIDI input/output
+        services.AddSingleton<IMidiOutput, RtMidiOutput>();
         services.AddSingleton<MidiService>();
         services.AddHostedService(sp => sp.GetRequiredService<MidiService>());
 

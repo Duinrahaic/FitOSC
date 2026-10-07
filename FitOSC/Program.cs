@@ -1,5 +1,9 @@
 using System.Diagnostics;
-using FitOSC.Platform.Windows;
+#if WINDOWS
+using FatalErrorDialog = FitOSC.Platform.Windows.FatalErrorDialog;
+#else
+using FitOSC.Platform.Linux;
+#endif
 using FitOSC.Services;
 using FitOSC.Services.Configuration;
 using FitOSC.Services.Logger;
@@ -50,6 +54,15 @@ internal class Program
             if (disableVR)
                 Console.WriteLine("[FitOSC] SteamVR disabled via --no-vr flag");
 
+#if WINDOWS
+            var applicationManifestPath = Path.Combine(AppContext.BaseDirectory, "SteamVR", "fitosc.vrmanifest");
+#else
+            var applicationManifestPath = SteamVRApplicationManifest.ManifestPath;
+            if (!disableVR)
+                SteamVRApplicationManifest.EnsureCreated();
+            DesktopIdentity.Initialize();
+#endif
+
             var builder = PhotinoBlazorApp.CreateBuilder(new PhotinoAppOptions
             {
                 Args = args,
@@ -59,22 +72,31 @@ internal class Program
             var logStream = new LogStreamService();
             builder.Services.AddSingleton(logStream);
             builder.Logging.RegisterLogger(logStream);
-            builder.Services.AddSingleton(new OpenVROptions { Disabled = disableVR });
+            builder.Services.AddSingleton(new OpenVROptions { Disabled = disableVR, ApplicationManifestPath = applicationManifestPath });
             builder.Services.RegisterServices();
             builder.RootComponents.Add<FitOSC.Main>("#app");
-            builder.ConfigureMainWindow(window => window
-                .SetTitle("FitOSC")
-                .SetSize(700, 800)
-                .SetResizable(false)
-                .SetIconFile(Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico"))
-                .SetDevToolsEnabled(true)
-                .SetContextMenuEnabled(false)
-                .SetZoomEnabled(false)
-                .SetStatusBarEnabled(false)
-                .SetBrowserControlInitParameters(GetBrowserArguments())
-                .SetUserDataFolder(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "FitOSC", "WebView2")));
+            builder.ConfigureMainWindow(window =>
+            {
+                window
+                    .SetTitle("FitOSC")
+                    .SetSize(700, 800)
+                    .SetResizable(false)
+#if WINDOWS
+                    .SetIconFile(Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico"))
+#else
+                    .SetIconFile(Path.Combine(AppContext.BaseDirectory, "Assets", "icon.png"))
+#endif
+                    .SetDevToolsEnabled(true)
+                    .SetContextMenuEnabled(false)
+                    .SetZoomEnabled(false);
+#if WINDOWS
+                window.SetStatusBarEnabled(false)
+                    .SetBrowserControlInitParameters(GetBrowserArguments())
+                    .SetUserDataFolder(Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "FitOSC", "WebView2"));
+#endif
+            });
 
             app = builder.Build();
             logger = app.Services.GetRequiredService<ILogger<Program>>();
@@ -131,6 +153,7 @@ internal class Program
         }
     }
 
+#if WINDOWS
     private static string GetBrowserArguments()
     {
         var browserArgs = new List<string>
@@ -173,4 +196,5 @@ internal class Program
 
         return string.Join(" ", browserArgs);
     }
+#endif
 }

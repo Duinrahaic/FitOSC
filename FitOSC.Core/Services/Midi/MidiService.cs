@@ -51,7 +51,18 @@ public class MidiService : IHostedService, IDisposable
     /// <summary>
     /// Get list of available MIDI output devices.
     /// </summary>
-    public IReadOnlyList<string> GetOutputDevices() => _output.GetDeviceNames();
+    public IReadOnlyList<string> GetOutputDevices()
+    {
+        try
+        {
+            return _output.GetDeviceNames();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enumerate MIDI output devices");
+            return Array.Empty<string>();
+        }
+    }
 
     private void LoadConfiguration()
     {
