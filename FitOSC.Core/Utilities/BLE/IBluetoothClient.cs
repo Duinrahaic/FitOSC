@@ -11,6 +11,9 @@ public interface IBluetoothClient : IAsyncDisposable
     /// </summary>
     bool IsConnected { get; }
 
+    /// <summary>Raised outside platform signal locks when the device session is lost unexpectedly.</summary>
+    event Action? ConnectionLost;
+
     /// <summary>
     /// Scans for nearby Bluetooth LE devices that advertise a name.
     /// </summary>

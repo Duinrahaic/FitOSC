@@ -30,6 +30,7 @@ namespace FitOSC.Platform.Windows.Bluetooth
         private readonly CancellationTokenSource _lifetime = new();
 
         public bool IsConnected => _device?.ConnectionStatus == BluetoothConnectionStatus.Connected;
+        public event Action? ConnectionLost;
 
         public void EnableAutoReconnect(bool enable = true) => _autoReconnect = enable;
 
@@ -273,9 +274,12 @@ namespace FitOSC.Platform.Windows.Bluetooth
 
         private void Device_ConnectionStatusChanged(BluetoothLEDevice sender, object args)
         {
+            if (!ReferenceEquals(sender, _device)) return;
             if (sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected)
             {
                 logger.LogWarning("Device disconnected: {Name}", sender.Name);
+
+                if (!_isDisconnecting) ConnectionLost?.Invoke();
 
                 if (!_autoReconnect || _isDisconnecting)
                 {

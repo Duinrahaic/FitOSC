@@ -22,6 +22,8 @@ public sealed class LinuxBluetoothClient(
 
     public bool IsConnected => !_closing && Volatile.Read(ref _session)?.IsConnected == true;
 
+    public event Action? ConnectionLost;
+
     public async Task<IReadOnlyList<BluetoothAdvertisement>> ScanAsync(TimeSpan duration)
     {
         if (duration < TimeSpan.Zero || duration.TotalMilliseconds > uint.MaxValue - 1)
@@ -55,6 +57,11 @@ public sealed class LinuxBluetoothClient(
             var device = LinuxBluetoothDiscoveryCoordinator.Proxy<IDevice1>(devices[0].Path);
             var deviceLease = await LinuxBluetoothDeviceLease.AcquireAsync(device.ObjectPath).ConfigureAwait(false);
             var session = new LinuxBluetoothSession(device, adapter, deviceLease, logger);
+            session.ConnectionLost += () =>
+            {
+                if (ReferenceEquals(Volatile.Read(ref _session), session))
+                    ConnectionLost?.Invoke();
+            };
             Volatile.Write(ref _session, session);
             await session.InitializeAsync(token).ConfigureAwait(false);
             await ConnectDeviceAsync(session, token).ConfigureAwait(false);
@@ -153,8 +160,8 @@ public sealed class LinuxBluetoothClient(
             characteristic.Subscription = subscription;
             subscription.Watch = await characteristic.Proxy.WatchPropertiesAsync(subscription.OnProperties).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            await characteristic.Proxy.StartNotifyAsync().ConfigureAwait(false);
             subscription.NotifyOwned = true;
+            await characteristic.Proxy.StartNotifyAsync().ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (!session.IsConnected) throw new IOException("Device disconnected while enabling notifications.");
             subscription.Enable();
@@ -197,17 +204,26 @@ public sealed class LinuxBluetoothClient(
         ArgumentNullException.ThrowIfNull(command);
         using var operation = await EnterAsync(cancellationToken).ConfigureAwait(false);
         var session = await GetConnectedSessionAsync().ConfigureAwait(false)
-            ?? throw new InvalidOperationException("No device connected.");
-        var characteristic = await ResolveAsync(session, characteristicUuid, operation.Token).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Characteristic {characteristicUuid} was not found.");
-        var type = characteristic.Flags.Contains("write-without-response") ? "command"
-            : characteristic.Flags.Contains("write") ? "request"
-            : throw new InvalidOperationException($"Characteristic {characteristicUuid} does not support writes.");
-        operation.Token.ThrowIfCancellationRequested();
-        if (!session.IsConnected) throw new IOException("Device disconnected before the write.");
-        await characteristic.Proxy.WriteValueAsync(command, new Dictionary<string, object> { ["type"] = type }).ConfigureAwait(false);
-        operation.Token.ThrowIfCancellationRequested();
-        if (!session.IsConnected) throw new IOException("Device disconnected while writing the command.");
+            ?? throw new BluetoothConnectionLostException("No device connected.");
+        try
+        {
+            var characteristic = await ResolveAsync(session, characteristicUuid, operation.Token).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Characteristic {characteristicUuid} was not found.");
+            var type = characteristic.Flags.Contains("write-without-response") ? "command"
+                : characteristic.Flags.Contains("write") ? "request"
+                : throw new InvalidOperationException($"Characteristic {characteristicUuid} does not support writes.");
+            operation.Token.ThrowIfCancellationRequested();
+            if (!session.IsConnected) throw new BluetoothConnectionLostException("Device disconnected before the write.");
+            await characteristic.Proxy.WriteValueAsync(command, new Dictionary<string, object> { ["type"] = type }).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
+            if (!session.IsConnected) throw new BluetoothConnectionLostException("Device disconnected while writing the command.");
+        }
+        catch (DBusException ex) when (!session.IsConnected
+            && (ex.ErrorName is "org.bluez.Error.NotConnected" or "org.bluez.Error.NotReady"
+                || LinuxBluetoothErrors.IsObjectRemoved(ex)))
+        {
+            throw new BluetoothConnectionLostException("Device disconnected while writing the command.", ex);
+        }
     }
 
     public async Task<byte[]?> ReadAsync(Guid characteristicUuid, CancellationToken cancellationToken = default)
@@ -295,7 +311,7 @@ public sealed class LinuxBluetoothClient(
         token.ThrowIfCancellationRequested();
         foreach (var proxy in proxies)
         {
-            if (!session.IsConnected) throw new IOException("Device disconnected while resolving a characteristic.");
+            if (!session.IsConnected) throw new BluetoothConnectionLostException("Device disconnected while resolving a characteristic.");
             var properties = await proxy.GetAllAsync().ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (properties.Service != session.Service.ObjectPath || !Guid.TryParse(properties.UUID, out var candidate) || candidate != uuid) continue;

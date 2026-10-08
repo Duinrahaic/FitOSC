@@ -57,9 +57,21 @@ internal class Program
 #if WINDOWS
             var applicationManifestPath = Path.Combine(AppContext.BaseDirectory, "SteamVR", "fitosc.vrmanifest");
 #else
-            var applicationManifestPath = SteamVRApplicationManifest.ManifestPath;
+            string? applicationManifestPath = null;
+            Exception? manifestFailure = null;
             if (!disableVR)
-                SteamVRApplicationManifest.EnsureCreated();
+            {
+                try
+                {
+                    SteamVRApplicationManifest.EnsureCreated();
+                    applicationManifestPath = SteamVRApplicationManifest.ManifestPath;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                    or System.Text.Json.JsonException or InvalidOperationException)
+                {
+                    manifestFailure = ex;
+                }
+            }
             DesktopIdentity.Initialize();
 #endif
 
@@ -102,6 +114,10 @@ internal class Program
 
             app = builder.Build();
             logger = app.Services.GetRequiredService<ILogger<Program>>();
+#if !WINDOWS
+            if (manifestFailure is not null)
+                logger.LogWarning(manifestFailure, "SteamVR launch registration is unavailable. VR tracking remains enabled.");
+#endif
             Task.Run(async () =>
             {
                 foreach (var service in app.Services.GetServices<IHostedService>())

@@ -18,12 +18,19 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
 
     private readonly ILogger<OpenVRService>? _logger = services.GetService<ILogger<OpenVRService>>();
     private readonly AppStateService? _appStateService = services.GetService<AppStateService>();
+    // Protect runtime function tables and lifecycle admission with the same gate.
+    // Never hold it while awaiting workers or publishing application events.
+    private readonly object _nativeGate = new();
     private CancellationTokenSource? _cancellationTokenSource;
+    private Task _pollingTask = Task.CompletedTask;
+    private Task _reconnectTask = Task.CompletedTask;
+    private Task? _stopTask;
     private EVRInitError _initError;
-    private bool _isRunning;
-    private bool _isReconnecting = false;
-    private int _reconnectionAttempts = 0;
-    private bool _actionsInitialized = false;
+    private volatile bool _isRunning;
+    private volatile bool _isMonitoring;
+    private bool _monitoringRequested;
+    private bool _disposed;
+    private volatile bool _actionsInitialized;
 
     // Polling rate constants (in milliseconds)
     private const int ActivePollingRateMs = 100;  // 10Hz when walking mode is active
@@ -53,62 +60,134 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
     private ulong _preset3Handle;
     private ulong _preset4Handle;
 
-    public bool IsMonitoring { get; private set; }
+    public bool IsMonitoring => _isMonitoring;
     public bool ActionsAvailable => _actionsInitialized;
 
     public void Dispose()
     {
-        Dispose(true);
+        lock (_nativeGate)
+        {
+            _disposed = true;
+            _isRunning = false;
+            _isMonitoring = false;
+            _monitoringRequested = false;
+        }
+
+        StopAsync(CancellationToken.None).GetAwaiter().GetResult();
         GC.SuppressFinalize(this);
     }
-    public async Task StartAsync(CancellationToken cancellationToken)
+
+    public Task StartAsync(CancellationToken cancellationToken)
     {
         // Check if VR is disabled via launch argument
         if (options.Disabled)
         {
             _logger?.LogInformation("OpenVR service disabled via --no-vr flag");
             _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Disconnected);
-            return;
+            return Task.CompletedTask;
         }
 
-        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_nativeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_isRunning || _stopTask != null)
+                return Task.CompletedTask;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var token = _cancellationTokenSource.Token;
+            _isRunning = true;
+            _monitoringRequested = true;
+            _isMonitoring = TryInitialize();
+            _pollingTask = Task.Run(() => PollVrEvents(token), token);
+            _reconnectTask = Task.Run(() => StartReconnectLoop(token), token);
+        }
 
         _logger?.LogInformation("OpenVR service starting...");
-        _isRunning = true;
-
-        // Auto-start VR monitoring
-        StartMonitoring();
-
-        try
-        {
-            Task.Run(() => PollVrEvents(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger?.LogWarning("VR event polling was canceled.");
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError($"An error occurred in VR event polling: {ex.Message}");
-        }
+        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR,
+            IsMonitoring ? ConnectionStatus.Connected : ConnectionStatus.Error);
+        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _isRunning = false;
+        CancellationTokenSource? source;
+        Task pollingTask;
+        Task reconnectTask;
+        TaskCompletionSource completion;
+        lock (_nativeGate)
+        {
+            if (_stopTask != null)
+                return _stopTask;
 
-        // Signal the cancellation of the VR event polling task
-        _cancellationTokenSource?.Cancel();
-        _cancellationTokenSource = null;
-        OpenVR.Shutdown();
-        // Shutdown OpenVR when the service stops
-        return Task.CompletedTask;
+            // Close admission before cancellation, including calls from UI setters.
+            _isRunning = false;
+            _isMonitoring = false;
+            _monitoringRequested = false;
+            source = _cancellationTokenSource;
+            pollingTask = _pollingTask;
+            reconnectTask = _reconnectTask;
+            completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _stopTask = completion.Task;
+        }
+
+        // A caller's shutdown deadline cannot safely abandon native cleanup.
+        _ = StopCoreAsync(source, pollingTask, reconnectTask, completion);
+        return completion.Task;
     }
 
-
-    ~OpenVRService()
+    private async Task StopCoreAsync(CancellationTokenSource? source, Task pollingTask,
+        Task reconnectTask, TaskCompletionSource completion)
     {
-        Dispose(false);
+        try
+        {
+            try
+            {
+                try
+                {
+                    source?.Cancel();
+                }
+                finally
+                {
+                    try
+                    {
+                        await Task.WhenAll(pollingTask, reconnectTask).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (source?.IsCancellationRequested == true)
+                    {
+                        // Both tasks have finished; cancellation is expected on stop.
+                    }
+                }
+            }
+            finally
+            {
+                try
+                {
+                    lock (_nativeGate)
+                    {
+                        try
+                        {
+                            if (source != null)
+                                OpenVR.Shutdown();
+                        }
+                        finally
+                        {
+                            _actionsInitialized = false;
+                            _cancellationTokenSource = null;
+                        }
+                    }
+                }
+                finally
+                {
+                    source?.Dispose();
+                }
+            }
+            completion.SetResult();
+        }
+        catch (Exception ex)
+        {
+            completion.SetException(ex);
+        }
     }
 
     public event DataUpdateReceivedEventHandler? OnDataUpdateReceived;
@@ -130,7 +209,7 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
             }
 
             // Register the application manifest so FitOSC appears in SteamVR bindings UI
-            if (File.Exists(appManifestPath))
+            if (appManifestPath != null && File.Exists(appManifestPath))
             {
                 var appError = OpenVR.Applications.AddApplicationManifest(appManifestPath, false);
                 if (appError != EVRApplicationError.None)
@@ -298,128 +377,140 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
 
     public void StartMonitoring()
     {
-        bool success = TryInitialize();
-        IsMonitoring = success;
+        bool success;
+        lock (_nativeGate)
+        {
+            if (!_isRunning || _cancellationTokenSource?.IsCancellationRequested != false)
+                return;
 
-        // Publish connection status
-        if (success)
-        {
-            _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Connected);
-            _isReconnecting = false; // Stop any reconnection attempts
+            _monitoringRequested = true;
+            success = TryInitialize();
+            _isMonitoring = success;
         }
-        else
-        {
-            _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Error);
-            // Start auto-reconnect loop
-            _ = StartReconnectLoop();
-        }
+
+        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR,
+            success ? ConnectionStatus.Connected : ConnectionStatus.Error);
     }
 
     public void StopMonitoring()
     {
-        IsMonitoring = false;
-        _isReconnecting = false; // Stop reconnection attempts
+        lock (_nativeGate)
+        {
+            _isMonitoring = false;
+            _monitoringRequested = false;
+        }
 
-        // Publish disconnected status
         _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Disconnected);
     }
 
     public bool GetAutoLaunch()
     {
-        try
+        lock (_nativeGate)
         {
-            if (OpenVR.Applications == null)
+            if (!_isRunning || _cancellationTokenSource?.IsCancellationRequested != false)
                 return false;
 
-            return OpenVR.Applications.GetApplicationAutoLaunch(AppKey);
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Failed to get auto-launch status");
-            return false;
+            try
+            {
+                var applications = OpenVR.Applications;
+                return applications != null && applications.GetApplicationAutoLaunch(AppKey);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to get auto-launch status");
+                return false;
+            }
         }
     }
 
     public bool SetAutoLaunch(bool enabled)
     {
-        try
+        lock (_nativeGate)
         {
-            if (OpenVR.Applications == null)
+            if (!_isRunning || _cancellationTokenSource?.IsCancellationRequested != false)
+                return false;
+
+            try
             {
-                _logger?.LogWarning("Cannot set auto-launch: OpenVR.Applications not available");
+                var applications = OpenVR.Applications;
+                if (applications == null)
+                {
+                    _logger?.LogWarning("Cannot set auto-launch: OpenVR.Applications not available");
+                    return false;
+                }
+
+                var error = applications.SetApplicationAutoLaunch(AppKey, enabled);
+                if (error != EVRApplicationError.None)
+                {
+                    _logger?.LogError("Failed to set auto-launch: {Error}", error);
+                    return false;
+                }
+
+                _logger?.LogInformation("SteamVR auto-launch {Status}", enabled ? "enabled" : "disabled");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to set auto-launch status");
                 return false;
             }
-
-            var error = OpenVR.Applications.SetApplicationAutoLaunch(AppKey, enabled);
-            if (error != EVRApplicationError.None)
-            {
-                _logger?.LogError("Failed to set auto-launch: {Error}", error);
-                return false;
-            }
-
-            _logger?.LogInformation("SteamVR auto-launch {Status}", enabled ? "enabled" : "disabled");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Failed to set auto-launch status");
-            return false;
         }
     }
 
-    private async Task StartReconnectLoop()
+    private async Task StartReconnectLoop(CancellationToken cancellationToken)
     {
-        if (_isReconnecting) return;
-        _isReconnecting = true;
-        _reconnectionAttempts = 0;
-
+        var reconnectionAttempts = 0;
         try
         {
-            while (!IsMonitoring && _isReconnecting && _isRunning && _cancellationTokenSource != null && !_cancellationTokenSource.Token.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                // Only log every 6 attempts (every minute) to reduce spam
-                if (_reconnectionAttempts % 6 == 0)
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+
+                lock (_nativeGate)
                 {
-                    _logger?.LogInformation("Attempting to reconnect to SteamVR...");
+                    if (!_isRunning || cancellationToken.IsCancellationRequested)
+                        break;
+                    if (!_monitoringRequested || IsMonitoring)
+                    {
+                        reconnectionAttempts = 0;
+                        continue;
+                    }
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(10), _cancellationTokenSource.Token).ConfigureAwait(false);
+                if (reconnectionAttempts % 6 == 0)
+                    _logger?.LogInformation("Attempting to reconnect to SteamVR...");
+                _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Connecting);
 
-                if (!_cancellationTokenSource.Token.IsCancellationRequested && _isReconnecting)
+                bool success;
+                lock (_nativeGate)
                 {
-                    _reconnectionAttempts++;
-                    _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Connecting);
+                    // State may have changed during publication, which can invoke UI code.
+                    if (!_isRunning || cancellationToken.IsCancellationRequested)
+                        break;
+                    if (!_monitoringRequested || IsMonitoring)
+                        continue;
 
-                    bool success = TryInitialize();
-                    IsMonitoring = success;
+                    reconnectionAttempts++;
+                    success = TryInitialize();
+                    _isMonitoring = success;
+                }
 
-                    if (success)
-                    {
-                        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Connected);
-                        _isReconnecting = false;
-                        _reconnectionAttempts = 0;
-                        _logger?.LogInformation("Successfully connected to SteamVR");
-                    }
-                    else
-                    {
-                        _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR, ConnectionStatus.Error);
-                    }
+                _appStateService?.PublishInterfaceConnectionStatuses(AppInterface.VR,
+                    success ? ConnectionStatus.Connected : ConnectionStatus.Error);
+                if (success)
+                {
+                    reconnectionAttempts = 0;
+                    _logger?.LogInformation("Successfully connected to SteamVR");
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Silently handle cancellation - no need to log
+            // Normal service shutdown.
         }
         catch (Exception ex)
         {
-            // Only log unexpected errors
             _logger?.LogError(ex, "Unexpected error in VR reconnection loop");
-        }
-        finally
-        {
-            _isReconnecting = false;
-            _reconnectionAttempts = 0;
         }
     }
 
@@ -441,27 +532,28 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
 
         while (_isRunning && !cancellationToken.IsCancellationRequested)
         {
-            // Re-fetch vrSystem and actionSetHandle each iteration so reconnections are picked up
-            var vrSystem = OpenVR.System;
-            if (vrSystem == null)
-            {
-                await Task.Delay(IdlePollingRateMs, cancellationToken).ConfigureAwait(false);
-                continue;
-            }
-
-            actionSet.ulActionSet = _actionSetHandle;
-
-            vrSystem.GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin.TrackingUniverseStanding, 0, poses);
-
-            // Poll SteamVR actions if initialized
             OpenVRActionEvent? actionEvent = null;
-            if (_actionsInitialized)
+            bool headsetConnected;
+            lock (_nativeGate)
             {
-                actionEvent = PollActions(ref actionSet, actionSetSize);
+                if (!_isRunning || cancellationToken.IsCancellationRequested)
+                    break;
+
+                // Keep every function-table use in the same batch as its lookup.
+                var vrSystem = OpenVR.System;
+                headsetConnected = false;
+                if (vrSystem != null)
+                {
+                    actionSet.ulActionSet = _actionSetHandle;
+                    vrSystem.GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin.TrackingUniverseStanding, 0, poses);
+                    if (_actionsInitialized)
+                        actionEvent = PollActions(ref actionSet, actionSetSize);
+                    headsetConnected = vrSystem.IsTrackedDeviceConnected(OpenVR.k_unTrackedDeviceIndex_Hmd) &&
+                        poses[OpenVR.k_unTrackedDeviceIndex_Hmd].bPoseIsValid;
+                }
             }
 
-            if (vrSystem.IsTrackedDeviceConnected(OpenVR.k_unTrackedDeviceIndex_Hmd) &&
-                poses[OpenVR.k_unTrackedDeviceIndex_Hmd].bPoseIsValid)
+            if (headsetConnected)
             {
                 if (!IsMonitoring)
                 {
@@ -770,47 +862,50 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
     /// </summary>
     public ControllerInfo GetControllerInfo()
     {
-        var info = new ControllerInfo();
-
-        if (!IsMonitoring || OpenVR.System == null)
-            return info;
-
-        try
+        lock (_nativeGate)
         {
-            // Find left and right controller indices
-            for (uint i = 0; i < OpenVR.k_unMaxTrackedDeviceCount; i++)
+            var info = new ControllerInfo();
+
+            if (!_isRunning || !IsMonitoring || _cancellationTokenSource?.IsCancellationRequested != false || OpenVR.System == null)
+                return info;
+
+            try
             {
-                var deviceClass = OpenVR.System.GetTrackedDeviceClass(i);
-                if (deviceClass != ETrackedDeviceClass.Controller)
-                    continue;
-
-                var role = OpenVR.System.GetControllerRoleForTrackedDeviceIndex(i);
-                var controllerType = GetStringProperty(i, ETrackedDeviceProperty.Prop_ControllerType_String);
-                var modelNumber = GetStringProperty(i, ETrackedDeviceProperty.Prop_ModelNumber_String);
-                var renderModel = GetStringProperty(i, ETrackedDeviceProperty.Prop_RenderModelName_String);
-
-                if (role == ETrackedControllerRole.LeftHand)
+                // Find left and right controller indices
+                for (uint i = 0; i < OpenVR.k_unMaxTrackedDeviceCount; i++)
                 {
-                    info.LeftControllerType = controllerType;
-                    info.LeftModelNumber = modelNumber;
-                    info.LeftRenderModel = renderModel;
-                    info.LeftConnected = true;
-                }
-                else if (role == ETrackedControllerRole.RightHand)
-                {
-                    info.RightControllerType = controllerType;
-                    info.RightModelNumber = modelNumber;
-                    info.RightRenderModel = renderModel;
-                    info.RightConnected = true;
+                    var deviceClass = OpenVR.System.GetTrackedDeviceClass(i);
+                    if (deviceClass != ETrackedDeviceClass.Controller)
+                        continue;
+
+                    var role = OpenVR.System.GetControllerRoleForTrackedDeviceIndex(i);
+                    var controllerType = GetStringProperty(i, ETrackedDeviceProperty.Prop_ControllerType_String);
+                    var modelNumber = GetStringProperty(i, ETrackedDeviceProperty.Prop_ModelNumber_String);
+                    var renderModel = GetStringProperty(i, ETrackedDeviceProperty.Prop_RenderModelName_String);
+
+                    if (role == ETrackedControllerRole.LeftHand)
+                    {
+                        info.LeftControllerType = controllerType;
+                        info.LeftModelNumber = modelNumber;
+                        info.LeftRenderModel = renderModel;
+                        info.LeftConnected = true;
+                    }
+                    else if (role == ETrackedControllerRole.RightHand)
+                    {
+                        info.RightControllerType = controllerType;
+                        info.RightModelNumber = modelNumber;
+                        info.RightRenderModel = renderModel;
+                        info.RightConnected = true;
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Failed to get controller info");
-        }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to get controller info");
+            }
 
-        return info;
+            return info;
+        }
     }
 
     private string GetStringProperty(uint deviceIndex, ETrackedDeviceProperty prop)
@@ -821,16 +916,4 @@ public class OpenVRService(IServiceProvider services, OpenVROptions options) : I
         return error == ETrackedPropertyError.TrackedProp_Success ? buffer.ToString() : string.Empty;
     }
 
-    private void ReleaseUnmanagedResources()
-    {
-        _cancellationTokenSource?.Cancel();
-        _cancellationTokenSource = null;
-        OpenVR.Shutdown();
-    }
-
-    private void Dispose(bool disposing)
-    {
-        ReleaseUnmanagedResources();
-        if (disposing) _cancellationTokenSource?.Dispose();
-    }
 }

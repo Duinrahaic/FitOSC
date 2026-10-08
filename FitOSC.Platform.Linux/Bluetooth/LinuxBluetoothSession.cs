@@ -28,6 +28,7 @@ internal sealed class LinuxBluetoothSession(
     internal Dictionary<Guid, Characteristic> Characteristics { get; } = [];
     internal bool DisconnectNeeded { get; set; }
     internal bool IsConnected => _isConnected;
+    internal event Action? ConnectionLost;
     internal Task<bool> Ready => _ready.Task;
     internal long Generation => Interlocked.Read(ref _generation);
     internal bool IsLost { get { lock (_state) return _lost; } }
@@ -54,10 +55,10 @@ internal sealed class LinuxBluetoothSession(
                     if (pair.Key == "Connected" && pair.Value is bool connected) _connected = connected;
                     if (pair.Key == "ServicesResolved" && pair.Value is bool resolved) _resolved = resolved;
                 }
-                if (changes.Invalidated.Contains("Connected") || changes.Invalidated.Contains("ServicesResolved"))
-                    Lose("Bluetooth connection properties were invalidated.");
-                Evaluate();
             }
+            if (changes.Invalidated.Contains("Connected") || changes.Invalidated.Contains("ServicesResolved"))
+                Lose("Bluetooth connection properties were invalidated.");
+            Evaluate();
         }).ConfigureAwait(false));
         token.ThrowIfCancellationRequested();
         _watches.Add(await LinuxBluetoothDiscoveryCoordinator.ObjectManager.WatchInterfacesRemovedAsync(update =>
@@ -94,28 +95,36 @@ internal sealed class LinuxBluetoothSession(
             // Signals registered before the read take precedence over the initial snapshot.
             _connected ??= properties.Connected;
             _resolved ??= properties.ServicesResolved;
-            Evaluate();
         }
+        Evaluate();
     }
 
     private void Evaluate()
     {
-        if (_lost) return;
-        if ((_everConnected && _connected == false) || (_everResolved && _resolved == false))
-            Lose("Bluetooth device disconnected or its services became unresolved.");
-        else if (_connected == true && _resolved == true) _ready.TrySetResult(true);
-        _everConnected |= _connected == true;
-        _everResolved |= _resolved == true;
+        bool lost;
+        lock (_state)
+        {
+            if (_lost) return;
+            lost = (_everConnected && _connected == false) || (_everResolved && _resolved == false);
+            if (!lost && _connected == true && _resolved == true) _ready.TrySetResult(true);
+            _everConnected |= _connected == true;
+            _everResolved |= _resolved == true;
+        }
+        if (lost) Lose("Bluetooth device disconnected or its services became unresolved.");
     }
 
     private void Lose(string reason, Exception? failure = null)
     {
-        if (_lost) return;
-        _lost = true;
-        _isConnected = false;
-        Interlocked.Increment(ref _generation);
-        _ready.TrySetResult(false);
-        _loss = (reason, failure);
+        lock (_state)
+        {
+            if (_lost) return;
+            _lost = true;
+            _isConnected = false;
+            Interlocked.Increment(ref _generation);
+            _ready.TrySetResult(false);
+            _loss = (reason, failure);
+        }
+        ConnectionLost?.Invoke();
     }
 
     private void LoseOwner()
@@ -134,7 +143,7 @@ internal sealed class LinuxBluetoothSession(
 
     private void Invalidate(string reason, Exception? failure = null)
     {
-        lock (_state) Lose(reason, failure);
+        Lose(reason, failure);
     }
 
     internal bool Publish()
