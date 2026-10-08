@@ -171,6 +171,32 @@ public class AppStateService
     /// Latest treadmill telemetry (raw values as parsed from BLE).
     /// </summary>
     private TreadmillTelemetry _latestData = new();
+    private object? _treadmillInput;
+
+    /// <summary>Starts ownership of treadmill publications for a new service.</summary>
+    public void BeginTreadmillInput(object input)
+    {
+        lock (_notifyLock) _treadmillInput = input;
+    }
+
+    /// <summary>Atomically releases this input; callbacks from older services cannot change newer input.</summary>
+    public void ReleaseTreadmillInput(object input)
+    {
+        lock (_notifyLock)
+        {
+            if (!ReferenceEquals(_treadmillInput, input)) return;
+            _treadmillInput = null;
+            var cleared = new TreadmillTelemetry();
+            if (InterfaceStatus[AppInterface.Pulsoid] == ConnectionStatus.Connected)
+                cleared.Values[TreadmillTelemetryProperty.HeartRate] = _latestData.Values[TreadmillTelemetryProperty.HeartRate].Copy();
+            _latestData = cleared;
+            LatestState = TreadmillState.Stopped;
+            ConnectedDeviceName = null;
+            InterfaceStatus[AppInterface.Bluetooth] = ConnectionStatus.Disconnected;
+            PrepareAppStateNotification(forceImmediate: true);
+        }
+        DrainAppStateNotifications();
+    }
     public TreadmillTelemetrySnapshot LatestData
     {
         get
@@ -182,10 +208,11 @@ public class AppStateService
     /// <summary>
     /// Push new treadmill telemetry into app state.
     /// </summary>
-    public void PublishTreadmillData(TreadmillTelemetry telemetry)
+    public void PublishTreadmillData(TreadmillTelemetry telemetry, object input)
     {
         lock (_notifyLock)
         {
+            if (!ReferenceEquals(_treadmillInput, input)) return;
             var data = telemetry.Copy();
             if (data.Values.TryGetValue(TreadmillTelemetryProperty.HeartRate, out var incomingHeartRate)
                 && !incomingHeartRate.Enabled
@@ -210,10 +237,11 @@ public class AppStateService
     /// Push new treadmill configuration into app state.
     /// </summary>
     /// <param name="config"></param>
-    public void PublishTreadmillConfiguration(TreadmillConfiguration config)
+    public void PublishTreadmillConfiguration(TreadmillConfiguration config, object input)
     {
         lock (_notifyLock)
         {
+            if (!ReferenceEquals(_treadmillInput, input)) return;
             LatestConfiguration = config;
             PrepareAppStateNotification();
         }
@@ -234,10 +262,11 @@ public class AppStateService
     /// <summary>
     /// Push new treadmill state into app state.
     /// </summary>
-    public void PublishTreadmillState(TreadmillState state)
+    public void PublishTreadmillState(TreadmillState state, object input)
     {
         lock (_notifyLock)
         {
+            if (!ReferenceEquals(_treadmillInput, input)) return;
             LatestState = state;
             PrepareAppStateNotification(forceImmediate: true); // Treadmill state changes should be immediate
         }

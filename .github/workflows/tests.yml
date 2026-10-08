@@ -23,5 +23,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Build application and platform services
+        run: dotnet build FitOSC/FitOSC.csproj --configuration Release
       - name: Run core tests
         run: dotnet test FitOSC.Core.Tests/FitOSC.Core.Tests.csproj --configuration Release --artifacts-path FitOSC.Core.Tests/obj/test-artifacts

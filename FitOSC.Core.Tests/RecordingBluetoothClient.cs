@@ -5,6 +5,7 @@ namespace FitOSC.Core.Tests;
 internal sealed class RecordingBluetoothClient : IBluetoothClient
 {
     public bool IsConnected => false;
+    public event Action? ConnectionLost { add { } remove { } }
     public List<(Guid Characteristic, byte[] Command)> Writes { get; } = new();
 
     public Task WriteAsync(Guid characteristicUuid, byte[] command, CancellationToken cancellationToken = default)

@@ -21,8 +21,10 @@ public static class SteamVRApplicationManifest
             throw new InvalidOperationException("SteamVR cannot register a temporary AppImage mount; APPIMAGE must identify the persistent launcher.");
 
         var templatePath = Path.Combine(AppContext.BaseDirectory, "SteamVR", "fitosc.vrmanifest");
-        var manifest = JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
-        var application = manifest["applications"]!.AsArray()[0]!.AsObject();
+        if (JsonNode.Parse(File.ReadAllText(templatePath)) is not JsonObject manifest
+            || manifest["applications"] is not JsonArray { Count: > 0 } applications
+            || applications[0] is not JsonObject application)
+            throw new JsonException("SteamVR manifest template must contain an applications array with an application object.");
         application.Remove("binary_path_windows");
         application.Remove("action_manifest_path");
         application["binary_path_linux"] = launcher;

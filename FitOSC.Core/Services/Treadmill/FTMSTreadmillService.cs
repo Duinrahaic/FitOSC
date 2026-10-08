@@ -21,7 +21,7 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
 
     // FTMS may split treadmill data across notifications, so fields accumulate here.
     // AppStateService copies each published update.
-    private readonly TreadmillTelemetry _telemetry = new();
+    private TreadmillTelemetry _telemetry = new();
 
     public override async Task ConnectAsync(string deviceName, CancellationToken cancellationToken)
     {
@@ -224,7 +224,11 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
     
     public override TreadmillTelemetry TranslateData(byte[] data)
     {
-        var td = _telemetry;
+        var td = new TreadmillTelemetry
+        {
+            Timestamp = DateTime.UtcNow,
+            Values = _telemetry.Copy().Values
+        };
 
         // Parse FTMS flags — contains both HasX and PosX values
         var flags = new FtmsTelemetryFlags(data);
@@ -357,7 +361,8 @@ public class FTMSTreadmillService(ILogger<FTMSTreadmillService> logger, AppState
                 BitConverter.ToUInt16(data, flags.PosStepCount);
         }
 
-        return td;
+        _telemetry = td;
+        return td.Copy();
     }
     
     private void HandleTelemetryData(byte[] data)
