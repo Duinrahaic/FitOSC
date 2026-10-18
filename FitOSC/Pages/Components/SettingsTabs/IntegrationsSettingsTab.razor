@@ -27,6 +27,7 @@
         <select @bind="_selectedTreadmillType">
             <option value="FTMS">FTMS (Generic)</option>
             @*<option value="WalkingPad">Kingston WalkingPad</option>*@
+            <option value="EsLinker">EQiSports / CitySports (ES Linker, experimental)</option>
         </select>
     </div>
 
@@ -363,13 +364,13 @@
 
     private async Task ReconnectTreadmill()
     {
-        var treadmillType = _selectedTreadmillType == "FTMS" ? TreadmillType.FTMS : TreadmillType.WalkingPad;
+        var treadmillType = Enum.Parse<TreadmillType>(_selectedTreadmillType);
         await TreadmillManager.ConnectAsync(_currentDeviceName ?? "", treadmillType);
     }
 
     private async Task ConnectToDevice(string deviceName)
     {
-        var treadmillType = _selectedTreadmillType == "FTMS" ? TreadmillType.FTMS : TreadmillType.WalkingPad;
+        var treadmillType = Enum.Parse<TreadmillType>(_selectedTreadmillType);
 
         if (_isBluetoothConnected)
         {

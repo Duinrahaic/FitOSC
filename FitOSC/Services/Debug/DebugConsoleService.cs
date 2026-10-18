@@ -19,9 +19,10 @@ public class DebugConsoleService(
     OpenVRService openVr,
     VRChatLocomotionService locomotionService)
 {
-    // FTMS and WalkingPad service UUIDs for driver detection
+    // Advertised service UUIDs used to suggest a driver
     private static readonly Guid FtmsServiceUuid = Guid.Parse("00001826-0000-1000-8000-00805f9b34fb");
     private static readonly Guid WalkingPadServiceUuid = Guid.Parse("0000ffe0-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid EsLinkerServiceUuid = Guid.Parse("0000fff0-0000-1000-8000-00805f9b34fb");
 
     [JSInvokable("Debug_ScanTreadmills")]
     public async Task<string> ScanTreadmills(int durationSeconds = 5)
@@ -59,6 +60,12 @@ public class DebugConsoleService(
                 if (args.Advertisement.ServiceUuids.Contains(WalkingPadServiceUuid) && !deviceInfo[name].Contains("WalkingPad"))
                 {
                     deviceInfo[name].Add("WalkingPad");
+                }
+
+                // ES Linker shares the FFF0 serial service with other vendor protocols, so this is only a hint
+                if (args.Advertisement.ServiceUuids.Contains(EsLinkerServiceUuid) && !deviceInfo[name].Contains("EsLinker"))
+                {
+                    deviceInfo[name].Add("EsLinker");
                 }
 
                 // If device doesn't advertise any treadmill services but has a name, still track it

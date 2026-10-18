@@ -9,12 +9,12 @@ public class WalkingPadTreadmillService(ILogger<WalkingPadTreadmillService> logg
     private static readonly Guid ServiceUuid = Guid.Parse("0000ffe0-0000-1000-8000-00805f9b34fb");
     private static readonly Guid DataUuid    = Guid.Parse("0000ffe1-0000-1000-8000-00805f9b34fb");
 
-    public override async Task ConnectAsync(string deviceName)
+    public override async Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken)
     {
-        if (!await Client.ConnectAsync(ServiceUuid,deviceName))
-            return;
+        if (!await Client.ConnectAsync(ServiceUuid, deviceName, cancellationToken))
+            return false;
 
-        await Client.SubscribeAsync(DataUuid, d => RaiseData(TranslateData(d)));
+        return await Client.SubscribeAsync(DataUuid, d => RaiseData(TranslateData(d)));
     }
 
     public override async Task DisconnectAsync() => await Client.DisconnectAsync();

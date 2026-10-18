@@ -85,6 +85,13 @@
                                         <span class="driver-desc">Kingston WalkingPad specific protocol</span>
                                     </div>
                                 </label>
+                                <label class="driver-option @(_selectedTreadmillType == TreadmillType.EsLinker ? "selected" : "")">
+                                    <input type="radio" name="treadmillType" checked="@(_selectedTreadmillType == TreadmillType.EsLinker)" @onchange="() => _selectedTreadmillType = TreadmillType.EsLinker" />
+                                    <div class="driver-info">
+                                        <span class="driver-name">EQiSports / CitySports <span class="experimental-badge">Experimental</span></span>
+                                        <span class="driver-desc">CitySports, GearStone, Esang and Superfit treadmills with an ES Linker module</span>
+                                    </div>
+                                </label>
                             </div>
                         </div>
                         break;

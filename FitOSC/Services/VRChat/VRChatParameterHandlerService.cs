@@ -228,7 +228,7 @@ public class VRChatParameterHandlerService : IHostedService, IDisposable
             if (boolValue) StartHoldRepeat("InclineUp", () =>
             {
                 var config = _appStateService.LatestConfiguration;
-                if (config == null) return;
+                if (config is not { SupportsIncline: true }) return;
                 var current = _appStateService.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 _ = _treadmillManager.SetInclineAsync(Math.Clamp(current + config.InclineIncrement, config.MinIncline, config.MaxIncline));
             }, _serviceCancellation);
@@ -243,7 +243,7 @@ public class VRChatParameterHandlerService : IHostedService, IDisposable
             if (boolValue) StartHoldRepeat("InclineDown", () =>
             {
                 var config = _appStateService.LatestConfiguration;
-                if (config == null) return;
+                if (config is not { SupportsIncline: true }) return;
                 var current = _appStateService.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 _ = _treadmillManager.SetInclineAsync(Math.Clamp(current - config.InclineIncrement, config.MinIncline, config.MaxIncline));
             }, _serviceCancellation);
