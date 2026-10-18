@@ -4,6 +4,7 @@ public enum TreadmillType
 {
     NoInterface,
     FTMS = 1,
-    WalkingPad = 2,
+    KingSmith = 2,
     EsLinker = 3,
+    KingSmithFtms = 4,
 }

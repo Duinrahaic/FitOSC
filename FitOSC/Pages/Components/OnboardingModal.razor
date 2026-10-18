@@ -78,11 +78,18 @@
                                         <span class="driver-desc">Most Bluetooth treadmills use this standard</span>
                                     </div>
                                 </label>
-                                <label class="driver-option @(_selectedTreadmillType == TreadmillType.WalkingPad ? "selected" : "")">
-                                    <input type="radio" disabled name="treadmillType" checked="@(_selectedTreadmillType == TreadmillType.WalkingPad)" @onchange="() => _selectedTreadmillType = TreadmillType.WalkingPad" />
+                                <label class="driver-option @(_selectedTreadmillType == TreadmillType.KingSmith ? "selected" : "")">
+                                    <input type="radio" name="treadmillType" checked="@(_selectedTreadmillType == TreadmillType.KingSmith)" @onchange="() => _selectedTreadmillType = TreadmillType.KingSmith" />
                                     <div class="driver-info">
-                                        <span class="driver-name">WalkingPad</span>
-                                        <span class="driver-desc">Kingston WalkingPad specific protocol</span>
+                                        <span class="driver-name">KingSmith WalkingPad / Legacy <span class="experimental-badge">Experimental</span></span>
+                                        <span class="driver-desc">WalkingPad and older KingSmith treadmills</span>
+                                    </div>
+                                </label>
+                                <label class="driver-option @(_selectedTreadmillType == TreadmillType.KingSmithFtms ? "selected" : "")">
+                                    <input type="radio" name="treadmillType" checked="@(_selectedTreadmillType == TreadmillType.KingSmithFtms)" @onchange="() => _selectedTreadmillType = TreadmillType.KingSmithFtms" />
+                                    <div class="driver-info">
+                                        <span class="driver-name">KingSmith FTMS <span class="experimental-badge">Experimental</span></span>
+                                        <span class="driver-desc">Newer KingSmith treadmills that require an unlock before control</span>
                                     </div>
                                 </label>
                                 <label class="driver-option @(_selectedTreadmillType == TreadmillType.EsLinker ? "selected" : "")">

@@ -5,7 +5,7 @@ using FitOSC.Utilities.BLE;
 namespace FitOSC.Services.Treadmill;
 
 /// <summary>
-/// Manages treadmill services (FTMS, WalkingPad, etc.)
+/// Manages treadmill services (FTMS, KingSmith, etc.)
 /// and provides a unified interface for connecting and controlling treadmills.
 /// </summary>
 /// <remarks>
@@ -56,7 +56,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             ITreadmillService? service = type switch
             {
                 TreadmillType.FTMS => new FTMSTreadmillService(loggerFactory.CreateLogger<FTMSTreadmillService>(), appState),
-                TreadmillType.WalkingPad => new WalkingPadTreadmillService(loggerFactory.CreateLogger<WalkingPadTreadmillService>(), appState),
+                TreadmillType.KingSmith => new KingSmithTreadmillService(loggerFactory.CreateLogger<KingSmithTreadmillService>(), appState),
+                TreadmillType.KingSmithFtms => new KingSmithFtmsTreadmillService(loggerFactory.CreateLogger<KingSmithFtmsTreadmillService>(), appState),
                 TreadmillType.EsLinker => new EsLinkerTreadmillService(loggerFactory.CreateLogger<EsLinkerTreadmillService>(), appState),
                 _ => null
             };

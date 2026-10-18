@@ -21,7 +21,7 @@ public class DebugConsoleService(
 {
     // Advertised service UUIDs used to suggest a driver
     private static readonly Guid FtmsServiceUuid = Guid.Parse("00001826-0000-1000-8000-00805f9b34fb");
-    private static readonly Guid WalkingPadServiceUuid = Guid.Parse("0000ffe0-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid KingSmithServiceUuid = Guid.Parse("0000fe00-0000-1000-8000-00805f9b34fb");
     private static readonly Guid EsLinkerServiceUuid = Guid.Parse("0000fff0-0000-1000-8000-00805f9b34fb");
 
     [JSInvokable("Debug_ScanTreadmills")]
@@ -56,10 +56,10 @@ public class DebugConsoleService(
                     deviceInfo[name].Add("FTMS");
                 }
 
-                // Check for WalkingPad service
-                if (args.Advertisement.ServiceUuids.Contains(WalkingPadServiceUuid) && !deviceInfo[name].Contains("WalkingPad"))
+                // Check for KingSmith legacy service
+                if (args.Advertisement.ServiceUuids.Contains(KingSmithServiceUuid) && !deviceInfo[name].Contains("KingSmith"))
                 {
-                    deviceInfo[name].Add("WalkingPad");
+                    deviceInfo[name].Add("KingSmith");
                 }
 
                 // ES Linker shares the FFF0 serial service with other vendor protocols, so this is only a hint
