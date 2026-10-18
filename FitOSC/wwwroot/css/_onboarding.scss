@@ -255,6 +255,19 @@
   }
 }
 
+.experimental-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: rgba($color-warning, 0.1);
+  border: 1px solid rgba($color-warning, 0.3);
+  border-radius: 4px;
+  color: $color-warning;
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
 .scan-section {
   width: 100%;
   margin-top: 20px;

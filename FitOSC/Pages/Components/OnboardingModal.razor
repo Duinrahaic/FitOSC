@@ -71,20 +71,22 @@
                             <h2>Select Treadmill Type</h2>
                             <p>Choose the type of treadmill you have:</p>
                             <div class="driver-options">
-                                <label class="driver-option @(_selectedTreadmillType == TreadmillType.FTMS ? "selected" : "")">
-                                    <input type="radio" name="treadmillType" checked="@(_selectedTreadmillType == TreadmillType.FTMS)" @onchange="() => _selectedTreadmillType = TreadmillType.FTMS" />
-                                    <div class="driver-info">
-                                        <span class="driver-name">FTMS (Generic)</span>
-                                        <span class="driver-desc">Most Bluetooth treadmills use this standard</span>
-                                    </div>
-                                </label>
-                                <label class="driver-option @(_selectedTreadmillType == TreadmillType.WalkingPad ? "selected" : "")">
-                                    <input type="radio" disabled name="treadmillType" checked="@(_selectedTreadmillType == TreadmillType.WalkingPad)" @onchange="() => _selectedTreadmillType = TreadmillType.WalkingPad" />
-                                    <div class="driver-info">
-                                        <span class="driver-name">WalkingPad</span>
-                                        <span class="driver-desc">Kingston WalkingPad specific protocol</span>
-                                    </div>
-                                </label>
+                                @foreach (var driver in TreadmillDrivers.All)
+                                {
+                                    <label class="driver-option @(_selectedTreadmillType == driver.Type ? "selected" : "")">
+                                        <input type="radio" name="treadmillType" checked="@(_selectedTreadmillType == driver.Type)" @onchange="() => _selectedTreadmillType = driver.Type" />
+                                        <div class="driver-info">
+                                            <span class="driver-name">
+                                                @driver.Name
+                                                @if (driver.Experimental)
+                                                {
+                                                    <span class="experimental-badge">Experimental</span>
+                                                }
+                                            </span>
+                                            <span class="driver-desc">@driver.Description</span>
+                                        </div>
+                                    </label>
+                                }
                             </div>
                         </div>
                         break;

@@ -8,4 +8,7 @@ public class TreadmillConfiguration
     public decimal MaxIncline { get; init; } = 0;
     public decimal MinIncline { get; init; } = 0;
     public decimal InclineIncrement { get; init; } = 0;
+
+    /// <summary>Whether the treadmill reported an incline range it can be stepped through.</summary>
+    public bool SupportsIncline => MaxIncline > MinIncline && InclineIncrement > 0;
 }

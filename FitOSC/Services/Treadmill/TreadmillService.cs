@@ -7,7 +7,12 @@ namespace FitOSC.Services.Treadmill;
 public interface ITreadmillService
 {
     bool IsConnected { get; }
-    Task ConnectAsync(string deviceName);
+
+    /// <summary>Raised when an established connection drops on its own.</summary>
+    event Action? ConnectionLost;
+
+    /// <summary>Connects and initializes the treadmill. Returns true only once it is ready to stream and accept commands.</summary>
+    Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken);
     Task DisconnectAsync();
     Task RequestControlAsync();
     Task StartAsync();
@@ -24,15 +29,18 @@ public abstract class TreadmillService : ITreadmillService
     protected readonly BaseBluetoothClient Client;
     public bool IsConnected => Client.IsConnected;
 
+    public event Action? ConnectionLost;
+
     private readonly AppStateService AppState;
-    
+
     protected TreadmillService(AppStateService appState, BaseBluetoothClient client)
     {
         Client = client;
         AppState = appState;
+        Client.ConnectionLost += () => ConnectionLost?.Invoke();
     }
 
-    public abstract Task ConnectAsync(string deviceName);
+    public abstract Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken);
     public abstract Task DisconnectAsync();
     public abstract Task StartAsync();
     public abstract Task PauseAsync();

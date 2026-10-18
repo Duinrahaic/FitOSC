@@ -148,7 +148,7 @@ public class HistoryService
 
         // Update speed statistics
         var speed = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed);
-        if (speed != null)
+        if (speed is { Enabled: true })
         {
             _totalSpeedSum += speed.Value;
             _speedSampleCount++;
@@ -160,21 +160,21 @@ public class HistoryService
 
         // Update distance
         var distance = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.TotalDistance);
-        if (distance != null)
+        if (distance is { Enabled: true })
         {
-            _currentSession.TotalDistance = distance.Value * 1000; // Convert km to meters
+            _currentSession.TotalDistance = distance.Value; // Telemetry distance is in meters
         }
 
         // Update calories
         var calories = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.Calories);
-        if (calories != null)
+        if (calories is { Enabled: true })
         {
             _currentSession.Calories = (int)calories.Value;
         }
 
         // Update heart rate statistics
         var heartRate = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.HeartRate);
-        if (heartRate != null && heartRate.Value > 0)
+        if (heartRate is { Enabled: true } && heartRate.Value > 0)
         {
             _totalHeartRateSum += (int)heartRate.Value;
             _heartRateSampleCount++;
@@ -182,7 +182,7 @@ public class HistoryService
 
         // Update elevation gain
         var elevation = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.ElevationGain);
-        if (elevation != null)
+        if (elevation is { Enabled: true })
         {
             _currentSession.ElevationGain = elevation.Value;
         }
@@ -242,7 +242,7 @@ public class HistoryService
     /// </summary>
     private List<TreadmillSession> LoadSessionsFromDisk()
     {
-     try
+        try
         {
             if (File.Exists(_historyFilePath))
             {

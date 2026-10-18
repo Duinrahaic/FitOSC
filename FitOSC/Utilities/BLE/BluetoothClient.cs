@@ -15,10 +15,12 @@ namespace FitOSC.Utilities.BLE
 
         private readonly Dictionary<Guid, GattCharacteristic> _characteristics = new();
         private readonly Dictionary<Guid, EventHandler<GattCharacteristicValueChangedEventArgs>> _subscriptions = new();
-        
+
         public override bool IsConnected => _device != null;
 
-        private readonly Channel<(Guid characteristicUuid, byte[] command)> _channel;
+        public override string? DeviceName => _device?.Name;
+
+        private readonly Channel<(Guid characteristicUuid, byte[] command, bool withResponse)> _channel;
         private readonly CancellationTokenSource _cts = new();
         private readonly ILogger _logger;
         private readonly Task _backgroundThread;
@@ -26,13 +28,13 @@ namespace FitOSC.Utilities.BLE
         public BluetoothClient(ILogger logger)
         {
             this._logger = logger;
-            _channel = Channel.CreateUnbounded<(Guid, byte[])>(
+            _channel = Channel.CreateUnbounded<(Guid, byte[], bool)>(
                 new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
             // Start background loop
             _backgroundThread = Task.Run(CommandLoop);
         }
-        
+
         /// <summary>
         ///  Ensure commands are sent sequentially in the background.
         /// </summary>
@@ -40,7 +42,7 @@ namespace FitOSC.Utilities.BLE
         {
             try
             {
-                await foreach (var (uuid, command) in _channel.Reader.ReadAllAsync(_cts.Token))
+                await foreach (var (uuid, command, withResponse) in _channel.Reader.ReadAllAsync(_cts.Token))
                 {
                     if (!_characteristics.TryGetValue(uuid, out var characteristic))
                     {
@@ -50,7 +52,10 @@ namespace FitOSC.Utilities.BLE
 
                     try
                     {
-                        await characteristic.WriteValueWithoutResponseAsync(command);
+                        if (withResponse)
+                            await characteristic.WriteValueWithResponseAsync(command);
+                        else
+                            await characteristic.WriteValueWithoutResponseAsync(command);
                         _logger.LogInformation("Sent {Command} to {Uuid}", BitConverter.ToString(command), uuid);
                     }
                     catch (Exception ex)
@@ -64,8 +69,8 @@ namespace FitOSC.Utilities.BLE
                 // expected on shutdown
             }
         }
-        
-        public override async Task<bool> ConnectAsync(Guid serviceUuid, string? deviceName = null)
+
+        public override async Task<bool> ConnectAsync(Guid serviceUuid, string? deviceName, CancellationToken cancellationToken)
         {
             Stopwatch sw = Stopwatch.StartNew();
             sw.Start();
@@ -74,7 +79,7 @@ namespace FitOSC.Utilities.BLE
             {
                 Services = { serviceUuid },
             });
-            
+
 
             _logger.LogInformation("Scanning for devices...");
             if (!string.IsNullOrEmpty(deviceName))
@@ -86,6 +91,7 @@ namespace FitOSC.Utilities.BLE
                 _logger.LogInformation("Scanning for device {DeviceName}", deviceName);
             }
             var devices = await Bluetooth.ScanForDevicesAsync(options);
+            cancellationToken.ThrowIfCancellationRequested();
             sw.Stop();
             _logger.LogInformation("Scan completed in {ElapsedMilliseconds} ms", sw.ElapsedMilliseconds);
             if (devices.Count == 0)
@@ -108,8 +114,8 @@ namespace FitOSC.Utilities.BLE
 
             return true;
         }
-        
-        
+
+
 
         /// <summary>
         /// Subscribe to a characteristic and pass notifications to a callback.
@@ -161,9 +167,9 @@ namespace FitOSC.Utilities.BLE
         /// <summary>
         /// Queue a command to write to a characteristic.
         /// </summary>
-        public override async Task WriteAsync(Guid characteristicUuid, byte[] command)
-        { 
-            await _channel.Writer.WriteAsync((characteristicUuid, command), _cts.Token);
+        public override async Task WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false)
+        {
+            await _channel.Writer.WriteAsync((characteristicUuid, command, withResponse), _cts.Token);
         }
 
         public override async Task<byte[]?> ReadAsync(Guid characteristicUuid)
@@ -171,7 +177,7 @@ namespace FitOSC.Utilities.BLE
             throw new NotImplementedException();
             await Task.CompletedTask;
         }
-        
+
 
         public override async Task DisconnectAsync()
         {
@@ -219,7 +225,7 @@ namespace FitOSC.Utilities.BLE
             catch (OperationCanceledException) { }
             _device?.Gatt.Disconnect();
             _cts.Dispose();
- 
+
         }
     }
 }
