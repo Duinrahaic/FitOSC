@@ -16,8 +16,15 @@ namespace FitOSC.Utilities.BLE
     public class WindowsBluetoothClient(ILogger logger) : BaseBluetoothClient
     {
         private BluetoothLEDevice? _device;
+        private GattSession? _gattSession;
         private GattDeviceService? _service;
         private BluetoothLEAdvertisementWatcher? _watcher;
+
+        // Addresses of treadmills connected before, by name, shared by every client so a reconnect skips the scan.
+        private static readonly ConcurrentDictionary<string, ulong> KnownAddresses = new(StringComparer.OrdinalIgnoreCase);
+
+        // Bounds connecting by a known address, so a treadmill that is off still leaves time for the scan.
+        private static readonly TimeSpan KnownAddressTimeout = TimeSpan.FromSeconds(10);
 
         // Commands and polling write from other threads while connect and teardown change these.
         private readonly ConcurrentDictionary<Guid, GattCharacteristic> _characteristics = new();
@@ -135,88 +142,32 @@ namespace FitOSC.Utilities.BLE
                 await TearDownAsync();
 
                 _lastServiceUuid = serviceUuid;
-
-                var tcs = new TaskCompletionSource<ulong>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var sw = Stopwatch.StartNew();
 
-                _watcher = new BluetoothLEAdvertisementWatcher
+                // A treadmill connected before is opened by its address, skipping the scan: Windows links up as soon as
+                // it advertises. The scan remains for a first connect, or when the address no longer answers.
+                if (!string.IsNullOrEmpty(deviceName) && KnownAddresses.TryGetValue(deviceName.Trim(), out var known))
                 {
-                    ScanningMode = BluetoothLEScanningMode.Active
-                };
-
-                _watcher.Received += (sender, args) =>
-                {
-                    try
+                    if (await TryOpenKnownAsync(known, serviceUuid, cancellationToken))
                     {
-                        string name = args.Advertisement.LocalName;
-
-                        // A chosen device must match by name; any device offering the service is only taken when none
-                        // was chosen, so a neighbouring treadmill with the same service is never connected instead.
-                        bool nameMatch = !string.IsNullOrEmpty(deviceName) &&
-                                         string.Equals(name?.Trim(), deviceName.Trim(), StringComparison.OrdinalIgnoreCase);
-
-                        bool serviceMatch = string.IsNullOrEmpty(deviceName) &&
-                                            args.Advertisement.ServiceUuids.Contains(serviceUuid);
-
-                        if (nameMatch || serviceMatch)
-                        {
-                            logger.LogInformation(
-                                "Discovered device {Name} ({Addr}), match={MatchType}",
-                                string.IsNullOrEmpty(name) ? "<no name>" : name,
-                                args.BluetoothAddress,
-                                nameMatch ? "Name" : "Service");
-
-                            tcs.TrySetResult(args.BluetoothAddress);
-                            sender.Stop();
-                        }
+                        logger.LogInformation("Connected to {Name} by its known address in {Elapsed} ms", deviceName,
+                            sw.ElapsedMilliseconds);
+                        return true;
                     }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Error in BLE advertisement received handler");
-                    }
-                };
 
-                logger.LogInformation("Starting BLE scan for service {ServiceUuid}, device name filter: {DeviceName}...",
-                    serviceUuid, deviceName ?? "<any>");
-                _watcher.Start();
+                    logger.LogInformation("{Name} did not answer at its known address; scanning", deviceName);
+                }
 
                 try
                 {
-                    ulong btAddress;
-                    using (var scanTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-                    {
-                        scanTimeout.CancelAfter(ScanTimeout);
-                        await using var registration = scanTimeout.Token.Register(() => tcs.TrySetCanceled(scanTimeout.Token));
-                        btAddress = await tcs.Task;
-                    }
-
+                    var address = await ScanForDeviceAsync(serviceUuid, deviceName, cancellationToken);
                     logger.LogInformation("Scan completed in {Elapsed} ms", sw.ElapsedMilliseconds);
-                    StopWatcher();
 
-                    _device = await BluetoothLEDevice.FromBluetoothAddressAsync(btAddress).AsTask(cancellationToken);
-                    if (_device == null)
-                    {
-                        logger.LogWarning("Could not connect to device.");
+                    if (!await OpenAsync(address, serviceUuid, cancellationToken))
                         return false;
-                    }
 
-                    _device.ConnectionStatusChanged += Device_ConnectionStatusChanged;
-
-                    // Windows answers from its GATT cache first, which is empty for a device it has not fully
-                    // discovered yet, so a miss asks the device itself.
-                    var result = await _device.GetGattServicesForUuidAsync(serviceUuid).AsTask(cancellationToken);
-                    if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
-                        result = await _device.GetGattServicesForUuidAsync(serviceUuid, BluetoothCacheMode.Uncached)
-                            .AsTask(cancellationToken);
-                    if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
-                    {
-                        logger.LogWarning("Service {ServiceUuid} not found on {Name}", serviceUuid, _device.Name);
-                        await TearDownAsync();
-                        return false;
-                    }
-
-                    _service = result.Services[0];
-                    logger.LogInformation("Connected to {Name} with service {ServiceUuid}", _device.Name, serviceUuid);
+                    if (!string.IsNullOrEmpty(deviceName))
+                        KnownAddresses[deviceName.Trim()] = address;
                     return true;
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -242,6 +193,127 @@ namespace FitOSC.Utilities.BLE
             {
                 _connectionLock.Release();
             }
+        }
+
+        /// <summary>
+        /// Opens a remembered address within <see cref="KnownAddressTimeout"/>. Returns false, leaving nothing open,
+        /// when it does not answer in time or fails; only the caller cancelling is thrown.
+        /// </summary>
+        private async Task<bool> TryOpenKnownAsync(ulong address, Guid serviceUuid, CancellationToken cancellationToken)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(KnownAddressTimeout);
+            try
+            {
+                return await OpenAsync(address, serviceUuid, timeout.Token);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                logger.LogDebug(ex, "Opening known address {Addr} failed", address);
+                await TearDownAsync();
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                await TearDownAsync();
+                throw;
+            }
+        }
+
+        /// <summary>Scans until a matching device advertises and returns its address; throws on timeout or cancellation.</summary>
+        private async Task<ulong> ScanForDeviceAsync(Guid serviceUuid, string? deviceName, CancellationToken cancellationToken)
+        {
+            var tcs = new TaskCompletionSource<ulong>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            _watcher = new BluetoothLEAdvertisementWatcher
+            {
+                ScanningMode = BluetoothLEScanningMode.Active
+            };
+
+            _watcher.Received += (sender, args) =>
+            {
+                try
+                {
+                    string name = args.Advertisement.LocalName;
+
+                    // A chosen device must match by name; any device offering the service is only taken when none
+                    // was chosen, so a neighbouring treadmill with the same service is never connected instead.
+                    bool nameMatch = !string.IsNullOrEmpty(deviceName) &&
+                                     string.Equals(name?.Trim(), deviceName.Trim(), StringComparison.OrdinalIgnoreCase);
+
+                    bool serviceMatch = string.IsNullOrEmpty(deviceName) &&
+                                        args.Advertisement.ServiceUuids.Contains(serviceUuid);
+
+                    if (nameMatch || serviceMatch)
+                    {
+                        logger.LogInformation(
+                            "Discovered device {Name} ({Addr}), match={MatchType}",
+                            string.IsNullOrEmpty(name) ? "<no name>" : name,
+                            args.BluetoothAddress,
+                            nameMatch ? "Name" : "Service");
+
+                        tcs.TrySetResult(args.BluetoothAddress);
+                        sender.Stop();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Error in BLE advertisement received handler");
+                }
+            };
+
+            logger.LogInformation("Starting BLE scan for service {ServiceUuid}, device name filter: {DeviceName}...",
+                serviceUuid, deviceName ?? "<any>");
+            _watcher.Start();
+
+            try
+            {
+                using var scanTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                scanTimeout.CancelAfter(ScanTimeout);
+                await using var registration = scanTimeout.Token.Register(() => tcs.TrySetCanceled(scanTimeout.Token));
+                return await tcs.Task;
+            }
+            finally
+            {
+                StopWatcher();
+            }
+        }
+
+        /// <summary>
+        /// Opens the device at an address and its service. A session that keeps the link up is held for the connection,
+        /// so Windows neither drops a quiet link nor lingers on one after teardown. Returns false, leaving nothing open,
+        /// when the device or service is missing.
+        /// </summary>
+        private async Task<bool> OpenAsync(ulong address, Guid serviceUuid, CancellationToken cancellationToken)
+        {
+            _device = await BluetoothLEDevice.FromBluetoothAddressAsync(address).AsTask(cancellationToken);
+            if (_device == null)
+            {
+                logger.LogWarning("Could not connect to device.");
+                return false;
+            }
+
+            _device.ConnectionStatusChanged += Device_ConnectionStatusChanged;
+
+            _gattSession = await GattSession.FromDeviceIdAsync(_device.BluetoothDeviceId).AsTask(cancellationToken);
+            _gattSession.MaintainConnection = true;
+
+            // Windows answers from its GATT cache first, which is empty for a device it has not fully
+            // discovered yet, so a miss asks the device itself.
+            var result = await _device.GetGattServicesForUuidAsync(serviceUuid).AsTask(cancellationToken);
+            if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
+                result = await _device.GetGattServicesForUuidAsync(serviceUuid, BluetoothCacheMode.Uncached)
+                    .AsTask(cancellationToken);
+            if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
+            {
+                logger.LogWarning("Service {ServiceUuid} not found on {Name}", serviceUuid, _device.Name);
+                await TearDownAsync();
+                return false;
+            }
+
+            _service = result.Services[0];
+            logger.LogInformation("Connected to {Name} with service {ServiceUuid}", _device.Name, serviceUuid);
+            return true;
         }
 
         private void StopWatcher()
@@ -734,6 +806,17 @@ namespace FitOSC.Utilities.BLE
                     logger.LogWarning(ex, "Error disposing GATT service");
                 }
                 _service = null;
+
+                // Releasing the session lets Windows close the link now rather than when it next collects garbage.
+                try
+                {
+                    _gattSession?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Error disposing GATT session");
+                }
+                _gattSession = null;
 
                 try
                 {

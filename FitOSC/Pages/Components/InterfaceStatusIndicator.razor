@@ -11,7 +11,7 @@
 @inject IOscService OscService
 @inject OpenVRService VRService
 
-<div class="icon @GetActiveClass() @GetScanningClass() @GetErrorClass()" id="@GetId()" @onclick="HandleClick" style="cursor: @(IsClickable ? "pointer" : "default")">
+<div class="icon @GetActiveClass() @GetScanningClass() @GetErrorClass()" id="@GetId()" @onclick="HandleClick" title="@GetTitle()" style="cursor: @(IsClickable ? "pointer" : "default")">
     <i class="@GetIcon()"></i>
 </div>
 @code {
@@ -19,6 +19,7 @@
     [Parameter] public required AppInterface Interface { get; set; }
     
     private Dictionary<AppInterface, ConnectionStatus> _interfaceStatuses = new();
+    private string? _bluetoothDetail;
     private ConnectionStatus Status => _interfaceStatuses.GetValueOrDefault(Interface, ConnectionStatus.Disconnected);
     
     private bool IsActive => Status == ConnectionStatus.Connected;
@@ -83,6 +84,9 @@
             _ => "fa-solid fa-circle"
         };
     }
+    // The Bluetooth icon explains what the connection is doing or why it failed.
+    private string? GetTitle() => Interface == AppInterface.Bluetooth ? _bluetoothDetail ?? Status.ToString() : null;
+
     private string GetActiveClass()
     {
         return IsActive ? "active" : string.Empty;
@@ -95,7 +99,8 @@
 
     private void UpdateAppState(AppStateInfo info)
     {
-        _interfaceStatuses = info.ConnectionStates; 
+        _interfaceStatuses = info.ConnectionStates;
+        _bluetoothDetail = info.BluetoothDetail;
         InvokeAsync(StateHasChanged);
     }
 
