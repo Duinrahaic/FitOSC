@@ -21,8 +21,7 @@ It only reads; it never writes to the device beyond enabling notifications.
 Not shown: cadence, stride length, the walking/running flag, incline, calories, heart rate and elapsed time (the
 duration stays at 0).
 
-Controls: none. START, PAUSE, STOP, speed and incline do nothing. Do not press speed **+** / **-**: this driver
-reports no speed range, so FitOSC throws an error (see README).
+Controls: none. START, PAUSE, STOP and the speed and incline **+** / **-** controls stay disabled.
 
 ## Checklist
 
@@ -38,8 +37,8 @@ Use a treadmill that advertises service 0x1814, or a footpod. `FitOSC.getDeviceI
 4. **Distance.** If the device sets the distance flag, run 0.50 km by the console: FitOSC distance rises by
    0.50 km ± 0.01 km. If distance stays `--`, record that the device omits it (not a failure).
 5. **Stopping.** Stop from the console: speed returns to 0 and state to Stopped within 2 s.
-6. **No control.** Press START, PAUSE and STOP once each with the belt stopped: nothing happens on the treadmill and
-   the log shows no `Wrote` line for them.
+6. **No control.** START, PAUSE, STOP and speed **+** / **-** are disabled while connected, and
+   `FitOSC.setSpeed(3.0)` writes nothing.
 7. **Units.** Switch **Settings** > **User** to Imperial: speed shows mph (km/h / 1.609344) and distance miles.
 8. **Disconnect and reconnect.** README section 5.
 
