@@ -20,7 +20,7 @@ public class UrevoTreadmillService(ILogger<UrevoTreadmillService> logger, AppSta
     private const byte BikeCommand = (byte)'B';
 
     private const byte SpeedRangeParameter = 0x02;
-    private const byte InclineRangeParameter = 0x06;
+    private const byte InclineRangeParameter = 0x03;
     private const byte StartControl = 0x01;
     private const byte SetSpeedAndInclineControl = 0x02;
     private const byte StopControl = 0x03;
