@@ -4,7 +4,11 @@ using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
-public interface ITreadmillService
+/// <summary>
+/// One connection to one treadmill. The manager creates a fresh instance for every connection attempt and disposes it
+/// when the attempt fails or the session ends; a disposed instance never publishes again.
+/// </summary>
+public interface ITreadmillService : IAsyncDisposable
 {
     bool IsConnected { get; }
 
@@ -33,11 +37,19 @@ public abstract class TreadmillService : ITreadmillService
 
     private readonly AppStateService AppState;
 
+    // Publishing and closing share this gate, so nothing a callback was still processing lands after disposal.
+    private readonly object _publishGate = new();
+    private volatile bool _closed;
+
     protected TreadmillService(AppStateService appState, BaseBluetoothClient client)
     {
         Client = client;
         AppState = appState;
-        Client.ConnectionLost += () => ConnectionLost?.Invoke();
+        Client.ConnectionLost += () =>
+        {
+            if (!_closed)
+                ConnectionLost?.Invoke();
+        };
     }
 
     public abstract Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken);
@@ -51,7 +63,26 @@ public abstract class TreadmillService : ITreadmillService
     public abstract Task RequestControlAsync();
     public abstract Task SendCommandAsync(byte[] command);
     public abstract TreadmillTelemetry TranslateData(byte[] data);
-    protected void RaiseData(TreadmillTelemetry telemetry) => AppState.PublishTreadmillData(telemetry);
-    protected void RaiseState(TreadmillState state) => AppState.PublishTreadmillState(state);
-    protected void RaiseConfiguration(TreadmillConfiguration config) => AppState.PublishTreadmillConfiguration(config);
+    protected void RaiseData(TreadmillTelemetry telemetry) => Publish(() => AppState.PublishTreadmillData(telemetry));
+    protected void RaiseState(TreadmillState state) => Publish(() => AppState.PublishTreadmillState(state));
+    protected void RaiseConfiguration(TreadmillConfiguration config) => Publish(() => AppState.PublishTreadmillConfiguration(config));
+
+    private void Publish(Action publish)
+    {
+        lock (_publishGate)
+        {
+            if (!_closed)
+                publish();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        lock (_publishGate)
+            _closed = true;
+
+        await DisconnectAsync();
+        await Client.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
 }

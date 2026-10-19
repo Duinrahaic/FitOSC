@@ -17,16 +17,25 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
     protected readonly ILogger Logger = logger;
 
     private CancellationTokenSource? _sessionCts;
+    private CancellationToken _sessionToken = new(canceled: true);
+    private Task? _polling;
     private SerialChannel? _channel;
+
+    // Notifications and poll ticks take turns, so protocol state is only changed by one of them at a time.
+    private readonly SemaphoreSlim _protocolGate = new(1, 1);
 
     /// <summary>Channels to try in order; the first one the device exposes is used.</summary>
     protected abstract IReadOnlyList<SerialChannel> Channels { get; }
 
     protected abstract TimeSpan PollInterval { get; }
 
+    /// <summary>Handles one notification. Never runs at the same time as <see cref="PollAsync"/>.</summary>
     protected abstract void OnNotification(byte[] data);
 
-    /// <summary>Writes the request(s) for one poll tick, including handshake retries until the device is ready.</summary>
+    /// <summary>
+    /// Writes the request(s) for one poll tick, including handshake retries until the device is ready. Notifications
+    /// wait until it completes, so it must not wait for one.
+    /// </summary>
     protected abstract Task PollAsync();
 
     /// <summary>Runs after notifications are enabled and before polling starts (handshakes, parameter queries).</summary>
@@ -43,7 +52,7 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
     private static readonly TimeSpan ReadyCheckInterval = TimeSpan.FromMilliseconds(100);
 
     /// <summary>Cancelled when the connection ends; delayed work must observe it so it cannot leak into the next session.</summary>
-    protected CancellationToken SessionToken => _sessionCts?.Token ?? new CancellationToken(canceled: true);
+    protected CancellationToken SessionToken => _sessionToken;
 
     public override async Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken)
     {
@@ -52,14 +61,14 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
             if (!await Client.ConnectAsync(channel.Service, deviceName, cancellationToken))
                 continue;
 
-            if (!await Client.SubscribeAsync(channel.Notify, OnNotification))
+            if (!await Client.SubscribeAsync(channel.Notify, HandleNotification, cancellationToken))
             {
                 Logger.LogError("Failed to subscribe to notify characteristic {Uuid}", channel.Notify);
                 return false;
             }
 
             // Resolve the write characteristic now so a missing one fails the connection instead of every command.
-            if (!await Client.SubscribeAsync(channel.Write, null))
+            if (!await Client.SubscribeAsync(channel.Write, null, cancellationToken))
             {
                 Logger.LogError("Write characteristic {Uuid} not found", channel.Write);
                 return false;
@@ -67,8 +76,9 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
 
             _channel = channel;
             _sessionCts = new CancellationTokenSource();
+            _sessionToken = _sessionCts.Token;
             await OnConnectedAsync();
-            _ = RunPollingAsync(_sessionCts.Token);
+            _polling = RunPollingAsync(_sessionToken);
 
             // Polling retries the handshake; the caller's timeout bounds the wait.
             while (!IsReady)
@@ -80,14 +90,30 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
         return false;
     }
 
+    /// <summary>
+    /// Stops polling and waits for an in-progress tick, so no request from this session is written after it ends.
+    /// </summary>
     public override async Task DisconnectAsync()
     {
         _sessionCts?.Cancel();
+        if (_polling != null)
+            await _polling;
+        _polling = null;
         _sessionCts?.Dispose();
         _sessionCts = null;
-        OnDisconnected();
+
         _channel = null;
         await Client.DisconnectAsync();
+
+        await _protocolGate.WaitAsync();
+        try
+        {
+            OnDisconnected();
+        }
+        finally
+        {
+            _protocolGate.Release();
+        }
     }
 
     // Serial protocols have no FTMS-style control handshake.
@@ -97,11 +123,24 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
 
     public override async Task SendCommandAsync(byte[] command) => await WriteAsync(command);
 
-    protected async Task WriteAsync(byte[] frame)
+    /// <summary>Writes a frame to the session's write characteristic; returns whether it reached the device.</summary>
+    protected async Task<bool> WriteAsync(byte[] frame)
     {
-        if (_channel == null)
-            return;
-        await Client.WriteAsync(_channel.Write, frame);
+        var channel = _channel;
+        return channel != null && await Client.WriteAsync(channel.Write, frame);
+    }
+
+    private void HandleNotification(byte[] data)
+    {
+        _protocolGate.Wait();
+        try
+        {
+            OnNotification(data);
+        }
+        finally
+        {
+            _protocolGate.Release();
+        }
     }
 
     private async Task RunPollingAsync(CancellationToken token)
@@ -111,8 +150,22 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
         {
             while (await timer.WaitForNextTickAsync(token))
             {
-                if (Client.IsConnected)
+                if (!Client.IsConnected)
+                    continue;
+
+                await _protocolGate.WaitAsync(token);
+                try
+                {
                     await PollAsync();
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Logger.LogError(ex, "Treadmill poll failed");
+                }
+                finally
+                {
+                    _protocolGate.Release();
+                }
             }
         }
         catch (OperationCanceledException)

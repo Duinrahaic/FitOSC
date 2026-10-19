@@ -67,6 +67,7 @@ public class TreadmillTelemetryValue
                 converted = Value.ConvertKphToMph(); // km/h → mi/h
                 break;
             case TreadmillTelemetryProperty.InstantaneousPace: // sec/km → sec/mile
+            case TreadmillTelemetryProperty.AveragePace:
                 converted = Value.ConvertMphToKph();
                 break;
             case TreadmillTelemetryProperty.TotalDistance:
@@ -76,7 +77,7 @@ public class TreadmillTelemetryValue
                 converted = Value * 3.28084m;  // meters → feet
                 break;
 
-            // Incline (%), RampAngle (%), Calories, HR, MET, Time, Force, Power, Steps don't change
+            // Incline (%), RampAngle (degrees), Calories, HR, MET, Time, Force, Power, Steps don't change
             default:
                 break;
         }

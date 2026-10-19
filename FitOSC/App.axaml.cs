@@ -6,6 +6,7 @@ using Avalonia.Markup.Xaml;
 using FitOSC.Client.ViewModels;
 using FitOSC.Client.Views;
 using FitOSC.Services;
+using FitOSC.Services.Treadmill;
 using Application = Avalonia.Application;
 
 namespace FitOSC;
@@ -55,8 +56,14 @@ public class App : Application, IDisposable
     }
 
 
+    private static readonly TimeSpan TreadmillDisconnectTimeout = TimeSpan.FromSeconds(3);
+
     private void Exit(object? sender, EventArgs e)
     {
+        // Release the treadmill before the process ends; a stalled link must not keep the app open.
+        if (AppHost?.Services.GetService<TreadmillManager>() is { } treadmill)
+            Task.Run(treadmill.DisconnectAsync).Wait(TreadmillDisconnectTimeout);
+
         Environment.Exit(0);
     }
 
@@ -79,6 +86,10 @@ public class App : Application, IDisposable
             appBuilder.Logging.RegisterLogger();
             appBuilder.Services.RegisterServices();
             AppHost = appBuilder.Build();
+
+            // A wrongly registered driver fails here, at startup, rather than on the first connection.
+            _ = TreadmillDrivers.All;
+
             AppHost.Start();
             buildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }

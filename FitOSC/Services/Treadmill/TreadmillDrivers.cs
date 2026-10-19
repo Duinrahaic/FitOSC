@@ -19,23 +19,40 @@ public sealed record TreadmillDriver(
 /// </summary>
 public static class TreadmillDrivers
 {
-    private static readonly Dictionary<TreadmillType, TreadmillDriver> ByType = typeof(TreadmillDrivers).Assembly
-        .GetTypes()
-        .Where(type => typeof(ITreadmillService).IsAssignableFrom(type) && !type.IsAbstract)
-        .Select(type => (Type: type, Attribute: type.GetCustomAttribute<TreadmillDriverAttribute>()))
-        .Where(entry => entry.Attribute != null)
-        .Select(entry => new TreadmillDriver(
-            entry.Attribute!.Type,
-            entry.Attribute.Name,
-            entry.Attribute.Description,
-            entry.Attribute.Experimental,
-            entry.Attribute.AdvertisedServices.Select(Guid.Parse).ToList(),
-            entry.Type))
-        .ToDictionary(driver => driver.Type);
+    private static readonly Dictionary<TreadmillType, TreadmillDriver> ByType = Discover();
 
     public static IReadOnlyList<TreadmillDriver> All { get; } = ByType.Values.OrderBy(driver => driver.Type).ToList();
 
     public static TreadmillDriver? Find(TreadmillType type) => ByType.GetValueOrDefault(type);
+
+    /// <summary>Finds every <see cref="TreadmillDriverAttribute"/> service, failing on the first one registered wrongly.</summary>
+    private static Dictionary<TreadmillType, TreadmillDriver> Discover()
+    {
+        var drivers = new Dictionary<TreadmillType, TreadmillDriver>();
+        foreach (var type in typeof(TreadmillDrivers).Assembly.GetTypes())
+        {
+            if (type.GetCustomAttribute<TreadmillDriverAttribute>() is not { } attribute)
+                continue;
+
+            if (!typeof(ITreadmillService).IsAssignableFrom(type) || type.IsAbstract)
+                throw new InvalidOperationException($"{type.Name} is marked as a treadmill driver but is not a concrete treadmill service");
+            if (type.GetConstructors().Length != 1)
+                throw new InvalidOperationException($"Treadmill driver {type.Name} must have exactly one public constructor");
+            if (drivers.TryGetValue(attribute.Type, out var existing))
+                throw new InvalidOperationException(
+                    $"Treadmill drivers {existing.ServiceType.Name} and {type.Name} are both registered as {attribute.Type}");
+
+            drivers[attribute.Type] = new TreadmillDriver(
+                attribute.Type,
+                attribute.Name,
+                attribute.Description,
+                attribute.Experimental,
+                attribute.AdvertisedServices.Select(Guid.Parse).ToList(),
+                type);
+        }
+
+        return drivers;
+    }
 
     /// <summary>
     /// Creates the driver's service. Driver constructors take a logger (<see cref="ILogger"/> or

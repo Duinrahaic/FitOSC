@@ -1,20 +1,11 @@
-﻿using System.Windows;
-using System.Windows.Forms;
-using Application = System.Windows.Application;
-
-namespace FitOSC.Utilities.BLE
+﻿namespace FitOSC.Utilities.BLE
 {
     /// <summary>
     /// Abstract base class for Bluetooth client implementations.
-    /// Provides a common contract for platform-specific BLE backends.
+    /// Provides a common contract for platform-specific BLE backends. The owner disposes it.
     /// </summary>
     public abstract class BaseBluetoothClient : IAsyncDisposable
     {
-        protected BaseBluetoothClient()
-        {
-            AppDomain.CurrentDomain.ProcessExit += async (s, e) => await DisposeAsync();
-        }
-
         /// <summary>
         /// Whether the client is currently connected to a device.
         /// </summary>
@@ -42,7 +33,8 @@ namespace FitOSC.Utilities.BLE
         /// Subscribes to a given characteristic and invokes the callback on notifications.
         /// A null callback only resolves and caches the characteristic.
         /// </summary>
-        public abstract Task<bool> SubscribeAsync(Guid characteristicUuid, Action<byte[]>? callback);
+        public abstract Task<bool> SubscribeAsync(Guid characteristicUuid, Action<byte[]>? callback,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Unsubscribes from a characteristic.
@@ -55,14 +47,15 @@ namespace FitOSC.Utilities.BLE
         /// <param name="characteristicUuid">The characteristic UUID to write to.</param>
         /// <param name="command">The raw bytes to write.</param>
         /// <param name="withResponse">Whether to use an acknowledged GATT write instead of write-without-response.</param>
-        public abstract Task WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false);
+        /// <returns>Whether the write reached the device.</returns>
+        public abstract Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false);
 
         /// <summary>
         /// Reads the current value of a given characteristic.
         /// </summary>
         /// <param name="characteristicUuid">The characteristic UUID to read from.</param>
         /// <returns>The raw byte array read from the characteristic.</returns>
-        public abstract Task<byte[]?> ReadAsync(Guid characteristicUuid);
+        public abstract Task<byte[]?> ReadAsync(Guid characteristicUuid, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Disconnects from the current device and cleans up resources.

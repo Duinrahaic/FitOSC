@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -18,8 +19,14 @@ namespace FitOSC.Utilities.BLE
         private GattDeviceService? _service;
         private BluetoothLEAdvertisementWatcher? _watcher;
 
-        private readonly Dictionary<Guid, GattCharacteristic> _characteristics = new();
-        private readonly Dictionary<Guid, TypedEventHandler<GattCharacteristic, GattValueChangedEventArgs>> _subscriptions = new();
+        // Commands and polling write from other threads while connect and teardown change these.
+        private readonly ConcurrentDictionary<Guid, GattCharacteristic> _characteristics = new();
+        private readonly ConcurrentDictionary<Guid, TypedEventHandler<GattCharacteristic, GattValueChangedEventArgs>> _subscriptions = new();
+
+        // Services other than the connected one that own cached characteristics; released at teardown.
+        private readonly List<GattDeviceService> _otherServices = new();
+
+        private static readonly TimeSpan UnsubscribeTimeout = TimeSpan.FromSeconds(2);
 
         private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(10);
 
@@ -143,11 +150,13 @@ namespace FitOSC.Utilities.BLE
                     {
                         string name = args.Advertisement.LocalName;
 
+                        // A chosen device must match by name; any device offering the service is only taken when none
+                        // was chosen, so a neighbouring treadmill with the same service is never connected instead.
                         bool nameMatch = !string.IsNullOrEmpty(deviceName) &&
-                                         !string.IsNullOrEmpty(name) &&
-                                         name.Contains(deviceName, StringComparison.OrdinalIgnoreCase);
+                                         string.Equals(name, deviceName, StringComparison.OrdinalIgnoreCase);
 
-                        bool serviceMatch = args.Advertisement.ServiceUuids.Contains(serviceUuid);
+                        bool serviceMatch = string.IsNullOrEmpty(deviceName) &&
+                                            args.Advertisement.ServiceUuids.Contains(serviceUuid);
 
                         if (nameMatch || serviceMatch)
                         {
@@ -294,7 +303,8 @@ namespace FitOSC.Utilities.BLE
             }
         }
 
-        public override async Task<bool> SubscribeAsync(Guid characteristicUuid, Action<byte[]>? callback)
+        public override async Task<bool> SubscribeAsync(Guid characteristicUuid, Action<byte[]>? callback,
+            CancellationToken cancellationToken = default)
         {
             if (_service == null)
             {
@@ -321,7 +331,11 @@ namespace FitOSC.Utilities.BLE
                 GattCharacteristicsResult result;
                 try
                 {
-                    result = await _service.GetCharacteristicsForUuidAsync(characteristicUuid);
+                    result = await _service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -332,7 +346,7 @@ namespace FitOSC.Utilities.BLE
                     {
                         try
                         {
-                            result = await _service!.GetCharacteristicsForUuidAsync(characteristicUuid);
+                            result = await _service!.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
                         }
                         catch (Exception ex2)
                         {
@@ -354,7 +368,7 @@ namespace FitOSC.Utilities.BLE
                 else
                 {
                     // Some vendor characteristics live outside the service used to connect.
-                    var other = await FindCharacteristicInOtherServicesAsync(characteristicUuid);
+                    var other = await FindCharacteristicInOtherServicesAsync(characteristicUuid, cancellationToken);
                     if (other == null)
                     {
                         logger.LogWarning("Characteristic {Uuid} not found. Status: {Status}", characteristicUuid, result.Status);
@@ -394,13 +408,13 @@ namespace FitOSC.Utilities.BLE
                 if (characteristic.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify))
                 {
                     var status = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                        GattClientCharacteristicConfigurationDescriptorValue.Notify);
+                        GattClientCharacteristicConfigurationDescriptorValue.Notify).AsTask(cancellationToken);
 
                     if (status != GattCommunicationStatus.Success)
                     {
                         logger.LogWarning("Failed to subscribe to {Uuid}: {Status}", characteristicUuid, status);
                         characteristic.ValueChanged -= handler;
-                        _subscriptions.Remove(characteristicUuid);
+                        _subscriptions.TryRemove(characteristicUuid, out _);
                         return false;
                     }
 
@@ -409,13 +423,13 @@ namespace FitOSC.Utilities.BLE
                 else if (characteristic.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Indicate))
                 {
                     var status = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                        GattClientCharacteristicConfigurationDescriptorValue.Indicate);
+                        GattClientCharacteristicConfigurationDescriptorValue.Indicate).AsTask(cancellationToken);
 
                     if (status != GattCommunicationStatus.Success)
                     {
                         logger.LogWarning("Failed to subscribe to {Uuid}: {Status}", characteristicUuid, status);
                         characteristic.ValueChanged -= handler;
-                        _subscriptions.Remove(characteristicUuid);
+                        _subscriptions.TryRemove(characteristicUuid, out _);
                         return false;
                     }
 
@@ -425,7 +439,7 @@ namespace FitOSC.Utilities.BLE
                 {
                     logger.LogWarning("Characteristic {Uuid} does not support notifications or indications.", characteristicUuid);
                     characteristic.ValueChanged -= handler;
-                    _subscriptions.Remove(characteristicUuid);
+                    _subscriptions.TryRemove(characteristicUuid, out _);
                     return false;
                 }
             }
@@ -439,33 +453,41 @@ namespace FitOSC.Utilities.BLE
 
         /// <summary>
         /// Searches the connected device's services, other than the one used to connect, for a characteristic.
+        /// The service that owns it is kept until teardown; every other enumerated service is released.
         /// </summary>
-        private async Task<GattCharacteristic?> FindCharacteristicInOtherServicesAsync(Guid characteristicUuid)
+        private async Task<GattCharacteristic?> FindCharacteristicInOtherServicesAsync(Guid characteristicUuid,
+            CancellationToken cancellationToken)
         {
             if (_device == null)
                 return null;
 
-            var services = await _device.GetGattServicesAsync();
+            var services = await _device.GetGattServicesAsync().AsTask(cancellationToken);
             if (services.Status != GattCommunicationStatus.Success)
             {
                 logger.LogWarning("Failed to enumerate GATT services: {Status}", services.Status);
                 return null;
             }
 
+            GattCharacteristic? found = null;
             foreach (var service in services.Services)
             {
-                if (service.Uuid == _lastServiceUuid)
-                    continue;
-
-                var result = await service.GetCharacteristicsForUuidAsync(characteristicUuid);
-                if (result.Status == GattCommunicationStatus.Success && result.Characteristics.Count > 0)
+                if (found == null && service.Uuid != _lastServiceUuid)
                 {
-                    logger.LogDebug("Found characteristic {Uuid} in service {ServiceUuid}", characteristicUuid, service.Uuid);
-                    return result.Characteristics[0];
+                    var result = await service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
+                    if (result.Status == GattCommunicationStatus.Success && result.Characteristics.Count > 0)
+                    {
+                        logger.LogDebug("Found characteristic {Uuid} in service {ServiceUuid}", characteristicUuid, service.Uuid);
+                        found = result.Characteristics[0];
+                        lock (_otherServices)
+                            _otherServices.Add(service);
+                        continue;
+                    }
                 }
+
+                service.Dispose();
             }
 
-            return null;
+            return found;
         }
 
         public override async Task UnsubscribeAsync(Guid characteristicUuid)
@@ -477,7 +499,7 @@ namespace FitOSC.Utilities.BLE
                 await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
                     GattClientCharacteristicConfigurationDescriptorValue.None);
 
-                _subscriptions.Remove(characteristicUuid);
+                _subscriptions.TryRemove(characteristicUuid, out _);
                 logger.LogInformation("Unsubscribed from {Uuid}", characteristicUuid);
             }
         }
@@ -533,7 +555,7 @@ namespace FitOSC.Utilities.BLE
             return output.ToString();
         }
 
-        public override async Task WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false)
+        public override async Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false)
         {
             const int maxRetries = 3;
             int attemptCount = 0;
@@ -582,7 +604,7 @@ namespace FitOSC.Utilities.BLE
                     if (status == GattCommunicationStatus.Success)
                     {
                         logger.LogDebug("Wrote {Command} to {Uuid}", BitConverter.ToString(command), characteristicUuid);
-                        return; // Success - exit the method
+                        return true;
                     }
                     else
                     {
@@ -594,7 +616,7 @@ namespace FitOSC.Utilities.BLE
                             continue;
                         }
                         logger.LogWarning("Failed to write to {Uuid}: {Status}", characteristicUuid, status);
-                        return; // Exit after max retries
+                        return false;
                     }
                 }
                 catch (Exception ex)
@@ -612,14 +634,16 @@ namespace FitOSC.Utilities.BLE
                     }
                 }
             }
+
+            return false;
         }
 
-        public override async Task<byte[]?> ReadAsync(Guid characteristicUuid)
+        public override async Task<byte[]?> ReadAsync(Guid characteristicUuid, CancellationToken cancellationToken = default)
         {
             if (!_characteristics.TryGetValue(characteristicUuid, out var characteristic))
                 return null;
 
-            var result = await characteristic.ReadValueAsync();
+            var result = await characteristic.ReadValueAsync().AsTask(cancellationToken);
             if (result.Status != GattCommunicationStatus.Success)
                 return null;
 
@@ -684,7 +708,8 @@ namespace FitOSC.Utilities.BLE
                 {
                     try
                     {
-                        await Task.WhenAll(unsubscribeTasks).ConfigureAwait(false);
+                        // A link that stalls must not hold teardown, and with it the next connection, indefinitely.
+                        await Task.WhenAll(unsubscribeTasks).WaitAsync(UnsubscribeTimeout).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
@@ -694,6 +719,13 @@ namespace FitOSC.Utilities.BLE
 
                 _subscriptions.Clear();
                 _characteristics.Clear();
+
+                lock (_otherServices)
+                {
+                    foreach (var service in _otherServices)
+                        service.Dispose();
+                    _otherServices.Clear();
+                }
 
                 try
                 {

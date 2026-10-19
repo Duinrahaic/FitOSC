@@ -21,6 +21,18 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     // Control Point response: 0x80, request opcode, result code (0x01 = success).
     private const byte ResponseCode = 0x80;
     private const byte ResultSuccess = 0x01;
+    private const byte RequestControlOpcode = 0x00;
+
+    // Total Energy of 0xFFFF means the machine does not know it.
+    private const ushort EnergyNotAvailable = 0xFFFF;
+
+    // How long a Control Point procedure waits for the machine's response before the next one may start.
+    private static readonly TimeSpan ControlPointTimeout = TimeSpan.FromSeconds(3);
+
+    // One Control Point procedure at a time; each completes with the response to its own opcode.
+    private readonly SemaphoreSlim _controlPointGate = new(1, 1);
+    private TaskCompletionSource<byte>? _pendingResponse;
+    private byte _pendingOpcode;
 
     // Fitness Machine Status opcodes.
     private const byte StatusReset = 0x01;
@@ -46,8 +58,8 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         }
 
         // Subscribe to critical characteristics. The Control Point must be indicating before it accepts commands.
-        bool controlPointOk = await Client.SubscribeAsync(ControlPoint, HandleControlPointResponse);
-        bool treadmillDataOk = await Client.SubscribeAsync(TreadmillData, HandleTelemetryData);
+        bool controlPointOk = await Client.SubscribeAsync(ControlPoint, HandleControlPointResponse, cancellationToken);
+        bool treadmillDataOk = await Client.SubscribeAsync(TreadmillData, HandleTelemetryData, cancellationToken);
 
         if (!controlPointOk || !treadmillDataOk)
         {
@@ -57,11 +69,11 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         }
 
         // Subscribe to optional characteristics
-        await Client.SubscribeAsync(StatusPoint, HandleStatus);
-        await Client.SubscribeAsync(SupportedSpeed, null);
-        await Client.SubscribeAsync(SupportedIncline, null);
+        await Client.SubscribeAsync(StatusPoint, HandleStatus, cancellationToken);
+        await Client.SubscribeAsync(SupportedSpeed, null, cancellationToken);
+        await Client.SubscribeAsync(SupportedIncline, null, cancellationToken);
 
-        await GetTreadmillConfigurationAsync();
+        await ReadConfigurationAsync(cancellationToken);
         return true;
     }
 
@@ -73,13 +85,54 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         await Client.DisconnectAsync();
     }
 
+    /// <summary>Requests control. A machine that refuses it will refuse every command, so that fails the connection.</summary>
     public override async Task RequestControlAsync()
     {
-        await WriteControlPointAsync(new byte[] { 0x00 });
+        var result = await RunControlPointAsync(new byte[] { RequestControlOpcode });
+        if (result is { } code && code != ResultSuccess)
+            throw new InvalidOperationException($"The treadmill refused control (result {code:X2})");
     }
 
-    // The Control Point only accepts acknowledged writes.
-    protected Task WriteControlPointAsync(byte[] payload) => Client.WriteAsync(ControlPoint, payload, withResponse: true);
+    /// <summary>Runs one Control Point procedure and returns whether the machine accepted it.</summary>
+    protected async Task<bool> WriteControlPointAsync(byte[] payload) =>
+        await RunControlPointAsync(payload) == ResultSuccess;
+
+    /// <summary>
+    /// Writes a Control Point request and waits for the machine's response to it, so procedures never overlap.
+    /// Returns the result code, or null when the write failed or no response arrived in time.
+    /// </summary>
+    private async Task<byte?> RunControlPointAsync(byte[] payload)
+    {
+        await _controlPointGate.WaitAsync();
+        try
+        {
+            var response = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingOpcode = payload[0];
+            Volatile.Write(ref _pendingResponse, response);
+
+            // The Control Point only accepts acknowledged writes.
+            if (!await Client.WriteAsync(ControlPoint, payload, withResponse: true))
+                return null;
+
+            try
+            {
+                var result = await response.Task.WaitAsync(ControlPointTimeout);
+                if (result != ResultSuccess)
+                    logger.LogWarning("Treadmill rejected control point opcode {Opcode:X2} with result {Result:X2}", payload[0], result);
+                return result;
+            }
+            catch (TimeoutException)
+            {
+                logger.LogWarning("Treadmill did not answer control point opcode {Opcode:X2}", payload[0]);
+                return null;
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _pendingResponse, null);
+            _controlPointGate.Release();
+        }
+    }
 
     public override async Task StartAsync() =>
         await WriteControlPointAsync(new byte[] { 0x07 });
@@ -133,10 +186,12 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     public override async Task SendCommandAsync(byte[] command) =>
         await WriteControlPointAsync(command);
 
-    public override async Task GetTreadmillConfigurationAsync()
+    public override Task GetTreadmillConfigurationAsync() => ReadConfigurationAsync(CancellationToken.None);
+
+    private async Task ReadConfigurationAsync(CancellationToken cancellationToken)
     {
-        var (minSpeed, maxSpeed, stepSpeed) = await ReadSupportedSpeedRangeAsync();
-        var (minIncline, maxIncline, stepIncline) = await ReadSupportedInclineRangeAsync();
+        var (minSpeed, maxSpeed, stepSpeed) = await ReadSupportedSpeedRangeAsync(cancellationToken);
+        var (minIncline, maxIncline, stepIncline) = await ReadSupportedInclineRangeAsync(cancellationToken);
         _configuration = new TreadmillConfiguration
         {
             MinSpeed = minSpeed,
@@ -153,10 +208,9 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     /// Reads the treadmill's supported inclination range from the FTMS characteristic (0x2AD5).
     /// Returns the minimum, maximum, and step in percent (%).
     /// </summary>
-    private async Task<(decimal Min, decimal Max, decimal Step)> ReadSupportedInclineRangeAsync()
+    private async Task<(decimal Min, decimal Max, decimal Step)> ReadSupportedInclineRangeAsync(CancellationToken cancellationToken)
     {
-
-        var data = await Client.ReadAsync(SupportedIncline);
+        var data = await Client.ReadAsync(SupportedIncline, cancellationToken);
         if (data == null || data.Length < 6)
         {
             logger.LogWarning("Failed to read Supported Incline Range or data was invalid.");
@@ -186,9 +240,9 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     /// Reads the treadmill's supported speed range from the FTMS characteristic (0x2AD4).
     /// Returns the minimum, maximum, and increment in km/h.
     /// </summary>
-    private async Task<(decimal Min, decimal Max, decimal Step)> ReadSupportedSpeedRangeAsync()
+    private async Task<(decimal Min, decimal Max, decimal Step)> ReadSupportedSpeedRangeAsync(CancellationToken cancellationToken)
     {
-        var data = await Client.ReadAsync(SupportedSpeed);
+        var data = await Client.ReadAsync(SupportedSpeed, cancellationToken);
         if (data == null || data.Length < 6)
         {
             logger.LogWarning("Failed to read Supported Speed Range or data was invalid.");
@@ -291,11 +345,10 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         }
 
         // Total Energy (uint16, kcal)
-        if (flags.HasKcal)
+        if (flags.HasKcal && BitConverter.ToUInt16(data, flags.PosKcal) is var kcal and not EnergyNotAvailable)
         {
             td.Values[TreadmillTelemetryProperty.Calories].Enabled = true;
-            td.Values[TreadmillTelemetryProperty.Calories].Value =
-                BitConverter.ToUInt16(data, flags.PosKcal);
+            td.Values[TreadmillTelemetryProperty.Calories].Value = kcal;
         }
 
         // Heart Rate (uint8, bpm)
@@ -407,7 +460,13 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
 
     private void HandleControlPointResponse(byte[] data)
     {
-        if (data.Length >= 3 && data[0] == ResponseCode && data[2] != ResultSuccess)
+        if (data.Length < 3 || data[0] != ResponseCode)
+            return;
+
+        var pending = Volatile.Read(ref _pendingResponse);
+        if (pending != null && data[1] == _pendingOpcode)
+            pending.TrySetResult(data[2]);
+        else if (data[2] != ResultSuccess)
             logger.LogWarning("Treadmill rejected control point opcode {Opcode:X2} with result {Result:X2}", data[1], data[2]);
     }
 }

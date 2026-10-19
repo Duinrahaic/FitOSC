@@ -55,22 +55,18 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             var driver = TreadmillDrivers.Find(type);
             if (driver == null)
             {
-                appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Disconnected);
+                _logger.LogError("No treadmill driver is registered for {Type}", type);
+                appState.SetConnectedDeviceName(null);
+                appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Error);
                 return;
             }
 
-            var service = TreadmillDrivers.Create(driver, loggerFactory, appState);
-
             appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connecting);
 
-            // The session exists before connecting so a drop during initialization is handled once the lock is free.
             var session = new CancellationTokenSource();
-            var token = session.Token;
-            _active = service;
             _session = session;
-            service.ConnectionLost += () => OnConnectionLost(service, deviceName, token);
 
-            var status = await TryConnectAsync(service, deviceName, token);
+            var status = await TryConnectAsync(driver, deviceName, session.Token);
             if (status != ConnectionStatus.Connected)
             {
                 await EndSessionAsync();
@@ -89,55 +85,72 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     }
 
     /// <summary>
-    /// Connects and initializes the service within <see cref="ConnectionTimeout"/>. Any failure leaves it disconnected.
+    /// Connects and initializes a fresh instance of the driver within <see cref="ConnectionTimeout"/>. On success it
+    /// becomes the active service; on any failure it is disposed. Callers hold the session lock.
     /// </summary>
-    private async Task<ConnectionStatus> TryConnectAsync(ITreadmillService service, string deviceName, CancellationToken session)
+    private async Task<ConnectionStatus> TryConnectAsync(TreadmillDriver driver, string deviceName, CancellationToken session)
     {
+        ITreadmillService service;
+        try
+        {
+            service = TreadmillDrivers.Create(driver, loggerFactory, appState);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not create the {Driver} driver", driver.Name);
+            return ConnectionStatus.Error;
+        }
+
+        // Active before connecting so a drop during initialization is handled once the lock is free.
+        _active = service;
+        service.ConnectionLost += () => OnConnectionLost(service, driver, deviceName, session);
+
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(session);
         timeout.CancelAfter(ConnectionTimeout);
 
+        ConnectionStatus status;
         try
         {
             if (await service.ConnectAsync(deviceName, timeout.Token))
             {
-                timeout.Token.ThrowIfCancellationRequested();
                 await service.RequestControlAsync();
+                timeout.Token.ThrowIfCancellationRequested();
                 if (service.IsConnected)
                     return ConnectionStatus.Connected;
             }
 
             _logger.LogError("Treadmill {Device} did not finish connecting", deviceName);
-            await service.DisconnectAsync();
-            return ConnectionStatus.Disconnected;
+            status = ConnectionStatus.Disconnected;
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             if (!session.IsCancellationRequested)
                 _logger.LogError("Connection timed out after {Timeout} seconds", ConnectionTimeout.TotalSeconds);
-            await service.DisconnectAsync();
-            return session.IsCancellationRequested ? ConnectionStatus.Disconnected : ConnectionStatus.Error;
+            status = session.IsCancellationRequested ? ConnectionStatus.Disconnected : ConnectionStatus.Error;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during treadmill connection");
-            await service.DisconnectAsync();
-            return ConnectionStatus.Error;
+            status = ConnectionStatus.Error;
         }
+
+        await RetireActiveAsync();
+        return status;
     }
 
-    private void OnConnectionLost(ITreadmillService service, string deviceName, CancellationToken session)
+    private void OnConnectionLost(ITreadmillService service, TreadmillDriver driver, string deviceName, CancellationToken session)
     {
-        if (session.IsCancellationRequested || Interlocked.Exchange(ref _reconnecting, 1) == 1)
+        if (session.IsCancellationRequested || service != _active || Interlocked.Exchange(ref _reconnecting, 1) == 1)
             return;
 
-        _ = ReconnectAsync(service, deviceName, session);
+        _ = ReconnectAsync(driver, deviceName, session);
     }
 
     /// <summary>
-    /// Tears the dropped session down and re-runs the full driver connect, backing off until it succeeds or the
+    /// Retires the dropped service and connects fresh instances of its driver, backing off until one succeeds or the
     /// session is ended by <see cref="DisconnectAsync"/> or a new <see cref="ConnectAsync"/>.
     /// </summary>
-    private async Task ReconnectAsync(ITreadmillService service, string deviceName, CancellationToken session)
+    private async Task ReconnectAsync(TreadmillDriver driver, string deviceName, CancellationToken session)
     {
         try
         {
@@ -145,8 +158,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             await _sessionLock.WaitAsync(session);
             try
             {
-                // Tear down first so no late notification can republish the old reading.
-                await service.DisconnectAsync();
+                // Retire first so no late notification can republish the old reading.
+                await RetireActiveAsync();
                 PublishIdleTreadmill();
                 appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connecting);
             }
@@ -163,11 +176,11 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
                 await _sessionLock.WaitAsync(session);
                 try
                 {
-                    if (await TryConnectAsync(service, deviceName, session) == ConnectionStatus.Connected)
+                    if (await TryConnectAsync(driver, deviceName, session) == ConnectionStatus.Connected)
                     {
                         // Losses are ignored while reconnecting, so re-check the link once they are handled again.
                         Interlocked.Exchange(ref _reconnecting, 0);
-                        if (service.IsConnected)
+                        if (_active?.IsConnected == true)
                         {
                             appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connected);
                             _logger.LogInformation("Reconnected to {Device}", deviceName);
@@ -176,7 +189,7 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
 
                         if (Interlocked.Exchange(ref _reconnecting, 1) == 1)
                             return; // A new loss started its own reconnect.
-                        await service.DisconnectAsync();
+                        await RetireActiveAsync();
                     }
                 }
                 finally
@@ -205,15 +218,27 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         _session = null;
         Interlocked.Exchange(ref _reconnecting, 0);
 
-        if (_active != null)
-        {
-            var active = _active;
-            _active = null;
-            await active.DisconnectAsync();
-        }
-
+        await RetireActiveAsync();
         PublishIdleTreadmill();
         appState.PublishTreadmillConfiguration(new TreadmillConfiguration());
+    }
+
+    /// <summary>Disconnects and disposes the active service; it publishes nothing afterwards. Callers hold the session lock.</summary>
+    private async Task RetireActiveAsync()
+    {
+        var active = _active;
+        _active = null;
+        if (active == null)
+            return;
+
+        try
+        {
+            await active.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while disconnecting the treadmill");
+        }
     }
 
     /// <summary>Replaces the last reading with an empty one so stale speed and state are not left on screen or in OSC.</summary>

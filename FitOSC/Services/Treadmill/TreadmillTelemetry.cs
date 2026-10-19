@@ -23,7 +23,7 @@ namespace FitOSC.Services.Treadmill
             { TreadmillTelemetryProperty.AverageSpeed,       new TreadmillTelemetryValue(TreadmillTelemetryProperty.AverageSpeed, 0, "KPH", "MPH") },
             { TreadmillTelemetryProperty.TotalDistance,      new TreadmillTelemetryValue(TreadmillTelemetryProperty.TotalDistance, 0, "KILOMETERS", "MILES") },
             { TreadmillTelemetryProperty.Incline,            new TreadmillTelemetryValue(TreadmillTelemetryProperty.Incline, 0, "%") },
-            { TreadmillTelemetryProperty.RampAngle,          new TreadmillTelemetryValue(TreadmillTelemetryProperty.RampAngle, 0, "%") },
+            { TreadmillTelemetryProperty.RampAngle,          new TreadmillTelemetryValue(TreadmillTelemetryProperty.RampAngle, 0, "DEGREES") },
             { TreadmillTelemetryProperty.ElevationGain,      new TreadmillTelemetryValue(TreadmillTelemetryProperty.ElevationGain, 0, "METERS", "FEET") },
             { TreadmillTelemetryProperty.InstantaneousPace,  new TreadmillTelemetryValue(TreadmillTelemetryProperty.InstantaneousPace, 0, "PACE") },
             { TreadmillTelemetryProperty.AveragePace,        new TreadmillTelemetryValue(TreadmillTelemetryProperty.AveragePace, 0, "PACE") },
