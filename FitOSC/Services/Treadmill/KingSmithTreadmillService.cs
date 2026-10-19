@@ -3,9 +3,9 @@ using FitOSC.Services.State;
 namespace FitOSC.Services.Treadmill;
 
 /// <summary>
-/// Experimental: Evaluating driver
+/// WalkingPad and older KingSmith treadmills, over the FE00 serial protocol.
 /// </summary>
-[TreadmillDriver(TreadmillType.KingSmith, "KingSmith WalkingPad / Legacy", "WalkingPad and older KingSmith treadmills", Experimental = true,
+[TreadmillDriver(TreadmillType.KingSmith, "KingSmith WalkingPad / Legacy", "WalkingPad and older KingSmith treadmills",
     AdvertisedServices = ["0000fe00-0000-1000-8000-00805f9b34fb"])]
 public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger, AppStateService appState)
     : SerialTreadmillService(logger, appState)
