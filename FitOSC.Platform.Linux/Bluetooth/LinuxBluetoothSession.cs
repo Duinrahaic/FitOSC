@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Channels;
 using global::Linux.Bluetooth;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,9 @@ internal sealed class LinuxBluetoothSession(
     private bool _everConnected;
     private bool _everResolved;
     private bool _lost;
-    private (string Reason, Exception? Failure)? _loss;
+
+    // How long the link has been usable, for diagnosing drops.
+    private readonly Stopwatch _linkAge = new();
     private long _generation;
     private volatile bool _isConnected;
     private volatile bool _deviceRemoved;
@@ -49,14 +52,19 @@ internal sealed class LinuxBluetoothSession(
         token.ThrowIfCancellationRequested();
         _watches.Add(await Device.WatchPropertiesAsync(changes =>
         {
+            bool ended;
             lock (_state)
             {
+                ended = _lost;
                 foreach (var pair in changes.Changed)
                 {
                     if (pair.Key == "Connected" && pair.Value is bool connected) _connected = connected;
                     if (pair.Key == "ServicesResolved" && pair.Value is bool resolved) _resolved = resolved;
                 }
             }
+            foreach (var pair in changes.Changed.Where(pair => pair.Key is "Connected" or "ServicesResolved"))
+                logger.LogInformation("Link {Property} = {Value} for {Name} ({Device}) after {Age:F1} s{Ended}", pair.Key,
+                    pair.Value, Name, Device.ObjectPath, _linkAge.Elapsed.TotalSeconds, ended ? "; session already ended" : "");
             if (changes.Invalidated.Contains("Connected") || changes.Invalidated.Contains("ServicesResolved"))
                 Lose("Bluetooth connection properties were invalidated.");
             Evaluate();
@@ -123,8 +131,9 @@ internal sealed class LinuxBluetoothSession(
             _isConnected = false;
             Interlocked.Increment(ref _generation);
             _ready.TrySetResult(false);
-            _loss = (reason, failure);
         }
+        logger.LogWarning(failure, "Device disconnected: {Name} ({Device}) after {Age:F1} s connected. {Reason}", Name,
+            Device.ObjectPath, _linkAge.Elapsed.TotalSeconds, reason);
         ConnectionLost?.Invoke();
     }
 
@@ -132,14 +141,6 @@ internal sealed class LinuxBluetoothSession(
     {
         _deviceRemoved = true;
         Invalidate("BlueZ service owner changed.");
-    }
-
-    private void LogLoss()
-    {
-        (string Reason, Exception? Failure)? loss;
-        lock (_state) { loss = _loss; _loss = null; }
-        if (loss is { } value)
-            logger.LogWarning(value.Failure, "{Reason} Device: {Device}", value.Reason, Device.ObjectPath);
     }
 
     private void Invalidate(string reason, Exception? failure = null)
@@ -153,6 +154,7 @@ internal sealed class LinuxBluetoothSession(
         {
             if (_lost || _connected != true || _resolved != true) return false;
             _isConnected = true;
+            _linkAge.Restart();
             return true;
         }
     }
@@ -173,7 +175,11 @@ internal sealed class LinuxBluetoothSession(
         InvalidateCallbacks();
         foreach (var characteristic in Characteristics.Values) characteristic.Subscription?.Suppress();
         var failures = new List<Exception>();
-        try { LogLoss(); }
+        try
+        {
+            logger.LogInformation("Disconnecting from {Name} ({Device}) after {Age:F1} s", Name, Device.ObjectPath,
+                _linkAge.Elapsed.TotalSeconds);
+        }
         catch (Exception ex) { failures.Add(ex); }
         foreach (var characteristic in Characteristics.Values)
         {

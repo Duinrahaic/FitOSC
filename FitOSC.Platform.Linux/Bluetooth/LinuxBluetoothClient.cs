@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
 using FitOSC.Utilities.BLE;
 using global::Linux.Bluetooth;
@@ -19,6 +21,12 @@ public sealed class LinuxBluetoothClient(
     private Task? _disconnectTask;
     private Task? _disposeTask;
     private LinuxBluetoothSession? _session;
+
+    // BlueZ device paths of treadmills connected before, by name, shared by every client so a reconnect skips discovery.
+    private static readonly ConcurrentDictionary<string, ObjectPath> KnownDevices = new(StringComparer.OrdinalIgnoreCase);
+
+    // Bounds connecting to a known device, so a treadmill that is off still leaves time for discovery.
+    private static readonly TimeSpan KnownDeviceTimeout = TimeSpan.FromSeconds(10);
 
     public bool IsConnected => !_closing && Volatile.Read(ref _session)?.IsConnected == true;
 
@@ -48,9 +56,26 @@ public sealed class LinuxBluetoothClient(
         using var operation = await EnterAsync(cancellationToken).ConfigureAwait(false);
         await CleanupSessionAsync().ConfigureAwait(false);
         var token = operation.Token;
+        var started = Stopwatch.GetTimestamp();
         try
         {
             var adapter = await discovery.GetAdapterAsync(token).ConfigureAwait(false);
+
+            // A treadmill connected before is opened by its device path, skipping discovery: BlueZ links up as soon as it
+            // advertises. Discovery remains for a first connect, or when the device no longer answers there.
+            if (!string.IsNullOrEmpty(deviceName) && KnownDevices.TryGetValue(deviceName.Trim(), out var known)
+                && known.ToString().StartsWith(adapter.ObjectPath + "/", StringComparison.Ordinal))
+            {
+                if (await TryOpenKnownAsync(known, deviceName, adapter, serviceUuid, token).ConfigureAwait(false))
+                {
+                    logger.LogInformation("Connected to {Name} by its known device path in {Elapsed} ms", deviceName,
+                        (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    return true;
+                }
+
+                logger.LogInformation("{Name} did not answer at its known device path; scanning", deviceName);
+            }
+
             // A chosen device must match by name; any device offering the service is only taken when none was chosen,
             // so a neighbouring treadmill with the same service is never connected instead.
             var devices = await LinuxBluetoothDiscovery.ObserveAsync(discovery, adapter, TimeSpan.FromSeconds(10),
@@ -59,29 +84,19 @@ public sealed class LinuxBluetoothClient(
                     : string.Equals(device.Name?.Trim(), deviceName.Trim(), StringComparison.OrdinalIgnoreCase),
                 token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            if (devices.Count == 0) return false;
-            var device = LinuxBluetoothDiscoveryCoordinator.Proxy<IDevice1>(devices[0].Path);
-            var deviceLease = await LinuxBluetoothDeviceLease.AcquireAsync(device.ObjectPath).ConfigureAwait(false);
-            var session = new LinuxBluetoothSession(device, adapter, deviceLease, logger) { Name = devices[0].Name };
-            session.ConnectionLost += () =>
+            if (devices.Count == 0)
             {
-                if (ReferenceEquals(Volatile.Read(ref _session), session))
-                    ConnectionLost?.Invoke();
-            };
-            Volatile.Write(ref _session, session);
-            await session.InitializeAsync(token).ConfigureAwait(false);
-            await ConnectDeviceAsync(session, token).ConfigureAwait(false);
-            if (!await session.Ready.WaitAsync(token).ConfigureAwait(false))
-                throw new IOException("Bluetooth device was lost before service resolution completed.");
-            token.ThrowIfCancellationRequested();
-            session.Service = await ResolveServiceAsync(session, serviceUuid, token).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
-            if (session.Service is null || !session.Publish())
-            {
-                await CleanupSessionAsync().ConfigureAwait(false);
+                logger.LogWarning("No device matching {Name} was found within 10 s", deviceName ?? serviceUuid.ToString());
                 return false;
             }
-            logger.LogInformation("Connected to Linux BLE device {Device}, service {Service}.", session.Device.ObjectPath, serviceUuid);
+
+            logger.LogInformation("Discovered {Name} ({Device}) in {Elapsed} ms", devices[0].Name, devices[0].Path,
+                (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            if (!await OpenAsync(devices[0].Path, devices[0].Name, adapter, serviceUuid, token).ConfigureAwait(false))
+                return false;
+
+            if (!string.IsNullOrEmpty(deviceName))
+                KnownDevices[deviceName.Trim()] = devices[0].Path;
             return true;
         }
         catch (Exception failure)
@@ -97,6 +112,56 @@ public sealed class LinuxBluetoothClient(
             }
             throw;
         }
+    }
+
+    /// <summary>
+    /// Opens a remembered device within <see cref="KnownDeviceTimeout"/>. Returns false, leaving nothing open, when it
+    /// does not answer in time, has been forgotten by BlueZ, or fails; only the caller cancelling is thrown.
+    /// </summary>
+    private async Task<bool> TryOpenKnownAsync(ObjectPath path, string name, IAdapter1 adapter, Guid serviceUuid,
+        CancellationToken token)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(KnownDeviceTimeout);
+        try
+        {
+            return await OpenAsync(path, name, adapter, serviceUuid, timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!token.IsCancellationRequested && ex is OperationCanceledException or IOException or DBusException)
+        {
+            logger.LogDebug(ex, "Opening known device {Device} failed", path);
+            await CleanupSessionAsync().ConfigureAwait(false);
+            return false;
+        }
+    }
+
+    /// <summary>Connects the device at a BlueZ path and resolves its service. Returns false, leaving nothing open, when the service is missing.</summary>
+    private async Task<bool> OpenAsync(ObjectPath path, string? name, IAdapter1 adapter, Guid serviceUuid, CancellationToken token)
+    {
+        var device = LinuxBluetoothDiscoveryCoordinator.Proxy<IDevice1>(path);
+        var deviceLease = await LinuxBluetoothDeviceLease.AcquireAsync(device.ObjectPath).ConfigureAwait(false);
+        var session = new LinuxBluetoothSession(device, adapter, deviceLease, logger) { Name = name };
+        session.ConnectionLost += () =>
+        {
+            if (ReferenceEquals(Volatile.Read(ref _session), session))
+                ConnectionLost?.Invoke();
+        };
+        Volatile.Write(ref _session, session);
+        await session.InitializeAsync(token).ConfigureAwait(false);
+        await ConnectDeviceAsync(session, token).ConfigureAwait(false);
+        if (!await session.Ready.WaitAsync(token).ConfigureAwait(false))
+            throw new IOException("Bluetooth device was lost before service resolution completed.");
+        token.ThrowIfCancellationRequested();
+        session.Service = await ResolveServiceAsync(session, serviceUuid, token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if (session.Service is null || !session.Publish())
+        {
+            logger.LogWarning("Service {Service} not found on {Name} ({Device})", serviceUuid, name, path);
+            await CleanupSessionAsync().ConfigureAwait(false);
+            return false;
+        }
+        logger.LogInformation("Connected to {Name} ({Device}) with service {Service}", name, path, serviceUuid);
+        return true;
     }
 
     private async Task ConnectDeviceAsync(LinuxBluetoothSession session, CancellationToken token)
@@ -322,20 +387,41 @@ public sealed class LinuxBluetoothClient(
         return null;
     }
 
+    /// <summary>
+    /// Finds a characteristic in the service used to connect, then in the device's other services, since some vendor
+    /// characteristics live outside it.
+    /// </summary>
     private static async Task<LinuxBluetoothSession.Characteristic?> ResolveAsync(
         LinuxBluetoothSession session, Guid uuid, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         if (session.Characteristics.TryGetValue(uuid, out var cached)) return cached;
         if (session.Service is null) return null;
-        var proxies = await session.Service.GetCharacteristicsAsync().ConfigureAwait(false);
+        if (await ResolveInServiceAsync(session, session.Service, uuid, token).ConfigureAwait(false) is { } found)
+            return found;
+
+        var services = await session.Device.GetServicesAsync().ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        foreach (var service in services)
+        {
+            if (service.ObjectPath == session.Service.ObjectPath) continue;
+            if (await ResolveInServiceAsync(session, service, uuid, token).ConfigureAwait(false) is { } other)
+                return other;
+        }
+        return null;
+    }
+
+    private static async Task<LinuxBluetoothSession.Characteristic?> ResolveInServiceAsync(
+        LinuxBluetoothSession session, IGattService1 service, Guid uuid, CancellationToken token)
+    {
+        var proxies = await service.GetCharacteristicsAsync().ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         foreach (var proxy in proxies)
         {
             if (!session.IsConnected) throw new BluetoothConnectionLostException("Device disconnected while resolving a characteristic.");
             var properties = await proxy.GetAllAsync().ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            if (properties.Service != session.Service.ObjectPath || !Guid.TryParse(properties.UUID, out var candidate) || candidate != uuid) continue;
+            if (properties.Service != service.ObjectPath || !Guid.TryParse(properties.UUID, out var candidate) || candidate != uuid) continue;
             var characteristic = new LinuxBluetoothSession.Characteristic(proxy, properties.Flags ?? []);
             session.Characteristics.Add(uuid, characteristic);
             return characteristic;
