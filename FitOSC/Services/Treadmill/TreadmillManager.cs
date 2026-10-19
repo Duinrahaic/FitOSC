@@ -111,7 +111,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         ConnectionStatus status;
         try
         {
-            if (await service.ConnectAsync(deviceName, timeout.Token))
+            // Bounded here too, so a driver step that ignores the token cannot hold the session lock past the timeout.
+            if (await service.ConnectAsync(deviceName, timeout.Token).WaitAsync(timeout.Token))
             {
                 await service.RequestControlAsync().WaitAsync(timeout.Token);
                 if (service.IsConnected)

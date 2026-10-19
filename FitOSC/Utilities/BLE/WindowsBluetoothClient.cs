@@ -153,7 +153,7 @@ namespace FitOSC.Utilities.BLE
                         // A chosen device must match by name; any device offering the service is only taken when none
                         // was chosen, so a neighbouring treadmill with the same service is never connected instead.
                         bool nameMatch = !string.IsNullOrEmpty(deviceName) &&
-                                         string.Equals(name, deviceName, StringComparison.OrdinalIgnoreCase);
+                                         string.Equals(name?.Trim(), deviceName.Trim(), StringComparison.OrdinalIgnoreCase);
 
                         bool serviceMatch = string.IsNullOrEmpty(deviceName) &&
                                             args.Advertisement.ServiceUuids.Contains(serviceUuid);
