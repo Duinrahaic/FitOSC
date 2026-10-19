@@ -1,4 +1,4 @@
-﻿@using FitOSC.Services.State
+@using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
 @inject AppStateService AppState
 @implements IDisposable
@@ -40,7 +40,7 @@
     private bool _enabled = false;
     private string _unit = "MPH";
     private decimal _value = 0m;
-    private TreadmillTelemetryValue? _data;
+    private TreadmillTelemetryValueSnapshot? _data;
     private TimeSpan _duration = TimeSpan.Zero;
     
      protected override void OnInitialized()

@@ -11,5 +11,9 @@
 *_SUMMARY.md
 *_ANALYSIS.md
 
+# Build output for every project
+bin/
+obj/
+
 # Sass source maps
 *.css.map

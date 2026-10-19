@@ -27,49 +27,17 @@ public class DebugConsoleService(
         var scanDuration = TimeSpan.FromSeconds(durationSeconds);
         var deviceInfo = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>>();
 
-        // Use Windows BLE API directly to capture service UUIDs
-        var watcher = new Windows.Devices.Bluetooth.Advertisement.BluetoothLEAdvertisementWatcher
+        var devices = await treadmill.ScanDevicesAsync(scanDuration);
+        foreach (var device in devices)
         {
-            ScanningMode = Windows.Devices.Bluetooth.Advertisement.BluetoothLEScanningMode.Active
-        };
-
-        watcher.Received += (sender, args) =>
-        {
-            try
-            {
-                string name = args.Advertisement.LocalName;
-                if (string.IsNullOrEmpty(name)) return;
-
-                if (!deviceInfo.ContainsKey(name))
-                {
-                    deviceInfo[name] = new System.Collections.Generic.List<string>();
-                }
-
-                // Suggest every driver whose service the device advertises; several share the FFF0 serial service
-                foreach (var driver in TreadmillDrivers.All)
-                {
-                    var label = driver.Type.ToString();
-                    if (driver.AdvertisedServices.Any(args.Advertisement.ServiceUuids.Contains) && !deviceInfo[name].Contains(label))
-                    {
-                        deviceInfo[name].Add(label);
-                    }
-                }
-
-                // If device doesn't advertise any treadmill services but has a name, still track it
-                if (deviceInfo[name].Count == 0 && !deviceInfo[name].Contains("Unknown"))
-                {
-                    deviceInfo[name].Add("Unknown");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Error processing BLE advertisement during scan");
-            }
-        };
-
-        watcher.Start();
-        await Task.Delay(scanDuration);
-        watcher.Stop();
+            // Suggest every driver whose service the device advertises; several share the FFF0 serial service
+            var drivers = TreadmillDrivers.All
+                .Where(driver => driver.AdvertisedServices.Any(device.ServiceUuids.Contains))
+                .Select(driver => driver.Type.ToString())
+                .ToList();
+            if (drivers.Count == 0) drivers.Add("Unknown");
+            deviceInfo[device.Name] = drivers;
+        }
 
         // Format output
         var output = new System.Text.StringBuilder();

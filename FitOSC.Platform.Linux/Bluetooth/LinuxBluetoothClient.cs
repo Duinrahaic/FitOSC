@@ -1,0 +1,543 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text;
+using FitOSC.Utilities.BLE;
+using global::Linux.Bluetooth;
+using global::Linux.Bluetooth.Extensions;
+using Microsoft.Extensions.Logging;
+using Tmds.DBus;
+
+namespace FitOSC.Platform.Linux.Bluetooth;
+
+/// <summary>A single-device BlueZ client. Issued D-Bus operations are always drained before returning.</summary>
+public sealed class LinuxBluetoothClient(
+    ILogger<LinuxBluetoothClient> logger, LinuxBluetoothDiscoveryCoordinator discovery) : IBluetoothClient
+{
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _lifecycle = new();
+    private CancellationTokenSource _work = new();
+    private volatile bool _closing;
+    private bool _disconnecting;
+    private Task? _disconnectTask;
+    private Task? _disposeTask;
+    private LinuxBluetoothSession? _session;
+
+    // BlueZ device paths of treadmills connected before, by name, shared by every client so a reconnect skips discovery.
+    private static readonly ConcurrentDictionary<string, ObjectPath> KnownDevices = new(StringComparer.OrdinalIgnoreCase);
+
+    // Bounds connecting to a known device, so a treadmill that is off still leaves time for discovery.
+    private static readonly TimeSpan KnownDeviceTimeout = TimeSpan.FromSeconds(10);
+
+    public bool IsConnected => !_closing && Volatile.Read(ref _session)?.IsConnected == true;
+
+    public string? DeviceName => IsConnected ? Volatile.Read(ref _session)?.Name : null;
+
+    public event Action? ConnectionLost;
+
+    public async Task<IReadOnlyList<BluetoothAdvertisement>> ScanAsync(TimeSpan duration)
+    {
+        if (duration < TimeSpan.Zero || duration.TotalMilliseconds > uint.MaxValue - 1)
+            throw new ArgumentOutOfRangeException(nameof(duration));
+        using var operation = await EnterAsync(default).ConfigureAwait(false);
+        await CleanLostSessionAsync().ConfigureAwait(false);
+        var adapter = await discovery.GetAdapterAsync(operation.Token).ConfigureAwait(false);
+        var devices = await LinuxBluetoothDiscovery.ObserveAsync(discovery, adapter, duration, null, operation.Token)
+            .ConfigureAwait(false);
+        operation.Token.ThrowIfCancellationRequested();
+        return devices.Where(device => !string.IsNullOrEmpty(device.Name))
+            .GroupBy(device => device.Name!, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new BluetoothAdvertisement(group.Key, group.SelectMany(device => device.Uuids).Distinct().ToArray()))
+            .ToArray();
+    }
+
+    public async Task<bool> ConnectAsync(Guid serviceUuid, string? deviceName = null, CancellationToken cancellationToken = default)
+    {
+        using var operation = await EnterAsync(cancellationToken).ConfigureAwait(false);
+        await CleanupSessionAsync().ConfigureAwait(false);
+        var token = operation.Token;
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            var adapter = await discovery.GetAdapterAsync(token).ConfigureAwait(false);
+
+            // A treadmill connected before is opened by its device path, skipping discovery: BlueZ links up as soon as it
+            // advertises. Discovery remains for a first connect, or when the device no longer answers there.
+            if (!string.IsNullOrEmpty(deviceName) && KnownDevices.TryGetValue(deviceName.Trim(), out var known)
+                && known.ToString().StartsWith(adapter.ObjectPath + "/", StringComparison.Ordinal))
+            {
+                if (await TryOpenKnownAsync(known, deviceName, adapter, serviceUuid, token).ConfigureAwait(false))
+                {
+                    logger.LogInformation("Connected to {Name} by its known device path in {Elapsed} ms", deviceName,
+                        (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    return true;
+                }
+
+                logger.LogInformation("{Name} did not answer at its known device path; scanning", deviceName);
+            }
+
+            // A chosen device must match by name; any device offering the service is only taken when none was chosen,
+            // so a neighbouring treadmill with the same service is never connected instead.
+            var devices = await LinuxBluetoothDiscovery.ObserveAsync(discovery, adapter, TimeSpan.FromSeconds(10),
+                device => string.IsNullOrEmpty(deviceName)
+                    ? device.Uuids.Contains(serviceUuid)
+                    : string.Equals(device.Name?.Trim(), deviceName.Trim(), StringComparison.OrdinalIgnoreCase),
+                token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (devices.Count == 0)
+            {
+                logger.LogWarning("No device matching {Name} was found within 10 s", deviceName ?? serviceUuid.ToString());
+                return false;
+            }
+
+            logger.LogInformation("Discovered {Name} ({Device}) in {Elapsed} ms", devices[0].Name, devices[0].Path,
+                (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            if (!await OpenAsync(devices[0].Path, devices[0].Name, adapter, serviceUuid, token).ConfigureAwait(false))
+                return false;
+
+            if (!string.IsNullOrEmpty(deviceName))
+                KnownDevices[deviceName.Trim()] = devices[0].Path;
+            return true;
+        }
+        catch (Exception failure)
+        {
+            try { await CleanupSessionAsync().ConfigureAwait(false); }
+            catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
+            if (failure is OperationCanceledException) throw;
+            if ((failure is DBusException dbus && LinuxBluetoothErrors.IsOperationFailure(dbus)) || failure is IOException)
+            {
+                logger.LogWarning(failure, "Linux BLE connection failed for service {Service}.", serviceUuid);
+                token.ThrowIfCancellationRequested();
+                return false;
+            }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Opens a remembered device within <see cref="KnownDeviceTimeout"/>. Returns false, leaving nothing open, when it
+    /// does not answer in time, has been forgotten by BlueZ, or fails; only the caller cancelling is thrown.
+    /// </summary>
+    private async Task<bool> TryOpenKnownAsync(ObjectPath path, string name, IAdapter1 adapter, Guid serviceUuid,
+        CancellationToken token)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(KnownDeviceTimeout);
+        try
+        {
+            return await OpenAsync(path, name, adapter, serviceUuid, timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!token.IsCancellationRequested && ex is OperationCanceledException or IOException or DBusException)
+        {
+            logger.LogDebug(ex, "Opening known device {Device} failed", path);
+            await CleanupSessionAsync().ConfigureAwait(false);
+            return false;
+        }
+    }
+
+    /// <summary>Connects the device at a BlueZ path and resolves its service. Returns false, leaving nothing open, when the service is missing.</summary>
+    private async Task<bool> OpenAsync(ObjectPath path, string? name, IAdapter1 adapter, Guid serviceUuid, CancellationToken token)
+    {
+        var device = LinuxBluetoothDiscoveryCoordinator.Proxy<IDevice1>(path);
+        var deviceLease = await LinuxBluetoothDeviceLease.AcquireAsync(device.ObjectPath).ConfigureAwait(false);
+        var session = new LinuxBluetoothSession(device, adapter, deviceLease, logger) { Name = name };
+        session.ConnectionLost += () =>
+        {
+            if (ReferenceEquals(Volatile.Read(ref _session), session))
+                ConnectionLost?.Invoke();
+        };
+        Volatile.Write(ref _session, session);
+        await session.InitializeAsync(token).ConfigureAwait(false);
+        await ConnectDeviceAsync(session, token).ConfigureAwait(false);
+        if (!await session.Ready.WaitAsync(token).ConfigureAwait(false))
+            throw new IOException("Bluetooth device was lost before service resolution completed.");
+        token.ThrowIfCancellationRequested();
+        session.Service = await ResolveServiceAsync(session, serviceUuid, token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if (session.Service is null || !session.Publish())
+        {
+            logger.LogWarning("Service {Service} not found on {Name} ({Device})", serviceUuid, name, path);
+            await CleanupSessionAsync().ConfigureAwait(false);
+            return false;
+        }
+        logger.LogInformation("Connected to {Name} ({Device}) with service {Service}", name, path, serviceUuid);
+        return true;
+    }
+
+    private async Task ConnectDeviceAsync(LinuxBluetoothSession session, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (session.IsLost) throw new IOException("Bluetooth device was lost before connecting.");
+        session.DisconnectNeeded = true;
+        var connect = session.Device.ConnectAsync();
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = token.Register(() => canceled.TrySetResult());
+        // BlueZ Disconnect explicitly cancels a pending Connect. Both issued tasks remain owned and awaited.
+        var winner = await Task.WhenAny(connect, canceled.Task).ConfigureAwait(false);
+        if (winner == canceled.Task && !connect.IsCompleted)
+        {
+            Exception? disconnectFailure = null;
+            try { await session.Device.DisconnectAsync().ConfigureAwait(false); }
+            catch (DBusException ex) when (ex.ErrorName == "org.bluez.Error.NotConnected")
+            {
+                logger.LogDebug("Pending connection to {Device} was already disconnected.", session.Device.ObjectPath);
+            }
+            catch (Exception ex) { disconnectFailure = ex; }
+            var connected = false;
+            Exception? connectFailure = null;
+            try { await connect.ConfigureAwait(false); connected = true; }
+            catch (Exception ex) { connectFailure = ex; }
+            session.DisconnectNeeded = connected || disconnectFailure is not null;
+            if (disconnectFailure is not null)
+            {
+                var failures = new List<Exception> { new OperationCanceledException(token), disconnectFailure };
+                if (connectFailure is not null) failures.Add(connectFailure);
+                throw new AggregateException("Pending BlueZ connection cancellation failed.", failures);
+            }
+            if (connectFailure is not null)
+            {
+                if (connectFailure is not DBusException)
+                    throw new AggregateException(new OperationCanceledException(token), connectFailure);
+                logger.LogDebug(connectFailure, "Canceled BlueZ Connect finished for {Device}.", session.Device.ObjectPath);
+            }
+            token.ThrowIfCancellationRequested();
+        }
+        await connect.ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+    }
+
+    public async Task<bool> SubscribeAsync(Guid characteristicUuid, Action<byte[]>? callback, CancellationToken cancellationToken = default)
+    {
+        using var operation = await EnterAsync(cancellationToken).ConfigureAwait(false);
+        var session = await GetConnectedSessionAsync().ConfigureAwait(false);
+        if (session is null) return false;
+        var token = operation.Token;
+        LinuxBluetoothSession.Characteristic? characteristic = null;
+        try
+        {
+            characteristic = await ResolveAsync(session, characteristicUuid, token).ConfigureAwait(false);
+            if (characteristic is null) return false;
+            token.ThrowIfCancellationRequested();
+            if (callback is null) return session.IsConnected;
+            if (characteristic.Subscription is { } previous)
+            {
+                await previous.ReleaseAsync().ConfigureAwait(false);
+                characteristic.Subscription = null;
+            }
+            token.ThrowIfCancellationRequested();
+            if (!session.IsConnected) throw new IOException("Device disconnected before notification setup.");
+            if (!characteristic.Flags.Contains("notify") && !characteristic.Flags.Contains("indicate")) return false;
+            var subscription = new LinuxBluetoothSession.Subscription(session, characteristic.Proxy, callback, logger);
+            characteristic.Subscription = subscription;
+            subscription.Watch = await characteristic.Proxy.WatchPropertiesAsync(subscription.OnProperties).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            subscription.NotifyOwned = true;
+            await characteristic.Proxy.StartNotifyAsync().ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (!session.IsConnected) throw new IOException("Device disconnected while enabling notifications.");
+            subscription.Enable();
+            return true;
+        }
+        catch (Exception failure)
+        {
+            if (characteristic?.Subscription is { } subscription)
+            {
+                try { await subscription.ReleaseAsync().ConfigureAwait(false); characteristic.Subscription = null; }
+                catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
+            }
+            if (failure is OperationCanceledException) throw;
+            if ((failure is DBusException dbus && LinuxBluetoothErrors.IsOperationFailure(dbus)) || failure is IOException)
+            {
+                logger.LogWarning(failure, "Linux BLE subscription failed for {Characteristic}.", characteristicUuid);
+                token.ThrowIfCancellationRequested();
+                return false;
+            }
+            throw;
+        }
+    }
+
+    public async Task UnsubscribeAsync(Guid characteristicUuid)
+    {
+        using var operation = await EnterAsync(default).ConfigureAwait(false);
+        await CleanLostSessionAsync().ConfigureAwait(false);
+        if (_session?.Characteristics.TryGetValue(characteristicUuid, out var characteristic) == true)
+        {
+            if (characteristic.Subscription is { } subscription)
+            {
+                await subscription.ReleaseAsync().ConfigureAwait(false);
+                characteristic.Subscription = null;
+            }
+        }
+    }
+
+    public async Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        try
+        {
+            using var operation = await EnterAsync(cancellationToken).ConfigureAwait(false);
+            var session = await GetConnectedSessionAsync().ConfigureAwait(false);
+            if (session is null)
+            {
+                logger.LogWarning("Cannot write to {Characteristic}: no device connected.", characteristicUuid);
+                return false;
+            }
+
+            var characteristic = await ResolveAsync(session, characteristicUuid, operation.Token).ConfigureAwait(false);
+            // An acknowledged write is a BlueZ "request"; otherwise write-without-response is preferred where offered.
+            var type = characteristic is null ? null
+                : !withResponse && characteristic.Flags.Contains("write-without-response") ? "command"
+                : characteristic.Flags.Contains("write") ? "request"
+                : null;
+            if (type is null)
+            {
+                logger.LogWarning("Characteristic {Characteristic} was not found or does not support this write.", characteristicUuid);
+                return false;
+            }
+
+            operation.Token.ThrowIfCancellationRequested();
+            await characteristic!.Proxy.WriteValueAsync(command, new Dictionary<string, object> { ["type"] = type }).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
+            return session.IsConnected;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception ex) when (ex is DBusException or IOException)
+        {
+            logger.LogWarning(ex, "Linux BLE write to {Characteristic} failed.", characteristicUuid);
+            return false;
+        }
+    }
+
+    public async Task<byte[]?> ReadAsync(Guid characteristicUuid, CancellationToken cancellationToken = default)
+    {
+        using var operation = await EnterAsync(cancellationToken).ConfigureAwait(false);
+        var session = await GetConnectedSessionAsync().ConfigureAwait(false);
+        if (session is null || !session.Characteristics.TryGetValue(characteristicUuid, out var characteristic)) return null;
+        operation.Token.ThrowIfCancellationRequested();
+        try
+        {
+            var value = await characteristic.Proxy.ReadValueAsync(new Dictionary<string, object>()).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
+            return session.IsConnected ? value : null;
+        }
+        catch (DBusException ex) when (IsReadFailure(ex.ErrorName))
+        {
+            logger.LogWarning(ex, "Linux BLE read failed for {Characteristic}.", characteristicUuid);
+            operation.Token.ThrowIfCancellationRequested();
+            return null;
+        }
+    }
+
+    private static bool IsReadFailure(string name) => name is "org.bluez.Error.Failed"
+        or "org.bluez.Error.InProgress" or "org.bluez.Error.NotPermitted" or "org.bluez.Error.NotAuthorized"
+        or "org.bluez.Error.InvalidOffset" or "org.bluez.Error.NotSupported";
+
+    public async Task<string> GetDeviceInfoAsync()
+    {
+        using var operation = await EnterAsync(default).ConfigureAwait(false);
+        var session = await GetConnectedSessionAsync().ConfigureAwait(false);
+        if (session is null) return "No device connected";
+        var token = operation.Token;
+        token.ThrowIfCancellationRequested();
+        var properties = await session.Device.GetAllAsync().ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        var info = new StringBuilder()
+            .AppendLine($"Name: {properties.Name}").AppendLine($"Alias: {properties.Alias}")
+            .AppendLine($"Address: {properties.Address}").AppendLine($"Address type: {properties.AddressType}")
+            .AppendLine($"Device path: {session.Device.ObjectPath}")
+            .AppendLine($"Connected: {properties.Connected}").AppendLine($"Services resolved: {properties.ServicesResolved}")
+            .AppendLine($"UUIDs: {string.Join(", ", properties.UUIDs ?? [])}");
+        var services = await session.Device.GetServicesAsync().ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        foreach (var service in services)
+        {
+            var serviceProperties = await service.GetAllAsync().ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            info.AppendLine($"Service: {serviceProperties.UUID} ({service.ObjectPath})");
+            var characteristics = await service.GetCharacteristicsAsync().ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            foreach (var characteristic in characteristics)
+            {
+                var characteristicProperties = await characteristic.GetAllAsync().ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                info.AppendLine($"  Characteristic: {characteristicProperties.UUID}; flags: {string.Join(", ", characteristicProperties.Flags ?? [])}");
+            }
+        }
+        return info.ToString();
+    }
+
+    private static async Task<IGattService1?> ResolveServiceAsync(
+        LinuxBluetoothSession session, Guid uuid, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var services = await session.Device.GetServicesAsync().ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        foreach (var service in services)
+        {
+            if (session.IsLost) throw new IOException("Device disconnected while resolving its service.");
+            var properties = await service.GetAllAsync().ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (properties.Device == session.Device.ObjectPath && Guid.TryParse(properties.UUID, out var candidate) && candidate == uuid)
+                return service;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Finds a characteristic in the service used to connect, then in the device's other services, since some vendor
+    /// characteristics live outside it.
+    /// </summary>
+    private static async Task<LinuxBluetoothSession.Characteristic?> ResolveAsync(
+        LinuxBluetoothSession session, Guid uuid, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (session.Characteristics.TryGetValue(uuid, out var cached)) return cached;
+        if (session.Service is null) return null;
+        if (await ResolveInServiceAsync(session, session.Service, uuid, token).ConfigureAwait(false) is { } found)
+            return found;
+
+        var services = await session.Device.GetServicesAsync().ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        foreach (var service in services)
+        {
+            if (service.ObjectPath == session.Service.ObjectPath) continue;
+            if (await ResolveInServiceAsync(session, service, uuid, token).ConfigureAwait(false) is { } other)
+                return other;
+        }
+        return null;
+    }
+
+    private static async Task<LinuxBluetoothSession.Characteristic?> ResolveInServiceAsync(
+        LinuxBluetoothSession session, IGattService1 service, Guid uuid, CancellationToken token)
+    {
+        var proxies = await service.GetCharacteristicsAsync().ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        foreach (var proxy in proxies)
+        {
+            if (!session.IsConnected) throw new IOException("Device disconnected while resolving a characteristic.");
+            var properties = await proxy.GetAllAsync().ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (properties.Service != service.ObjectPath || !Guid.TryParse(properties.UUID, out var candidate) || candidate != uuid) continue;
+            var characteristic = new LinuxBluetoothSession.Characteristic(proxy, properties.Flags ?? []);
+            session.Characteristics.Add(uuid, characteristic);
+            return characteristic;
+        }
+        return null;
+    }
+
+    private async Task CleanLostSessionAsync()
+    {
+        if (_session is { IsConnected: false }) await CleanupSessionAsync().ConfigureAwait(false);
+    }
+
+    private async Task<LinuxBluetoothSession?> GetConnectedSessionAsync()
+    {
+        await CleanLostSessionAsync().ConfigureAwait(false);
+        return _session;
+    }
+
+    private async Task CleanupSessionAsync()
+    {
+        if (_session is not { } session) return;
+        await session.CleanupAsync().ConfigureAwait(false);
+        Volatile.Write(ref _session, null);
+    }
+
+    private async Task<Operation> EnterAsync(CancellationToken token)
+    {
+        CancellationTokenSource linked;
+        lock (_lifecycle)
+        {
+            ObjectDisposedException.ThrowIf(_closing, this);
+            if (_disconnecting) throw new InvalidOperationException("Bluetooth client is disconnecting.");
+            linked = CancellationTokenSource.CreateLinkedTokenSource(_work.Token, token);
+        }
+        var acquired = false;
+        try
+        {
+            await _gate.WaitAsync(linked.Token).ConfigureAwait(false);
+            acquired = true;
+            lock (_lifecycle)
+            {
+                ObjectDisposedException.ThrowIf(_closing, this);
+                linked.Token.ThrowIfCancellationRequested();
+            }
+            return new Operation(_gate, linked);
+        }
+        catch
+        {
+            if (acquired) _gate.Release();
+            linked.Dispose();
+            throw;
+        }
+    }
+
+    public Task DisconnectAsync()
+    {
+        lock (_lifecycle)
+        {
+            if (_disposeTask is not null) return _disposeTask;
+            if (_disconnectTask is { IsCompleted: false }) return _disconnectTask;
+            _disconnecting = true;
+            Volatile.Read(ref _session)?.InvalidateCallbacks();
+            _work.Cancel();
+            _disconnectTask = DisconnectCoreAsync();
+            return _disconnectTask;
+        }
+    }
+
+    private async Task DisconnectCoreAsync()
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await CleanupSessionAsync().ConfigureAwait(false); }
+        finally
+        {
+            lock (_lifecycle)
+            {
+                _disconnecting = false;
+                if (!_closing) _work = new CancellationTokenSource();
+            }
+            _gate.Release();
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lock (_lifecycle)
+        {
+            if (_disposeTask is { IsCompleted: false } or { IsCompletedSuccessfully: true }) return new ValueTask(_disposeTask);
+            _closing = true;
+            Volatile.Read(ref _session)?.InvalidateCallbacks();
+            _work.Cancel();
+            _disposeTask = DisposeCoreAsync();
+            return new ValueTask(_disposeTask);
+        }
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await CleanupSessionAsync().ConfigureAwait(false); }
+        catch
+        {
+            if (_session is { } session)
+            {
+                session.Abandon();
+                Volatile.Write(ref _session, null);
+            }
+            throw;
+        }
+        finally { _gate.Release(); }
+        // Waiters may still be unwinding cancellation; synchronization primitives stay valid for them.
+    }
+
+    private sealed class Operation(SemaphoreSlim gate, CancellationTokenSource cancellation) : IDisposable
+    {
+        internal CancellationToken Token => cancellation.Token;
+        public void Dispose() { cancellation.Dispose(); gate.Release(); }
+    }
+}

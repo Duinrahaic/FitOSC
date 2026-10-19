@@ -1,0 +1,83 @@
+@using FitOSC.Services.Logger
+@inject LogStreamService LogStream
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@code {
+    private readonly CancellationTokenSource _stop = new();
+    private LogStreamService.Subscription? _subscription;
+    private Task _pump = Task.CompletedTask;
+    private bool _disposed;
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_disposed)
+        {
+            _subscription = LogStream.Subscribe();
+            _pump = PumpAsync(_subscription, _stop.Token);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task PumpAsync(LogStreamService.Subscription subscription, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var entry in subscription.Reader.ReadAllAsync(cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                // One awaited dispatch at a time preserves stream order without per-log queued tasks.
+                await InvokeAsync(async () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var method = entry.Level switch
+                    {
+                        LogStreamLevel.Verbose or LogStreamLevel.Debug => "console.debug",
+                        LogStreamLevel.Information => "console.info",
+                        LogStreamLevel.Warning => "console.warn",
+                        LogStreamLevel.Error or LogStreamLevel.Fatal => "console.error",
+                        _ => "console.log"
+                    };
+
+                    await JS.InvokeVoidAsync(method, cancellationToken, $"[{entry.Source}] {entry.Message}");
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser is gone; end this subscription instead of attempting more JS work.
+        }
+        catch (Exception exception)
+        {
+            // Remove this consumer before surfacing faults that the renderer may itself log.
+            subscription.Dispose();
+            await DispatchExceptionAsync(exception);
+        }
+        finally
+        {
+            subscription.Dispose();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _subscription?.Dispose();
+        _stop.Cancel();
+
+        try
+        {
+            await _pump;
+        }
+        finally
+        {
+            _stop.Dispose();
+        }
+    }
+}

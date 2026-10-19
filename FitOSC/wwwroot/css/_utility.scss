@@ -11,9 +11,20 @@
   	padding: 0 16px;
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: $color-border $color-background;
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+input[type="number"] {
+  appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 *::-webkit-scrollbar {

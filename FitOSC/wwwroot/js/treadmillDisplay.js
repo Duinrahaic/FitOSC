@@ -2,6 +2,7 @@ window.TreadmillDisplay = {
     scene: null,
     camera: null,
     renderer: null,
+    resizeObserver: null,
     grid: null,
     forwardIndicator: null,
     forwardIndicatorLine: null,
@@ -20,6 +21,8 @@ window.TreadmillDisplay = {
     vertical: 0,
     headRotation: 0,
     gridOffset: 0,
+    gridOriginZ: 0,
+    gridSpacing: 2,
     lastFrameTime: 0,
 
     // Performance: FPS limiting and visibility detection
@@ -99,8 +102,9 @@ window.TreadmillDisplay = {
         const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
         this.scene.add(ambientLight);
 
-        // Handle window resize
-        window.addEventListener('resize', () => this.onWindowResize(containerId));
+        // Fonts and panel layout can resize the canvas without resizing the window.
+        this.resizeObserver = new ResizeObserver(() => this.onWindowResize(containerId));
+        this.resizeObserver.observe(container);
 
         // Handle visibility changes to pause rendering when hidden
         document.addEventListener('visibilitychange', () => {
@@ -122,12 +126,17 @@ window.TreadmillDisplay = {
         const gridSize = 100;
         const gridDivisions = 50;
         const gridColor = 0x2c2c2c; // Border color from variables
+        this.gridSpacing = gridSize / gridDivisions;
+        // Keep line endpoints ahead of the camera, including one full scrolling cell.
+        // Lines crossing the near plane produce filled grey wedges in WebKitGTK.
+        this.gridOriginZ = this.camera.position.z - gridSize / 2 - this.gridSpacing;
 
         // Create grid
         const grid = new THREE.GridHelper(gridSize, gridDivisions, gridColor, gridColor);
         grid.material.opacity = 0.3;
         grid.material.transparent = true;
         grid.position.y = 0;
+        grid.position.z = this.gridOriginZ;
         grid.rotation.x = 0;
         this.grid = grid;
         this.scene.add(grid);
@@ -520,7 +529,7 @@ window.TreadmillDisplay = {
             if (!this.isWalkingModeEnabled) {
                 // Idle state - static grid
                 this.grid.position.y = 0;
-                this.grid.position.z = 0;
+                this.grid.position.z = this.gridOriginZ;
 
                 // Gentle sway for trees in idle
                 if (this.trees && this.trees.length > 0) {
@@ -557,12 +566,9 @@ window.TreadmillDisplay = {
                 const visualSpeed = this.speed * this.globalSpeedMultiplier;
                 const movementDelta = visualSpeed * deltaTime;
 
-                // Update grid offset (grid seamlessly loops every 2 units)
-                this.gridOffset += movementDelta;
-                if (this.gridOffset > 2) {
-                    this.gridOffset -= 2;
-                }
-                this.grid.position.z = this.gridOffset;
+                // Wrap even after a delayed frame so no line endpoint passes the camera.
+                this.gridOffset = (this.gridOffset + movementDelta) % this.gridSpacing;
+                this.grid.position.z = this.gridOriginZ + this.gridOffset;
 
                 // Move trees with the grid (same speed)
                 if (this.trees && this.trees.length > 0) {
@@ -745,6 +751,10 @@ window.TreadmillDisplay = {
     },
 
     dispose: function() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
+        }
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
         }

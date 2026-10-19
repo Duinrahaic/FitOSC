@@ -1,4 +1,10 @@
-﻿using FitOSC.Models;
+using System.Reflection;
+#if WINDOWS
+using FitOSC.Platform.Windows;
+#else
+using FitOSC.Platform.Linux;
+#endif
+using FitOSC.Platform.Midi;
 using FitOSC.Services;
 using FitOSC.Services.Configuration;
 using FitOSC.Services.Debug;
@@ -11,8 +17,6 @@ using FitOSC.Services.Midi;
 using FitOSC.Services.Pulsoid;
 using FitOSC.Services.VRChat;
 using FitOSC.Services.WebSocket;
-using FitOSC.Utilities.BLE;
-using Microsoft.Web.WebView2.Core;
 using Serilog;
 using Valve.VR;
 
@@ -20,16 +24,19 @@ namespace FitOSC.Services;
 
 public static class ServiceExtensions
 {
-    private static readonly WebViewSink SinkInstance = new WebViewSink();
-    private static int _sinkAttached = 0; // 0 = false, 1 = true (for Interlocked operations)
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
         services.AddSingleton<ConfigurationService>();
-        services.AddSingleton<WindowsBluetoothClient>(sp =>
-            new WindowsBluetoothClient(sp.GetRequiredService<ILogger<WindowsBluetoothClient>>()));
+#if WINDOWS
+        services.AddWindowsPlatform();
+#else
+        services.AddLinuxPlatform();
+#endif
         services.AddSingleton<TreadmillManager>();
-        services.AddSingleton<IOscService,OscService>();
+        services.AddSingleton<IOscService, OscService>();
         services.AddSingleton<AppStateService>();
+        services.AddSingleton<AppLifecycleService>();
+        services.AddHostedService(sp => sp.GetRequiredService<AppLifecycleService>());
 
         // Register OpenVRService as both singleton (for injection) and hosted service (for auto-start)
         services.AddSingleton<OpenVRService>();
@@ -56,42 +63,57 @@ public static class ServiceExtensions
         services.AddHostedService(sp => sp.GetRequiredService<PulsoidService>());
 
         // Register MidiService for MIDI input/output
+        services.AddSingleton<IMidiOutput, RtMidiOutput>();
         services.AddSingleton<MidiService>();
         services.AddHostedService(sp => sp.GetRequiredService<MidiService>());
 
         // Register UpdateCheckService for GitHub update checking
-        services.AddSingleton<UpdateCheckService>();
+        services.AddSingleton(sp => new UpdateCheckService(
+            sp.GetRequiredService<ILogger<UpdateCheckService>>(), GetApplicationVersion()));
         services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
 
         return services;
     }
-    
-    public static ILoggingBuilder RegisterLogger(this ILoggingBuilder builder)
+
+    private static string GetApplicationVersion()
+    {
+        var assembly = typeof(Program).Assembly;
+        // Try to get InformationalVersion first (supports semantic versioning with pre-release tags)
+        var infoVersionAttr = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+        if (infoVersionAttr != null && !string.IsNullOrEmpty(infoVersionAttr.InformationalVersion))
+        {
+            var version = infoVersionAttr.InformationalVersion;
+            // Strip build metadata (everything after '+')
+            var plusIndex = version.IndexOf('+');
+            if (plusIndex > 0)
+            {
+                version = version.Substring(0, plusIndex);
+            }
+            return version;
+        }
+
+        // Fallback to numeric version
+        var assemblyVersion = assembly.GetName().Version;
+        return assemblyVersion != null ? $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}" : "0.0.0";
+    }
+
+    public static ILoggingBuilder RegisterLogger(this ILoggingBuilder builder, LogStreamService logStream)
     {
         builder
             .ClearProviders()
-            .AddSerilog( new LoggerConfiguration()
+            .AddSerilog(new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
-                .WriteTo.Sink(SinkInstance)
+                .WriteTo.Sink(new LogStreamSink(logStream))
                 // A daily file a user can send when reporting a problem; the last week is kept.
                 .WriteTo.File(
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FitOSC", "logs", "fitosc-.log"),
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 7,
                     outputTemplate: "{Timestamp:HH:mm:ss.fff} {Level:u3} [{SourceContext}] {Message:lj}{NewLine}{Exception}")
-                .CreateLogger());   
-        return builder; 
-    }
- 
-    public static void AttachWebViewConsole(this CoreWebView2 core)
-    {
-        // Thread-safe check-then-act using Interlocked
-        if (Interlocked.CompareExchange(ref _sinkAttached, 1, 0) == 0)
-        {
-            SinkInstance.AttachWebView(core);
-        }
+                .CreateLogger());
+        return builder;
     }
 }
