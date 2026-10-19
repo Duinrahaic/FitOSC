@@ -19,11 +19,11 @@ of every previous byte, over service `0000fff0-…` (notify `fff1`, write `fff2`
   reported minimum of 0 is accepted.
 - **Units.** A console set to miles (unit reply `02`) sends speed in 0.1 mph; the driver converts it, so FitOSC always
   works in km/h.
-- **Commands.** START `A9-A3-01-01-0A` (`A9-A3-01-02-09` to resume when paused). PAUSE `A9-A3-01-03-08`, only when the
-  console said it supports pause (otherwise the log says it does not). STOP `A9-A3-01-00-0B`. Speed
+- **Commands.** START `A9-A3-01-01-0A` (`A9-A3-01-02-09` to resume when paused). PAUSE `A9-A3-01-03-08`, offered only once the
+  console says it supports pause (log: `ES Linker pause supported: True`). STOP `A9-A3-01-00-0B`. Speed
   `A9-01-01-<0.1 of the console's unit>-…`: 3.0 km/h on a metric console is `A9-01-01-1E-B7`. Incline
-  `A9-04-01-<whole %>-…`: 2 % is `A9-04-01-02-AE`. Targets are rounded half-to-even; the app rounds halves up, which
-  differs only for a target exactly half-way between two steps.
+  `A9-04-01-<whole %>-…`: 2 % is `A9-04-01-02-AE`. Targets are rounded half up, as the app's `BigDecimal` `HALF_UP`
+  does.
 
 | Value | Source | Shown as |
 |---|---|---|
@@ -39,7 +39,8 @@ The console's counters roll over at 100 min, 9,999 steps and 1,000 kcal. FitOSC 
 counter drops, and starts again from zero when the console moves from idle, post-workout or stopped into pre-workout
 or running. That reset rule is inferred, not taken from the app, and so is the 1,000 kcal period.
 
-Speed **+** / **-** work within the reported range. Incline **-** stops at 0 % (README).
+Controls offered: START, STOP, speed **+** / **-** within the reported range, incline **+** / **-** once a range is
+reported, and PAUSE only when the console supports it.
 
 ## Checklist
 
@@ -55,7 +56,7 @@ Stand beside the belt for every first command. Use speeds up to 4 km/h and incli
 5. **Incline.** Only on a model with incline (line 1 reported one): `FitOSC.setIncline(2)` gives `A9-04-01-02-AE` and
    2 %; incline **-** returns to 0 %.
 6. **Pause and stop.** If pause is supported: PAUSE gives `A9-A3-01-03-08` and state Paused; START gives
-   `A9-A3-01-02-09` and the belt resumes. If not, PAUSE only logs `does not support pausing`. STOP gives
+   `A9-A3-01-02-09` and the belt resumes. If not, PAUSE stays disabled. STOP gives
    `A9-A3-01-00-0B` and the belt stops.
 7. **New workout.** Start a second workout after STOP: elapsed time, distance, calories and steps start again from
    zero.
