@@ -132,15 +132,8 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
     public override Task StartAsync() =>
         WriteAsync(Frame(ControlCommand, _status is EsStatus.Paused or EsStatus.Pausing ? ResumeControl : StartControl));
 
-    public override Task PauseAsync()
-    {
-        if (!_pauseSupported)
-        {
-            Logger.LogInformation("This ES Linker treadmill does not support pausing");
-            return Task.CompletedTask;
-        }
-        return WriteAsync(Frame(ControlCommand, PauseControl));
-    }
+    // Only offered once the console says it supports pause.
+    public override Task PauseAsync() => WriteAsync(Frame(ControlCommand, PauseControl));
 
     public override Task StopAsync() => WriteAsync(Frame(ControlCommand, StopControl));
 
@@ -159,7 +152,9 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
             return Task.CompletedTask;
         }
 
-        return WriteAsync(Frame(SetInclineCommand, (byte)Math.Clamp(Math.Round(incline), _minIncline, _maxIncline)));
+        // Whole percent, rounded half up as the app's BigDecimal HALF_UP does.
+        var percent = Math.Round(incline, MidpointRounding.AwayFromZero);
+        return WriteAsync(Frame(SetInclineCommand, (byte)Math.Clamp(percent, _minIncline, _maxIncline)));
     }
 
     public override Task GetTreadmillConfigurationAsync()
@@ -177,7 +172,9 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
             SpeedIncrement = FromRawSpeed(1),
             MinIncline = _minIncline,
             MaxIncline = _maxIncline,
-            InclineIncrement = _maxIncline > _minIncline ? 1 : 0
+            InclineIncrement = _maxIncline > _minIncline ? 1 : 0,
+            Commands = TreadmillCommands.Start | TreadmillCommands.Stop | TreadmillCommands.Speed | TreadmillCommands.Incline |
+                       (_pauseSupported ? TreadmillCommands.Pause : TreadmillCommands.None)
         });
 
     public override TreadmillTelemetry TranslateData(byte[] data)
@@ -234,6 +231,8 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
                 break;
             case PauseSupportReply when data[2] >= 1:
                 _pauseSupported = data[3] == 1;
+                Logger.LogInformation("ES Linker pause supported: {Supported}", _pauseSupported);
+                PublishConfiguration();
                 break;
             case ErrorCommand:
                 Logger.LogWarning("ES Linker treadmill reported error {Frame}", Convert.ToHexString(data));
@@ -345,7 +344,7 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
 
     private byte ToRawSpeed(decimal kph)
     {
-        var tenths = Math.Round((_imperial ? kph / KilometresPerMile : kph) * 10);
+        var tenths = Math.Round((_imperial ? kph / KilometresPerMile : kph) * 10, MidpointRounding.AwayFromZero);
         return (byte)Math.Clamp(tenths, 0, 255);
     }
 
