@@ -23,15 +23,13 @@ looks for the Wahoo control point `a026e03e-0a7d-4ab3-97fa-f1500f9feb8b`.
 | PAUSE | `08-02` |
 | STOP | `08-01` |
 | Speed | `02` + uint16 little-endian in 0.01 km/h, clamped to the reported range: 4.00 km/h is `02-90-01` |
-| Incline, Wahoo point present | `11` + sint16 little-endian in 0.01 %: 2 % is `11-C8-00`, -1 % is `11-9C-FF` |
+| Incline, Wahoo point present | `11` + sint16 little-endian in 0.01 %, clamped to the reported range: 2 % is `11-C8-00`, -1 % is `11-9C-FF` |
 | Incline, Wahoo point missing | FTMS `03` + sint16 in 0.1 %: 2 % is `03-14-00` (log: `Wahoo treadmill control point not found`) |
 
 Telemetry is whatever the treadmill flags in Treadmill Data: speed (0.01 km/h), distance (m), incline (0.1 %),
 pace (s per 500 m, shown per km or mile), energy (kcal), heart rate, elapsed time and the others.
 
-Shared FitOSC limits that affect this driver (README): the speed **+** / **-** controls only work if the treadmill
-reported a speed range; incline **-** stops at 0 %; an incline the treadmill reports as unavailable (0x7FFF) shows as
-3276.7 %.
+An incline the treadmill sends as unavailable (`0x7FFF`) is not shown, rather than reading as 3276.7 %.
 
 ## Checklist
 
@@ -46,11 +44,10 @@ Stand beside the belt for every first command. Use low speeds (up to 5 km/h) and
 3. **Start.** Belt stopped: press START. The log shows `Wrote 07` and the treadmill starts (or begins its
    countdown).
 4. **Speed.** In the console run `FitOSC.setSpeed(4.0)`: the log shows `Wrote 02-90-01` and the belt settles at
-   4.0 km/h within 0.1 km/h. Then press speed **+** once (only if line 1 logged a speed range): the belt rises about
-   0.32 km/h.
+   4.0 km/h within 0.1 km/h. Then press speed **+** once: the belt rises about 0.32 km/h.
 5. **Incline.** `FitOSC.setIncline(2)`: the log shows `Wrote 11-C8-00` to `a026e03e-…` (or `03-14-00` to `00002ad9-…`
    without the Wahoo point) and the treadmill reaches 2 %. `FitOSC.setIncline(0)` returns it to 0 %. A `rejected
-   opcode` warning in the log is a fail.
+   opcode` warning in the log is a fail. `FitOSC.setIncline(<one above the logged maximum>)` sends the logged maximum.
 6. **Pause and stop.** PAUSE: `Wrote 08-02`, the belt stops and the treadmill shows paused; START resumes it. STOP:
    `Wrote 08-01`, the belt stops and the session ends.
 7. **Units.** Imperial shows mph = km/h / 1.609344 and miles.
