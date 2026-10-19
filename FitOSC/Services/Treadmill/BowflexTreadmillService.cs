@@ -45,9 +45,9 @@ public class BowflexTreadmillService(ILogger<BowflexTreadmillService> logger, Ap
     // Same divisor as Zwift: 0.01 mph -> km/h.
     private const decimal HundredthsMphPerKph = 62.14m;
 
-    // First stream packet: data starts at byte 6 and is read up to byte 18; continuations carry data in bytes 1-19.
+    // First stream packet: data starts at byte 6 and is read up to byte 19; continuations carry data in bytes 1-19.
     private const int StartPacketDataOffset = 6;
-    private const int StartPacketLastIndex = 18;
+    private const int StartPacketLastIndex = 19;
     private const int ContinuationLastIndex = 19;
     private const int RecordLengthBias = 5;
 
