@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using FitOSC.Services.State;
 using FitOSC.Utilities.BLE;
 
@@ -28,6 +29,14 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
 
     // Notifications and poll ticks take turns, so protocol state is only changed by one of them at a time.
     private readonly SemaphoreSlim _protocolGate = new(1, 1);
+
+    // Diagnostics for drops: how long the session ran, and whether the treadmill kept answering and accepting writes.
+    private static readonly TimeSpan NotificationGapWarning = TimeSpan.FromSeconds(3);
+    private readonly Stopwatch _sessionAge = new();
+    private long _notifications;
+    private long _lastNotificationAt;
+    private int _writes;
+    private int _failedWrites;
 
     /// <summary>Channels to try in order; the first one the device exposes is used.</summary>
     protected abstract IReadOnlyList<SerialChannel> Channels { get; }
@@ -80,6 +89,12 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
             }
 
             _channel = channel;
+            _notifications = 0;
+            _writes = 0;
+            _failedWrites = 0;
+            _sessionAge.Restart();
+            Logger.LogInformation("Serial channel {Service} ready; polling every {Interval} ms", channel.Service,
+                PollInterval.TotalMilliseconds);
             _sessionCts = new CancellationTokenSource();
             _sessionToken = _sessionCts.Token;
             // The connect timeout bounds setup; ending the session cancels any write it left running.
@@ -101,6 +116,14 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
     /// </summary>
     public override async Task DisconnectAsync()
     {
+        if (_sessionAge.IsRunning)
+        {
+            Logger.LogInformation(
+                "Serial session ended after {Age:F1} s: {Notifications} notifications (last {Since:F1} s ago), {Writes} writes, {Failed} failed",
+                _sessionAge.Elapsed.TotalSeconds, Interlocked.Read(ref _notifications), SecondsSinceLastNotification(), _writes, _failedWrites);
+            _sessionAge.Reset();
+        }
+
         _sessionCts?.Cancel();
         if (_polling != null)
             await _polling;
@@ -136,11 +159,36 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
     protected async Task<bool> WriteAsync(byte[] frame)
     {
         var channel = _channel;
-        return channel != null && await Client.WriteAsync(channel.Write, frame, cancellationToken: _sessionToken);
+        if (channel == null)
+            return false;
+
+        Interlocked.Increment(ref _writes);
+        if (await Client.WriteAsync(channel.Write, frame, cancellationToken: _sessionToken))
+            return true;
+
+        if (!_sessionToken.IsCancellationRequested)
+        {
+            Interlocked.Increment(ref _failedWrites);
+            Logger.LogWarning("Write {Frame} failed {Age:F1} s into the session (link up: {Connected})",
+                Convert.ToHexString(frame), _sessionAge.Elapsed.TotalSeconds, Client.IsConnected);
+        }
+        return false;
     }
+
+    private double SecondsSinceLastNotification() =>
+        Interlocked.Read(ref _notifications) == 0 ? double.NaN
+            : TimeSpan.FromMilliseconds(Environment.TickCount64 - Interlocked.Read(ref _lastNotificationAt)).TotalSeconds;
 
     private void HandleNotification(byte[] data)
     {
+        var count = Interlocked.Increment(ref _notifications);
+        var gap = count == 1 ? 0 : SecondsSinceLastNotification();
+        Interlocked.Exchange(ref _lastNotificationAt, Environment.TickCount64);
+        if (count == 1)
+            Logger.LogInformation("First notification {Age:F1} s into the session", _sessionAge.Elapsed.TotalSeconds);
+        else if (gap >= NotificationGapWarning.TotalSeconds)
+            Logger.LogWarning("No notification for {Gap:F1} s before this one", gap);
+
         _protocolGate.Wait();
         try
         {

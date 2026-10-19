@@ -38,6 +38,9 @@ namespace FitOSC.Utilities.BLE
         private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(10);
 
         private Guid _lastServiceUuid;
+
+        // How long the current link has been usable, for diagnosing drops.
+        private readonly Stopwatch _linkAge = new();
         private readonly SemaphoreSlim _connectionLock = new(1, 1);
         private bool _isDisconnecting;
 
@@ -296,7 +299,11 @@ namespace FitOSC.Utilities.BLE
             _device.ConnectionStatusChanged += Device_ConnectionStatusChanged;
 
             _gattSession = await GattSession.FromDeviceIdAsync(_device.BluetoothDeviceId).AsTask(cancellationToken);
+            _gattSession.SessionStatusChanged += GattSession_SessionStatusChanged;
+            _gattSession.MaxPduSizeChanged += GattSession_MaxPduSizeChanged;
             _gattSession.MaintainConnection = true;
+            logger.LogInformation("GATT session for {Name} ({Addr:X}): status {Status}, keep-alive {Maintain}, can maintain {CanMaintain}",
+                _device.Name, address, _gattSession.SessionStatus, _gattSession.MaintainConnection, _gattSession.CanMaintainConnection);
 
             // Windows answers from its GATT cache first, which is empty for a device it has not fully
             // discovered yet, so a miss asks the device itself.
@@ -312,7 +319,9 @@ namespace FitOSC.Utilities.BLE
             }
 
             _service = result.Services[0];
-            logger.LogInformation("Connected to {Name} with service {ServiceUuid}", _device.Name, serviceUuid);
+            _linkAge.Restart();
+            logger.LogInformation("Connected to {Name} ({Addr:X}) with service {ServiceUuid}; link status {Status}",
+                _device.Name, address, serviceUuid, _device.ConnectionStatus);
             return true;
         }
 
@@ -336,13 +345,28 @@ namespace FitOSC.Utilities.BLE
         private void Device_ConnectionStatusChanged(BluetoothLEDevice sender, object args)
         {
             // Only a drop of the established session counts; teardown and half-made connections are not losses.
-            if (sender.ConnectionStatus != BluetoothConnectionStatus.Disconnected ||
-                sender.BluetoothAddress != _device?.BluetoothAddress || _service == null || _isDisconnecting)
+            var ignored = sender.ConnectionStatus != BluetoothConnectionStatus.Disconnected ? null
+                : sender.BluetoothAddress != _device?.BluetoothAddress ? "another device"
+                : _isDisconnecting ? "teardown"
+                : _service == null ? "still connecting"
+                : null;
+
+            logger.LogInformation("Link status {Status} for {Name} ({Addr:X}) after {Age:F1} s{Ignored}", sender.ConnectionStatus,
+                sender.Name, sender.BluetoothAddress, _linkAge.Elapsed.TotalSeconds, ignored == null ? "" : $"; ignored ({ignored})");
+
+            if (sender.ConnectionStatus != BluetoothConnectionStatus.Disconnected || ignored != null)
                 return;
 
-            logger.LogWarning("Device disconnected: {Name}", sender.Name);
+            logger.LogWarning("Device disconnected: {Name} after {Age:F1} s connected", sender.Name, _linkAge.Elapsed.TotalSeconds);
             RaiseConnectionLost();
         }
+
+        private void GattSession_SessionStatusChanged(GattSession sender, GattSessionStatusChangedEventArgs args) =>
+            logger.LogInformation("GATT session status {Status} (error {Error}) after {Age:F1} s", args.Status, args.Error,
+                _linkAge.Elapsed.TotalSeconds);
+
+        private void GattSession_MaxPduSizeChanged(GattSession sender, object args) =>
+            logger.LogInformation("GATT max PDU size is now {Size}", sender.MaxPduSize);
 
         private async Task<bool> RefreshServiceAsync()
         {
@@ -749,7 +773,8 @@ namespace FitOSC.Utilities.BLE
             _isDisconnecting = true;
             try
             {
-                logger.LogInformation("Disconnecting from device...");
+                logger.LogInformation("Disconnecting from device after {Age:F1} s (link status {Status})...",
+                    _linkAge.Elapsed.TotalSeconds, _device.ConnectionStatus);
 
                 _device.ConnectionStatusChanged -= Device_ConnectionStatusChanged;
 
@@ -810,7 +835,12 @@ namespace FitOSC.Utilities.BLE
                 // Releasing the session lets Windows close the link now rather than when it next collects garbage.
                 try
                 {
-                    _gattSession?.Dispose();
+                    if (_gattSession != null)
+                    {
+                        _gattSession.SessionStatusChanged -= GattSession_SessionStatusChanged;
+                        _gattSession.MaxPduSizeChanged -= GattSession_MaxPduSizeChanged;
+                        _gattSession.Dispose();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -827,6 +857,7 @@ namespace FitOSC.Utilities.BLE
                     logger.LogWarning(ex, "Error disposing BLE device");
                 }
                 _device = null;
+                _linkAge.Reset();
 
                 logger.LogInformation("Disconnected successfully.");
             }

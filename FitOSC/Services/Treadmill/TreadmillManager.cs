@@ -48,6 +48,9 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
 
     private int _reconnecting;
 
+    // When the current connection came up, for logging how long it lasted before a drop.
+    private long _connectedSince;
+
     /// <summary>
     /// Connects to a treadmill by device name and type. Asking for the treadmill the session already has, connected or
     /// still connecting, changes nothing; any other treadmill replaces the session.
@@ -131,6 +134,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     /// <summary>Publishes the Bluetooth status with the connected device's name and a reason the user can read.</summary>
     private void PublishStatus(ConnectionStatus status, string? detail, string? deviceName = null)
     {
+        if (status == ConnectionStatus.Connected)
+            Interlocked.Exchange(ref _connectedSince, Stopwatch.GetTimestamp());
         appState.SetConnectedDeviceName(deviceName);
         appState.PublishBluetoothStatus(status, detail);
     }
@@ -160,6 +165,7 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(session);
         timeout.CancelAfter(ConnectionTimeout);
 
+        var started = Stopwatch.GetTimestamp();
         (ConnectionStatus, string?) result;
         try
         {
@@ -168,7 +174,13 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             {
                 await service.RequestControlAsync().WaitAsync(timeout.Token);
                 if (service.IsConnected)
+                {
+                    _logger.LogInformation("Attempt for {Device} connected in {Elapsed:F1} s", deviceName,
+                        Stopwatch.GetElapsedTime(started).TotalSeconds);
                     return (ConnectionStatus.Connected, null);
+                }
+
+                _logger.LogWarning("{Device} set up but the link was already down", deviceName);
             }
 
             _logger.LogError("Treadmill {Device} did not finish connecting", deviceName);
@@ -188,6 +200,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             result = (ConnectionStatus.Error, $"Error connecting to {deviceName}: {ex.Message}");
         }
 
+        _logger.LogWarning("Attempt for {Device} failed after {Elapsed:F1} s: {Status} ({Reason})", deviceName,
+            Stopwatch.GetElapsedTime(started).TotalSeconds, result.Item1, result.Item2 ?? "cancelled");
         await RetireActiveAsync();
         return result;
     }
@@ -209,7 +223,9 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     {
         try
         {
-            _logger.LogWarning("Lost connection to {Device}; reconnecting", deviceName);
+            var lostAt = Stopwatch.GetTimestamp();
+            _logger.LogWarning("Lost connection to {Device} after {Uptime:F1} s connected; reconnecting", deviceName,
+                Stopwatch.GetElapsedTime(Interlocked.Read(ref _connectedSince), lostAt).TotalSeconds);
             await _sessionLock.WaitAsync(session);
             try
             {
@@ -241,7 +257,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
                         if (_active?.IsConnected == true)
                         {
                             PublishStatus(ConnectionStatus.Connected, null, deviceName);
-                            _logger.LogInformation("Reconnected to {Device} after {Attempts} attempt(s)", deviceName, attempt);
+                            _logger.LogInformation("Reconnected to {Device} after {Attempts} attempt(s) in {Elapsed:F1} s", deviceName,
+                                attempt, Stopwatch.GetElapsedTime(lostAt).TotalSeconds);
                             return;
                         }
 
