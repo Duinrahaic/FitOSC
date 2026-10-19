@@ -320,7 +320,8 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
     private void HandleSpeedRange(byte[] data)
     {
         _rangeKnown = true;
-        if (data[3] == 0 || data[4] == 0 || data[3] > data[4])
+        // A minimum of zero is valid; the EQI app accepts it.
+        if (data[4] == 0 || data[3] > data[4])
         {
             Logger.LogWarning("Ignoring ES Linker speed range {Frame}", Convert.ToHexString(data));
             return;
