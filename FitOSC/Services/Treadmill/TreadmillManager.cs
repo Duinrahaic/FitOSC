@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using FitOSC.Models;
 using FitOSC.Services.State;
 using FitOSC.Utilities.BLE;
@@ -329,34 +330,71 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     /// <summary>
     /// Starts the treadmill (begin workout).
     /// </summary>
-    public async Task StartAsync() =>
-        await (_active?.StartAsync() ?? Task.CompletedTask);
+    public async Task StartAsync()
+    {
+        if (Accepting(TreadmillCommands.Start, out var active, out _))
+            await active.StartAsync();
+    }
 
     /// <summary>
     /// Pauses the treadmill workout.
     /// </summary>
-    public async Task PauseAsync() =>
-        await (_active?.PauseAsync() ?? Task.CompletedTask);
+    public async Task PauseAsync()
+    {
+        if (Accepting(TreadmillCommands.Pause, out var active, out _))
+            await active.PauseAsync();
+    }
 
     /// <summary>
     /// Stops the treadmill workout.
     /// </summary>
-    public async Task StopAsync() =>
-        await (_active?.StopAsync() ?? Task.CompletedTask);
+    public async Task StopAsync()
+    {
+        if (Accepting(TreadmillCommands.Stop, out var active, out _))
+            await active.StopAsync();
+    }
 
     /// <summary>
-    /// Sets treadmill speed.
+    /// Sets treadmill speed, within the range the treadmill reported.
     /// </summary>
-    /// <param name="speed">Speed in km/h (telemetryProperty) or mph (imperial, depending on settings).</param>
-    public async Task SetSpeedAsync(decimal speed) =>
-        await (_active?.SetSpeedAsync(speed) ?? Task.CompletedTask);
+    /// <param name="speed">Speed in km/h.</param>
+    public async Task SetSpeedAsync(decimal speed)
+    {
+        if (Accepting(TreadmillCommands.Speed, out var active, out var configuration))
+            await active.SetSpeedAsync(ClampToRange(speed, configuration.MinSpeed, configuration.MaxSpeed));
+    }
 
     /// <summary>
-    /// Sets treadmill incline.
+    /// Sets treadmill incline, within the range the treadmill reported.
     /// </summary>
     /// <param name="incline">Incline in percent grade.</param>
-    public async Task SetInclineAsync(decimal incline) =>
-        await (_active?.SetInclineAsync(incline) ?? Task.CompletedTask);
+    public async Task SetInclineAsync(decimal incline)
+    {
+        if (Accepting(TreadmillCommands.Incline, out var active, out var configuration))
+            await active.SetInclineAsync(ClampToRange(incline, configuration.MinIncline, configuration.MaxIncline));
+    }
+
+    /// <summary>
+    /// Every control (UI, OSC, MIDI, debug console) comes through here, so a command the connected treadmill's
+    /// published configuration leaves out is dropped for all of them alike.
+    /// </summary>
+    private bool Accepting(TreadmillCommands command, [NotNullWhen(true)] out ITreadmillService? active,
+        out TreadmillConfiguration configuration)
+    {
+        active = _active;
+        configuration = appState.LatestConfiguration ?? new TreadmillConfiguration();
+        if (active == null)
+            return false;
+        if (configuration.Accepts(command))
+            return true;
+
+        _logger.LogDebug("The connected treadmill does not take {Command} commands from FitOSC", command);
+        return false;
+    }
+
+    /// <summary>Limits a target to the treadmill's reported range; one that reported none is left to its driver.</summary>
+    private static decimal ClampToRange(decimal value, decimal min, decimal max) =>
+        max > min ? Math.Clamp(value, min, max) : value;
 
     /// <summary>
     /// Requests control of the treadmill (FTMS spec requires control before sending commands).
