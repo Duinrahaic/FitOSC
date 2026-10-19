@@ -202,7 +202,12 @@ namespace FitOSC.Utilities.BLE
 
                     _device.ConnectionStatusChanged += Device_ConnectionStatusChanged;
 
+                    // Windows answers from its GATT cache first, which is empty for a device it has not fully
+                    // discovered yet, so a miss asks the device itself.
                     var result = await _device.GetGattServicesForUuidAsync(serviceUuid).AsTask(cancellationToken);
+                    if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
+                        result = await _device.GetGattServicesForUuidAsync(serviceUuid, BluetoothCacheMode.Uncached)
+                            .AsTask(cancellationToken);
                     if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
                     {
                         logger.LogWarning("Service {ServiceUuid} not found on {Name}", serviceUuid, _device.Name);
