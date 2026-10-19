@@ -158,10 +158,11 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             await _sessionLock.WaitAsync(session);
             try
             {
-                // Retire first so no late notification can republish the old reading.
+                // Retire first so no late notification can republish the old reading. Connecting is published before
+                // the idle reading so listeners such as history see a reconnect rather than a stopped treadmill.
                 await RetireActiveAsync();
-                PublishIdleTreadmill();
                 appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connecting);
+                PublishIdleTreadmill();
             }
             finally
             {
@@ -326,5 +327,5 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     /// </summary>
     /// <returns>Device information string, or error message if not connected.</returns>
     public async Task<string> GetDeviceInfoAsync() =>
-        await bluetoothClient.GetDeviceInfo();
+        await (_active?.GetDeviceInfoAsync() ?? Task.FromResult("No device connected"));
 }

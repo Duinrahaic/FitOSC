@@ -521,7 +521,7 @@ namespace FitOSC.Utilities.BLE
             return _characteristics.ContainsKey(characteristicUuid);
         }
 
-        public async Task<string> GetDeviceInfo()
+        public override async Task<string> GetDeviceInfoAsync()
         {
             if (_device == null || _service == null)
             {
@@ -546,22 +546,31 @@ namespace FitOSC.Utilities.BLE
             output.AppendLine($"Services Found: {servicesResult.Services.Count}");
             output.AppendLine("─────────────────────────────────────────────");
 
-            foreach (var service in servicesResult.Services)
+            // These are separate handles from the session's own service, so release them once described.
+            try
             {
-                output.AppendLine($"\n📦 Service UUID: {service.Uuid}");
-
-                // Get characteristics for this service
-                var charResult = await service.GetCharacteristicsAsync();
-                if (charResult.Status == GattCommunicationStatus.Success)
+                foreach (var service in servicesResult.Services)
                 {
-                    output.AppendLine($"   Characteristics: {charResult.Characteristics.Count}");
+                    output.AppendLine($"\n📦 Service UUID: {service.Uuid}");
 
-                    foreach (var characteristic in charResult.Characteristics)
+                    // Get characteristics for this service
+                    var charResult = await service.GetCharacteristicsAsync();
+                    if (charResult.Status == GattCommunicationStatus.Success)
                     {
-                        output.AppendLine($"   ├─ {characteristic.Uuid}");
-                        output.AppendLine($"   │  Properties: {characteristic.CharacteristicProperties}");
+                        output.AppendLine($"   Characteristics: {charResult.Characteristics.Count}");
+
+                        foreach (var characteristic in charResult.Characteristics)
+                        {
+                            output.AppendLine($"   ├─ {characteristic.Uuid}");
+                            output.AppendLine($"   │  Properties: {characteristic.CharacteristicProperties}");
+                        }
                     }
                 }
+            }
+            finally
+            {
+                foreach (var service in servicesResult.Services)
+                    service.Dispose();
             }
 
             return output.ToString();

@@ -26,6 +26,9 @@ public interface ITreadmillService : IAsyncDisposable
     Task SetInclineAsync(decimal incline);
     Task SendCommandAsync(byte[] command);
     TreadmillTelemetry TranslateData(byte[] data);
+
+    /// <summary>Describes the connected device and its GATT services, for debugging.</summary>
+    Task<string> GetDeviceInfoAsync();
 }
 
 public abstract class TreadmillService : ITreadmillService
@@ -63,6 +66,7 @@ public abstract class TreadmillService : ITreadmillService
     public abstract Task RequestControlAsync();
     public abstract Task SendCommandAsync(byte[] command);
     public abstract TreadmillTelemetry TranslateData(byte[] data);
+    public Task<string> GetDeviceInfoAsync() => Client.GetDeviceInfoAsync();
     protected void RaiseData(TreadmillTelemetry telemetry) => Publish(() => AppState.PublishTreadmillData(telemetry));
     protected void RaiseState(TreadmillState state) => Publish(() => AppState.PublishTreadmillState(state));
     protected void RaiseConfiguration(TreadmillConfiguration config) => Publish(() => AppState.PublishTreadmillConfiguration(config));

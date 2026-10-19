@@ -64,6 +64,11 @@
         public abstract Task DisconnectAsync();
 
         /// <summary>
+        /// Describes the connected device and its GATT services, for debugging.
+        /// </summary>
+        public abstract Task<string> GetDeviceInfoAsync();
+
+        /// <summary>
         /// Dispose logic for async cleanup.
         /// Calls DisconnectAsync and then calls OnDispose for subclass-specific cleanup.
         /// </summary>

@@ -25,6 +25,15 @@ public class HistoryService
     private int _totalHeartRateSum = 0;
     private int _heartRateSampleCount = 0;
 
+    // Treadmill totals restart on a new workout or reconnect, so the session adds up what each reading gained.
+    private readonly SessionCounter _distance = new();
+    private readonly SessionCounter _calories = new();
+    private readonly SessionCounter _elevation = new();
+
+    // Duration counts running time only, so pauses and reconnects inside a session do not add to it.
+    private TimeSpan _runningTime;
+    private DateTime? _runningSince;
+
     public event EventHandler? SessionHistoryUpdated;
 
     public HistoryService(
@@ -100,25 +109,39 @@ public class HistoryService
             return;
         }
 
-        // Check if treadmill is running
         var isRunning = appState.TreadmillState == TreadmillState.Running;
-
         if (isRunning && _currentSession == null)
-        {
-            // Start new session
             StartSession(appState);
-        }
-        else if (isRunning && _currentSession != null)
+        if (_currentSession == null)
+            return;
+
+        if (isRunning)
+            _runningSince ??= DateTime.Now;
+        else
+            StopRunningClock();
+
+        // A pause or a reconnect keeps the session open; it ends when the treadmill stops or the connection is closed.
+        appState.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var bluetooth);
+        var ended = bluetooth is ConnectionStatus.Disconnected or ConnectionStatus.Error
+                    || (appState.TreadmillState == TreadmillState.Stopped && bluetooth != ConnectionStatus.Connecting);
+        if (ended)
         {
-            // Update current session
-            UpdateSession(appState);
-        }
-        else if (!isRunning && _currentSession != null)
-        {
-            // End session
             EndSession();
+            return;
         }
+
+        UpdateSession(appState, isRunning);
     }
+
+    private void StopRunningClock()
+    {
+        if (_runningSince is { } since)
+            _runningTime += DateTime.Now - since;
+        _runningSince = null;
+    }
+
+    private int RunningSeconds() =>
+        (int)(_runningTime + (_runningSince is { } since ? DateTime.Now - since : TimeSpan.Zero)).TotalSeconds;
 
     private void StartSession(AppStateInfo appState)
     {
@@ -135,11 +158,16 @@ public class HistoryService
         _maxSpeed = 0;
         _totalHeartRateSum = 0;
         _heartRateSampleCount = 0;
+        _distance.Reset();
+        _calories.Reset();
+        _elevation.Reset();
+        _runningTime = TimeSpan.Zero;
+        _runningSince = null;
 
         _logger.LogInformation("Started new session at {StartTime}", _currentSession.StartTime);
     }
 
-    private void UpdateSession(AppStateInfo appState)
+    private void UpdateSession(AppStateInfo appState, bool isRunning)
     {
         if (_currentSession == null || appState.TreadmillTelemetry == null)
             return;
@@ -148,7 +176,7 @@ public class HistoryService
 
         // Update speed statistics
         var speed = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed);
-        if (speed is { Enabled: true })
+        if (isRunning && speed is { Enabled: true })
         {
             _totalSpeedSum += speed.Value;
             _speedSampleCount++;
@@ -162,19 +190,19 @@ public class HistoryService
         var distance = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.TotalDistance);
         if (distance is { Enabled: true })
         {
-            _currentSession.TotalDistance = distance.Value; // Telemetry distance is in meters
+            _currentSession.TotalDistance = _distance.Add(distance.Value); // Telemetry distance is in meters
         }
 
         // Update calories
         var calories = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.Calories);
         if (calories is { Enabled: true })
         {
-            _currentSession.Calories = (int)calories.Value;
+            _currentSession.Calories = (int)_calories.Add(calories.Value);
         }
 
         // Update heart rate statistics
         var heartRate = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.HeartRate);
-        if (heartRate is { Enabled: true } && heartRate.Value > 0)
+        if (isRunning && heartRate is { Enabled: true } && heartRate.Value > 0)
         {
             _totalHeartRateSum += (int)heartRate.Value;
             _heartRateSampleCount++;
@@ -184,11 +212,11 @@ public class HistoryService
         var elevation = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.ElevationGain);
         if (elevation is { Enabled: true })
         {
-            _currentSession.ElevationGain = elevation.Value;
+            _currentSession.ElevationGain = _elevation.Add(elevation.Value);
         }
 
         // Update duration
-        _currentSession.DurationSeconds = (int)(DateTime.Now - _currentSession.StartTime).TotalSeconds;
+        _currentSession.DurationSeconds = RunningSeconds();
     }
 
     private void EndSession()
@@ -214,7 +242,8 @@ public class HistoryService
         }
 
         // Calculate final duration
-        _currentSession.DurationSeconds = (int)(DateTime.Now - _currentSession.StartTime).TotalSeconds;
+        StopRunningClock();
+        _currentSession.DurationSeconds = RunningSeconds();
 
         // Only save if session meets minimum duration
         var durationMinutes = _currentSession.DurationSeconds / 60;
@@ -282,6 +311,30 @@ public class HistoryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save session history to disk");
+        }
+    }
+
+    /// <summary>
+    /// Adds up a treadmill total across one session. A reading lower than the last means the treadmill restarted the
+    /// total (a new workout or a reconnect), so it counts from zero again; the first reading is the baseline.
+    /// </summary>
+    private sealed class SessionCounter
+    {
+        private decimal? _last;
+        private decimal _total;
+
+        public decimal Add(decimal reading)
+        {
+            if (_last is { } last)
+                _total += reading >= last ? reading - last : reading;
+            _last = reading;
+            return _total;
+        }
+
+        public void Reset()
+        {
+            _last = null;
+            _total = 0;
         }
     }
 }
