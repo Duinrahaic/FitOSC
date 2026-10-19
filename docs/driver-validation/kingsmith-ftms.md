@@ -32,8 +32,7 @@ Known gaps, which this checklist is meant to settle:
   Line 6 checks whether that matters.
 - The conversion review reported that KS Fit reads a step count behind Treadmill Data flag bit 13, which the SIG
   reserves; its byte position is not confirmed. This driver ignores it, so steps are not shown.
-- Shared FitOSC limits (README): speed **+** / **-** need a reported speed range, incline **-** stops at 0 %, and an
-  incline reported as unavailable shows as 3276.7 %.
+- An incline the treadmill sends as unavailable (`0x7FFF`) is not shown, rather than reading as 3276.7 %.
 
 ## Checklist
 
@@ -45,8 +44,8 @@ Stand beside the belt for every first command. Use speeds up to 4 km/h.
 2. **Readings.** Run 2.0 and 4.0 km/h from the console or remote for 30 s each. FitOSC speed is within 0.1 km/h of
    the console and distance rises with it within 0.01 km.
 3. **Start.** Belt stopped: press START. The log shows the unlock, `Wrote 00` and `Wrote 07`; the treadmill starts.
-4. **Speed.** `FitOSC.setSpeed(3.0)`: `Wrote 02-2C-01`, belt at 3.0 km/h within 0.1 km/h. Speed **+** once (only if
-   line 1 logged a speed range): belt rises about 0.32 km/h.
+4. **Speed.** `FitOSC.setSpeed(3.0)`: `Wrote 02-2C-01`, belt at 3.0 km/h within 0.1 km/h. Speed **+** once: belt rises
+   about 0.32 km/h.
 5. **Incline.** Only on a model with incline: `FitOSC.setIncline(2)` gives `Wrote 03-14-00` and 2 %; `setIncline(0)`
    returns to 0 %. Otherwise mark not tested.
 6. **Speed after a while.** Leave it running 5 minutes, then `FitOSC.setSpeed(3.5)`. Pass if the belt changes. If the
