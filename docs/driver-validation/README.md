@@ -59,18 +59,18 @@ A failed connection shows its reason under **Currently Connected**, and the log 
   - `FitOSC.getDeviceInfo()` lists the connected device's services and characteristics. Attach it to every report.
   - `FitOSC.setSpeed(3.0)` (km/h) and `FitOSC.setIncline(2)` (%) send exact targets.
 
-### Controls FitOSC shows that a driver may not support
+### Controls
 
-These come from the shared FitOSC interface, not from the driver under test. Each checklist says which controls
-work.
+Each driver tells FitOSC which commands it takes. **START**, **PAUSE**, **STOP** and the speed and incline **+** /
+**-** controls are enabled only for those, and the same rule applies to OSC, MIDI and the `FitOSC.setSpeed()` /
+`FitOSC.setIncline()` console commands: a command the driver does not take is dropped, with a debug-level log line.
+The checklist says which controls the driver offers; for the rest, use the console or the safety key.
 
-- **START**, **PAUSE** and **STOP** are enabled whenever a treadmill is connected, even when the driver ignores them.
-  Where a checklist says STOP is not supported, stop the belt with the console or the safety key.
-- The speed **+** / **-** controls step 0.2 mph (0.32 km/h) from the current speed and are enabled whenever the
-  driver reports speed. If the driver reports no speed range, pressing them throws an error inside FitOSC instead of
-  sending anything; the checklist says so, and `FitOSC.setSpeed()` is the way to send speed to such a driver.
-- The incline **-** control does nothing at 0% or below, so negative incline can only be set from the console or with
-  `FitOSC.setIncline()`.
+- Speed and incline targets are limited to the range the treadmill reported. A driver that reports no speed range
+  sends the target as it is, within what its protocol can encode.
+- The speed **+** / **-** controls step 0.2 mph (0.32 km/h) from the current speed, never below 0.5 km/h.
+- The incline **+** / **-** controls step by the driver's increment within the reported range, including below 0 %
+  when the range allows it.
 
 ## 4. Evidence to post on the pull request
 

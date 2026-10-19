@@ -74,8 +74,8 @@ public class FitShowTreadmillService(ILogger<FitShowTreadmillService> logger, Ap
         return Task.CompletedTask;
     }
 
-    // The SDK has no pause command; stopping is the closest action.
-    public override Task PauseAsync() => StopAsync();
+    // The SDK has no pause command, so pause is not offered.
+    public override Task PauseAsync() => Task.CompletedTask;
 
     public override Task StopAsync() => WriteAsync(Frame(ControlCommand, StopControl));
 
@@ -93,7 +93,8 @@ public class FitShowTreadmillService(ILogger<FitShowTreadmillService> logger, Ap
             return Task.CompletedTask;
         }
 
-        _inclineRaw.Command((byte)(sbyte)Math.Round(Math.Clamp(incline, _minIncline, _maxIncline)));
+        // Whole percent, rounded half up as Kinomap's Math.round does.
+        _inclineRaw.Command((byte)(sbyte)Math.Floor(Math.Clamp(incline, _minIncline, _maxIncline) + 0.5m));
         return WriteAsync(Frame(ControlCommand, SetSpeedAndIncline, _speedRaw.Value, _inclineRaw.Value));
     }
 
@@ -108,7 +109,8 @@ public class FitShowTreadmillService(ILogger<FitShowTreadmillService> logger, Ap
         {
             MinIncline = _minIncline,
             MaxIncline = _maxIncline,
-            InclineIncrement = _maxIncline > _minIncline ? 1 : 0
+            InclineIncrement = _maxIncline > _minIncline ? 1 : 0,
+            Commands = TreadmillCommands.Stop | TreadmillCommands.Speed | TreadmillCommands.Incline
         });
 
     public override TreadmillTelemetry TranslateData(byte[] data)
