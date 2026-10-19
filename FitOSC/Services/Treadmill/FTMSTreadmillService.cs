@@ -26,6 +26,9 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     // Total Energy of 0xFFFF means the machine does not know it.
     private const ushort EnergyNotAvailable = 0xFFFF;
 
+    private const byte SetTargetSpeedOpcode = 0x02;
+    private const byte SetTargetInclineOpcode = 0x03;
+
     // How long a Control Point procedure waits for the machine's response before the next one may start.
     private static readonly TimeSpan ControlPointTimeout = TimeSpan.FromSeconds(3);
 
@@ -33,6 +36,17 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     private readonly SemaphoreSlim _controlPointGate = new(1, 1);
     private TaskCompletionSource<byte>? _pendingResponse;
     private byte _pendingOpcode;
+
+    // Set once a procedure goes unanswered: the machine does not respond, so later procedures do not wait for it, and
+    // a late answer cannot be mistaken for the response to the next request.
+    private volatile bool _responsesUnanswered;
+
+    // Cancelled when the connection ends, releasing queued and in-flight procedures.
+    private readonly CancellationTokenSource _closing = new();
+
+    // Only the newest speed and incline target is sent; one that is replaced while waiting is dropped.
+    private readonly Dictionary<byte, byte[]> _pendingTargets = new();
+    private bool _sendingTargets;
 
     // Fitness Machine Status opcodes.
     private const byte StatusReset = 0x01;
@@ -79,6 +93,7 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
 
     public override async Task DisconnectAsync()
     {
+        _closing.Cancel();
         _lastTelemetry = null;
         _machineState = null;
         _configuration = new TreadmillConfiguration();
@@ -99,31 +114,52 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
 
     /// <summary>
     /// Writes a Control Point request and waits for the machine's response to it, so procedures never overlap.
-    /// Returns the result code, or null when the write failed or no response arrived in time.
+    /// Returns the result code, or null when the write failed, no response arrived in time, or the connection ended.
+    /// A machine that does not respond is assumed to accept what it was sent.
     /// </summary>
     private async Task<byte?> RunControlPointAsync(byte[] payload)
     {
-        await _controlPointGate.WaitAsync();
+        var closing = _closing.Token;
+        try
+        {
+            await _controlPointGate.WaitAsync(closing);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+
         try
         {
             var response = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _pendingOpcode = payload[0];
-            Volatile.Write(ref _pendingResponse, response);
+            if (!_responsesUnanswered)
+            {
+                _pendingOpcode = payload[0];
+                Volatile.Write(ref _pendingResponse, response);
+            }
 
             // The Control Point only accepts acknowledged writes.
-            if (!await Client.WriteAsync(ControlPoint, payload, withResponse: true))
+            if (!await Client.WriteAsync(ControlPoint, payload, withResponse: true, closing))
                 return null;
+            if (_responsesUnanswered)
+                return ResultSuccess;
 
             try
             {
-                var result = await response.Task.WaitAsync(ControlPointTimeout);
+                var result = await response.Task.WaitAsync(ControlPointTimeout, closing);
                 if (result != ResultSuccess)
                     logger.LogWarning("Treadmill rejected control point opcode {Opcode:X2} with result {Result:X2}", payload[0], result);
                 return result;
             }
             catch (TimeoutException)
             {
-                logger.LogWarning("Treadmill did not answer control point opcode {Opcode:X2}", payload[0]);
+                _responsesUnanswered = true;
+                logger.LogWarning("Treadmill did not answer control point opcode {Opcode:X2}; no longer waiting for answers",
+                    payload[0]);
+                return null;
+            }
+            catch (OperationCanceledException)
+            {
                 return null;
             }
         }
@@ -134,14 +170,60 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         }
     }
 
+    /// <summary>
+    /// Sends a speed or incline target. While one is being sent, newer targets replace any still waiting, so a burst of
+    /// changes ends at the latest value instead of queuing every step.
+    /// </summary>
+    private async Task SetTargetAsync(byte[] payload)
+    {
+        lock (_pendingTargets)
+        {
+            _pendingTargets[payload[0]] = payload;
+            if (_sendingTargets)
+                return;
+            _sendingTargets = true;
+        }
+
+        while (true)
+        {
+            byte[] next;
+            lock (_pendingTargets)
+            {
+                if (_pendingTargets.Count == 0)
+                {
+                    _sendingTargets = false;
+                    return;
+                }
+
+                next = _pendingTargets.Values.First();
+                _pendingTargets.Remove(next[0]);
+            }
+
+            await RunControlPointAsync(next);
+        }
+    }
+
+    /// <summary>Drops targets that have not been sent; stopping or pausing supersedes them.</summary>
+    private void ClearPendingTargets()
+    {
+        lock (_pendingTargets)
+            _pendingTargets.Clear();
+    }
+
     public override async Task StartAsync() =>
         await WriteControlPointAsync(new byte[] { 0x07 });
 
-    public override async Task StopAsync() =>
+    public override async Task StopAsync()
+    {
+        ClearPendingTargets();
         await WriteControlPointAsync(new byte[] { 0x08, 0x01 });
+    }
 
-    public override async Task PauseAsync() =>
+    public override async Task PauseAsync()
+    {
+        ClearPendingTargets();
         await WriteControlPointAsync(new byte[] { 0x08, 0x02 });
+    }
 
     public override async Task SetSpeedAsync(decimal speed)
     {
@@ -152,13 +234,12 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         ushort raw = (ushort)Math.Round(clamped * 100, MidpointRounding.AwayFromZero);
         var payload = new byte[]
         {
-            0x02, // Set Target Speed
+            SetTargetSpeedOpcode,
             (byte)(raw & 0xFF),
             (byte)((raw >> 8) & 0xFF)
         };
 
-        await WriteControlPointAsync(payload);
-        logger.LogDebug("Sent speed command: {Payload}", BitConverter.ToString(payload));
+        await SetTargetAsync(payload);
     }
 
     public override async Task SetInclineAsync(decimal incline)
@@ -168,11 +249,11 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         short raw = (short)Math.Round(clamped * 10, MidpointRounding.AwayFromZero); // FTMS uses 0.1% increments
         var payload = new byte[]
         {
-            0x03, // Set Incline
+            SetTargetInclineOpcode,
             (byte)(raw & 0xFF),
             (byte)((raw >> 8) & 0xFF)
         };
-        await WriteControlPointAsync(payload);
+        await SetTargetAsync(payload);
     }
 
     /// <summary>Clamps to the treadmill's supported range when it reported one, and always to what the field can encode.</summary>
@@ -412,12 +493,15 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         // Only a packet that carries speed is a fresh belt sample; carried-over speed is not.
         var hasSpeed = telemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Enabled;
 
-        // Carry over fields this packet did not include.
+        // Carry over fields this packet did not include. Energy it reported as unknown is not replaced by an old value.
+        var energyReported = new FtmsTelemetryFlags(data).HasKcal;
         if (_lastTelemetry != null)
         {
             foreach (var (property, last) in _lastTelemetry.Values)
             {
                 var current = telemetry.Values[property];
+                if (property == TreadmillTelemetryProperty.Calories && energyReported)
+                    continue;
                 if (last.Enabled && !current.Enabled)
                 {
                     current.Enabled = true;

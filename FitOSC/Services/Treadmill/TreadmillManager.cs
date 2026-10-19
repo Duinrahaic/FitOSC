@@ -113,8 +113,7 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         {
             if (await service.ConnectAsync(deviceName, timeout.Token))
             {
-                await service.RequestControlAsync();
-                timeout.Token.ThrowIfCancellationRequested();
+                await service.RequestControlAsync().WaitAsync(timeout.Token);
                 if (service.IsConnected)
                     return ConnectionStatus.Connected;
             }

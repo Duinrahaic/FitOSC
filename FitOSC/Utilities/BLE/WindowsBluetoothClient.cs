@@ -469,22 +469,34 @@ namespace FitOSC.Utilities.BLE
             }
 
             GattCharacteristic? found = null;
-            foreach (var service in services.Services)
+            GattDeviceService? owner = null;
+            try
             {
-                if (found == null && service.Uuid != _lastServiceUuid)
+                foreach (var service in services.Services)
                 {
+                    if (service.Uuid == _lastServiceUuid)
+                        continue;
+
                     var result = await service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
                     if (result.Status == GattCommunicationStatus.Success && result.Characteristics.Count > 0)
                     {
                         logger.LogDebug("Found characteristic {Uuid} in service {ServiceUuid}", characteristicUuid, service.Uuid);
                         found = result.Characteristics[0];
+                        owner = service;
                         lock (_otherServices)
                             _otherServices.Add(service);
-                        continue;
+                        break;
                     }
                 }
-
-                service.Dispose();
+            }
+            finally
+            {
+                // Released even when the search fails part-way.
+                foreach (var service in services.Services)
+                {
+                    if (service != owner)
+                        service.Dispose();
+                }
             }
 
             return found;
@@ -555,87 +567,59 @@ namespace FitOSC.Utilities.BLE
             return output.ToString();
         }
 
-        public override async Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false)
+        public override async Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false,
+            CancellationToken cancellationToken = default)
         {
             const int maxRetries = 3;
-            int attemptCount = 0;
-            Exception? lastException = null;
+            var retryDelay = TimeSpan.FromMilliseconds(100);
 
-            while (attemptCount < maxRetries)
+            try
             {
-                try
+                for (var attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    attemptCount++;
-
-                    if (_service == null)
+                    try
                     {
-                        if (attemptCount < maxRetries)
-                        {
-                            logger.LogWarning("Not connected to service, retrying... (Attempt {Attempt}/{Max})", attemptCount, maxRetries);
-                            await Task.Delay(100); // Brief delay before retry
-                            continue;
-                        }
-                        throw new InvalidOperationException("Not connected to a service.");
-                    }
+                        var service = _service;
+                        if (service == null)
+                            throw new InvalidOperationException("Not connected to a service.");
 
-                    if (!_characteristics.TryGetValue(characteristicUuid, out var characteristic))
-                    {
-                        var result = await _service.GetCharacteristicsForUuidAsync(characteristicUuid);
-                        if (result.Status != GattCommunicationStatus.Success || result.Characteristics.Count == 0)
+                        if (!_characteristics.TryGetValue(characteristicUuid, out var characteristic))
                         {
-                            if (attemptCount < maxRetries)
-                            {
-                                logger.LogWarning("Characteristic {Uuid} not found, retrying... (Attempt {Attempt}/{Max})",
-                                    characteristicUuid, attemptCount, maxRetries);
-                                await Task.Delay(100);
-                                continue;
-                            }
-                            throw new InvalidOperationException($"Characteristic {characteristicUuid} not found.");
+                            var result = await service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
+                            if (result.Status != GattCommunicationStatus.Success || result.Characteristics.Count == 0)
+                                throw new InvalidOperationException($"Characteristic {characteristicUuid} not found.");
+
+                            characteristic = result.Characteristics[0];
+                            _characteristics[characteristicUuid] = characteristic;
                         }
 
-                        characteristic = result.Characteristics[0];
-                        _characteristics[characteristicUuid] = characteristic;
-                    }
-
-                    var buffer = command.AsBuffer();
-                    var writeOption = withResponse ? GattWriteOption.WriteWithResponse : GattWriteOption.WriteWithoutResponse;
-                    var status = await characteristic.WriteValueAsync(buffer, writeOption);
-
-                    if (status == GattCommunicationStatus.Success)
-                    {
-                        logger.LogDebug("Wrote {Command} to {Uuid}", BitConverter.ToString(command), characteristicUuid);
-                        return true;
-                    }
-                    else
-                    {
-                        if (attemptCount < maxRetries)
+                        var writeOption = withResponse ? GattWriteOption.WriteWithResponse : GattWriteOption.WriteWithoutResponse;
+                        var status = await characteristic.WriteValueAsync(command.AsBuffer(), writeOption).AsTask(cancellationToken);
+                        if (status == GattCommunicationStatus.Success)
                         {
-                            logger.LogWarning("Failed to write to {Uuid}: {Status}, retrying... (Attempt {Attempt}/{Max})",
-                                characteristicUuid, status, attemptCount, maxRetries);
-                            await Task.Delay(100);
-                            continue;
+                            logger.LogDebug("Wrote {Command} to {Uuid}", BitConverter.ToString(command), characteristicUuid);
+                            return true;
                         }
-                        logger.LogWarning("Failed to write to {Uuid}: {Status}", characteristicUuid, status);
-                        return false;
+
+                        logger.LogWarning("Failed to write to {Uuid}: {Status} (attempt {Attempt}/{Max})",
+                            characteristicUuid, status, attempt, maxRetries);
                     }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        logger.LogWarning(ex, "Error writing to {Uuid} (attempt {Attempt}/{Max})", characteristicUuid, attempt, maxRetries);
+                    }
+
+                    if (attempt < maxRetries)
+                        await Task.Delay(retryDelay, cancellationToken);
                 }
-                catch (Exception ex)
-                {
-                    lastException = ex;
-                    if (attemptCount < maxRetries)
-                    {
-                        logger.LogWarning(ex, "Error writing to {Uuid}, retrying... (Attempt {Attempt}/{Max})",
-                            characteristicUuid, attemptCount, maxRetries);
-                        await Task.Delay(100);
-                    }
-                    else
-                    {
-                        logger.LogError(ex, "Failed to write to {Uuid} after {Attempts} attempts", characteristicUuid, maxRetries);
-                    }
-                }
+
+                logger.LogError("Failed to write to {Uuid} after {Attempts} attempts", characteristicUuid, maxRetries);
+                return false;
             }
-
-            return false;
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
         }
 
         public override async Task<byte[]?> ReadAsync(Guid characteristicUuid, CancellationToken cancellationToken = default)

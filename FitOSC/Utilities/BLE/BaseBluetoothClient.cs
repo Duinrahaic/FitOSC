@@ -47,8 +47,9 @@
         /// <param name="characteristicUuid">The characteristic UUID to write to.</param>
         /// <param name="command">The raw bytes to write.</param>
         /// <param name="withResponse">Whether to use an acknowledged GATT write instead of write-without-response.</param>
-        /// <returns>Whether the write reached the device.</returns>
-        public abstract Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false);
+        /// <returns>Whether the write reached the device; false once <paramref name="cancellationToken"/> is cancelled.</returns>
+        public abstract Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Reads the current value of a given characteristic.

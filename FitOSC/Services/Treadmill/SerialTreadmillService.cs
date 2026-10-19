@@ -11,6 +11,11 @@ public record SerialChannel(Guid Service, Guid Notify, Guid Write);
 /// <summary>
 /// Experimental: Evaluating driver
 /// </summary>
+/// <remarks>
+/// Notifications and poll ticks run one at a time. Commands (start, speed, incline and so on) arrive from the UI and
+/// may run alongside either, so state they share with notifications must be thread-safe, e.g. a
+/// <see cref="CommandedValue"/>.
+/// </remarks>
 public abstract class SerialTreadmillService(ILogger logger, AppStateService appState)
     : TreadmillService(appState, new WindowsBluetoothClient(logger))
 {
@@ -77,7 +82,8 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
             _channel = channel;
             _sessionCts = new CancellationTokenSource();
             _sessionToken = _sessionCts.Token;
-            await OnConnectedAsync();
+            // The connect timeout bounds setup; ending the session cancels any write it left running.
+            await OnConnectedAsync().WaitAsync(cancellationToken);
             _polling = RunPollingAsync(_sessionToken);
 
             // Polling retries the handshake; the caller's timeout bounds the wait.
@@ -123,11 +129,14 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
 
     public override async Task SendCommandAsync(byte[] command) => await WriteAsync(command);
 
-    /// <summary>Writes a frame to the session's write characteristic; returns whether it reached the device.</summary>
+    /// <summary>
+    /// Writes a frame to the session's write characteristic; returns whether it reached the device. Ending the session
+    /// cancels it.
+    /// </summary>
     protected async Task<bool> WriteAsync(byte[] frame)
     {
         var channel = _channel;
-        return channel != null && await Client.WriteAsync(channel.Write, frame);
+        return channel != null && await Client.WriteAsync(channel.Write, frame, cancellationToken: _sessionToken);
     }
 
     private void HandleNotification(byte[] data)
