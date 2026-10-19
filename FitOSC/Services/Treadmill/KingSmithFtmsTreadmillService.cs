@@ -38,9 +38,19 @@ public class KingSmithFtmsTreadmillService(ILogger<KingSmithFtmsTreadmillService
         await base.RequestControlAsync();
     }
 
+    // A refused request fails the connection when connecting; here it only means the treadmill will not start.
     public override async Task StartAsync()
     {
-        await RequestControlAsync();
+        try
+        {
+            await RequestControlAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning("Not starting the KingSmith treadmill: {Reason}", ex.Message);
+            return;
+        }
+
         await Task.Delay(RequestControlDelay);
         await base.StartAsync();
     }
