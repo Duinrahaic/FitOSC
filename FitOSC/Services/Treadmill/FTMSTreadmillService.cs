@@ -26,6 +26,9 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     // Total Energy of 0xFFFF means the machine does not know it.
     private const ushort EnergyNotAvailable = 0xFFFF;
 
+    // Inclination, Ramp Angle Setting, Force on Belt and Power Output of 0x7FFF mean 'Data Not Available'.
+    private const short SignedNotAvailable = 0x7FFF;
+
     private const byte SetTargetSpeedOpcode = 0x02;
     private const byte SetTargetInclineOpcode = 0x03;
 
@@ -280,7 +283,8 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
             SpeedIncrement = stepSpeed,
             MinIncline = minIncline,
             MaxIncline = maxIncline,
-            InclineIncrement = stepIncline
+            InclineIncrement = stepIncline,
+            Commands = TreadmillCommands.All
         };
         RaiseConfiguration(_configuration);
     }
@@ -384,13 +388,8 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         // Incline (sint16, 0.1%) + Ramp Angle (sint16, 0.1°)
         if (flags.HasInclination)
         {
-            td.Values[TreadmillTelemetryProperty.Incline].Enabled = true;
-            td.Values[TreadmillTelemetryProperty.Incline].Value =
-                BitConverter.ToInt16(data, flags.PosInclination) / 10.0m;
-
-            td.Values[TreadmillTelemetryProperty.RampAngle].Enabled = true;
-            td.Values[TreadmillTelemetryProperty.RampAngle].Value =
-                BitConverter.ToInt16(data, flags.PosInclination + 2) / 10.0m;
+            SetSigned(td, TreadmillTelemetryProperty.Incline, BitConverter.ToInt16(data, flags.PosInclination), 10.0m);
+            SetSigned(td, TreadmillTelemetryProperty.RampAngle, BitConverter.ToInt16(data, flags.PosInclination + 2), 10.0m);
         }
 
         // Positive Elevation Gain (uint16, 0.1 m), followed by Negative Elevation Gain
@@ -465,17 +464,31 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         // Force on Belt (sint16, N) + Power Output (sint16, W)
         if (flags.HasForceBelt)
         {
-            td.Values[TreadmillTelemetryProperty.ForceOnBelt].Enabled = true;
-            td.Values[TreadmillTelemetryProperty.ForceOnBelt].Value =
-                BitConverter.ToInt16(data, flags.PosForceBelt);
-
-            td.Values[TreadmillTelemetryProperty.Power].Enabled = true;
-            td.Values[TreadmillTelemetryProperty.Power].Value =
-                BitConverter.ToInt16(data, flags.PosForceBelt + 2);
+            SetSigned(td, TreadmillTelemetryProperty.ForceOnBelt, BitConverter.ToInt16(data, flags.PosForceBelt), 1m);
+            SetSigned(td, TreadmillTelemetryProperty.Power, BitConverter.ToInt16(data, flags.PosForceBelt + 2), 1m);
         }
 
         return td;
     }
+
+    /// <summary>Publishes a signed field unless the machine sent it as 'Data Not Available'.</summary>
+    private static void SetSigned(TreadmillTelemetry td, TreadmillTelemetryProperty property, short raw, decimal divisor)
+    {
+        if (raw == SignedNotAvailable)
+            return;
+
+        td.Values[property].Enabled = true;
+        td.Values[property].Value = raw / divisor;
+    }
+
+    /// <summary>Whether the packet carried the property's field, even if only as 'Data Not Available'.</summary>
+    private static bool Carries(FtmsTelemetryFlags flags, TreadmillTelemetryProperty property) => property switch
+    {
+        TreadmillTelemetryProperty.Calories => flags.HasKcal,
+        TreadmillTelemetryProperty.Incline or TreadmillTelemetryProperty.RampAngle => flags.HasInclination,
+        TreadmillTelemetryProperty.ForceOnBelt or TreadmillTelemetryProperty.Power => flags.HasForceBelt,
+        _ => false
+    };
 
     private void HandleTelemetryData(byte[] data)
     {
@@ -493,14 +506,14 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         // Only a packet that carries speed is a fresh belt sample; carried-over speed is not.
         var hasSpeed = telemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Enabled;
 
-        // Carry over fields this packet did not include. Energy it reported as unknown is not replaced by an old value.
-        var energyReported = new FtmsTelemetryFlags(data).HasKcal;
+        // Carry over fields this packet did not include. One it reported as unknown is not replaced by an old value.
+        var flags = new FtmsTelemetryFlags(data);
         if (_lastTelemetry != null)
         {
             foreach (var (property, last) in _lastTelemetry.Values)
             {
                 var current = telemetry.Values[property];
-                if (property == TreadmillTelemetryProperty.Calories && energyReported)
+                if (Carries(flags, property))
                     continue;
                 if (last.Enabled && !current.Enabled)
                 {
