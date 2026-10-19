@@ -42,6 +42,11 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
     private const int FrameOverhead = 4; // header, command, length, XOR
     private const decimal KilometresPerMile = 1.609344m;
 
+    // The console's heartbeat counters roll over at these raw values: 100 min, 9,999 steps, 1,000 kcal.
+    private const int ElapsedSecondsWrap = 6000;
+    private const int StepsWrap = 10000;
+    private const int CaloriesWrap = 100000;
+
     // The app repeats the handshake every three seconds until the treadmill sends its challenge.
     private const int HandshakeEveryTicks = 3;
 
@@ -68,10 +73,10 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
     // Whole percent; a treadmill that reports no incline range has no incline control.
     private byte _minIncline;
     private byte _maxIncline;
-    private decimal _calories;
+    private readonly WrappingCounter _calories = new(CaloriesWrap);
     private int _distanceMeters;
-    private int _steps;
-    private int _elapsedSeconds;
+    private readonly WrappingCounter _steps = new(StepsWrap);
+    private readonly WrappingCounter _elapsedSeconds = new(ElapsedSecondsWrap);
 
     protected override IReadOnlyList<SerialChannel> Channels { get; } =
     [
@@ -105,10 +110,15 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
         _maxSpeedRaw = DefaultMaxSpeedRaw;
         _minIncline = 0;
         _maxIncline = 0;
-        _calories = 0;
         _distanceMeters = 0;
-        _steps = 0;
-        _elapsedSeconds = 0;
+        ResetCounters();
+    }
+
+    private void ResetCounters()
+    {
+        _calories.Reset();
+        _steps.Reset();
+        _elapsedSeconds.Reset();
     }
 
     // Handshake until paired, then echo state and speed back as a keep-alive.
@@ -177,10 +187,10 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
             (TreadmillTelemetryProperty.InstantaneousSpeed, speed),
             (TreadmillTelemetryProperty.InstantaneousPace, PaceFromSpeed(speed)),
             (TreadmillTelemetryProperty.Incline, _inclineRaw),
-            (TreadmillTelemetryProperty.ElapsedTime, _elapsedSeconds),
+            (TreadmillTelemetryProperty.ElapsedTime, _elapsedSeconds.Value),
             (TreadmillTelemetryProperty.TotalDistance, _distanceMeters),
-            (TreadmillTelemetryProperty.Calories, _calories),
-            (TreadmillTelemetryProperty.StepCount, _steps));
+            (TreadmillTelemetryProperty.Calories, _calories.Value / 100m),
+            (TreadmillTelemetryProperty.StepCount, _steps.Value));
     }
 
     protected override void OnNotification(byte[] data)
@@ -247,7 +257,7 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
 
     private void HandleHeartbeat(byte[] data)
     {
-        if (!HasValidXor(data))
+        if (!HasValidHeartbeatXor(data))
             return;
 
         if (!_unitKnown)
@@ -256,15 +266,20 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
             _ = WriteAsync(Frame(SpeedRangeCommand, (byte)Random.Shared.Next(255)));
 
         // Calories arrive in units of 10 cal.
-        _calories = ReadBigEndian(data, 4, 3) / 100m;
+        _calories.Update(ReadBigEndian(data, 4, 3));
         _distanceMeters = ReadBigEndian(data, 7, 2);
-        _steps = ReadBigEndian(data, 9, 3);
-        _elapsedSeconds = ReadBigEndian(data, 12, 2);
+        _steps.Update(ReadBigEndian(data, 9, 3));
+        _elapsedSeconds.Update(ReadBigEndian(data, 12, 2));
         RaiseData(TranslateData(data));
     }
 
     private void HandleStatus(EsStatus status)
     {
+        // A new workout restarts the console's counters from zero; that is not a rollover.
+        if (status is EsStatus.PreWorkout or EsStatus.Running &&
+            _status is EsStatus.Idle or EsStatus.PostWorkout or EsStatus.Stopped)
+            ResetCounters();
+
         _status = status;
         if (status is not (EsStatus.PreWorkout or EsStatus.Running) && _speedRaw != 0)
         {
@@ -371,7 +386,8 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
         return [.. body, Xor(body)];
     }
 
-    private static bool HasValidXor(byte[] frame) => Xor(frame.AsSpan(0, frame.Length - 1)) == frame[^1];
+    // Matches the EQI app, whose heartbeat checksum leaves out the byte before the XOR.
+    private static bool HasValidHeartbeatXor(byte[] frame) => Xor(frame.AsSpan(0, frame.Length - 2)) == frame[^1];
 
     private static byte Xor(ReadOnlySpan<byte> bytes)
     {
@@ -379,6 +395,30 @@ public class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, 
         foreach (var b in bytes)
             xor ^= b;
         return xor;
+    }
+
+    /// <summary>
+    /// A console counter that rolls over at <paramref name="wrap"/>; each drop in the raw value adds one full period.
+    /// </summary>
+    private sealed class WrappingCounter(int wrap)
+    {
+        private int _last;
+        private int _offset;
+
+        public int Value => _offset + _last;
+
+        public void Update(int raw)
+        {
+            if (raw < _last)
+                _offset += wrap;
+            _last = raw;
+        }
+
+        public void Reset()
+        {
+            _last = 0;
+            _offset = 0;
+        }
     }
 
     private enum EsStatus : byte
