@@ -48,7 +48,10 @@ Stand beside the belt for every command. Use inclines up to 3 %.
 4. **Pause and stop from the console.** Pause on the console: state Paused, speed 0. Stop: state Stopped.
 5. **Controls that do nothing.** Belt running at walking speed, hand on the console stop: press STOP in FitOSC. The
    belt keeps running and the log shows no write other than polling. Stop it from the console.
-6. **Disconnect mid-handshake.** Disconnect within 2 s of connecting: the handshake writes stop in the log.
+6. **Disconnect mid-handshake.** The disconnect button only appears once connected, so use the developer console.
+   Belt clear, FitOSC disconnected: run
+   `setTimeout(() => FitOSC.disconnectTreadmill(), 1000); FitOSC.connectTreadmill('<device name>', 'IConsole')`.
+   The log shows the session ending about 1 s after the first `F0-A0-…` write and no handshake write after that.
 7. **Disconnect and reconnect.** README section 5; the handshake runs again with `F0-A0-02-02-94`.
 
 Pass: every line passes. Line 1's automatic start is expected; an unexpected belt movement at any other time is a
