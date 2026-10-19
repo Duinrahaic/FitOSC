@@ -3,26 +3,26 @@ using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
-public class WalkingPadTreadmillService(ILogger<WalkingPadTreadmillService> logger, AppStateService appState) 
+public class WalkingPadTreadmillService(ILogger<WalkingPadTreadmillService> logger, AppStateService appState)
     : TreadmillService(appState, new WindowsBluetoothClient(logger))
 {
     private static readonly Guid ServiceUuid = Guid.Parse("0000ffe0-0000-1000-8000-00805f9b34fb");
-    private static readonly Guid DataUuid    = Guid.Parse("0000ffe1-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid DataUuid = Guid.Parse("0000ffe1-0000-1000-8000-00805f9b34fb");
 
-    public override async Task ConnectAsync(string deviceName)
+    public override async Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken)
     {
-        if (!await Client.ConnectAsync(ServiceUuid,deviceName))
-            return;
+        if (!await Client.ConnectAsync(ServiceUuid, deviceName, cancellationToken))
+            return false;
 
-        await Client.SubscribeAsync(DataUuid, d => RaiseData(TranslateData(d)));
+        return await Client.SubscribeAsync(DataUuid, d => RaiseData(TranslateData(d)));
     }
 
     public override async Task DisconnectAsync() => await Client.DisconnectAsync();
     public override async Task RequestControlAsync() =>
         await Client.WriteAsync(DataUuid, new byte[] { 0x00 });
-    public override async Task StartAsync()  => await Client.WriteAsync(DataUuid, new byte[] { 0x01 });
-    public override async Task StopAsync()   => await Client.WriteAsync(DataUuid, new byte[] { 0x02 });
-    public override async Task PauseAsync()  => await Client.WriteAsync(DataUuid, new byte[] { 0x03 });
+    public override async Task StartAsync() => await Client.WriteAsync(DataUuid, new byte[] { 0x01 });
+    public override async Task StopAsync() => await Client.WriteAsync(DataUuid, new byte[] { 0x02 });
+    public override async Task PauseAsync() => await Client.WriteAsync(DataUuid, new byte[] { 0x03 });
     public override async Task SetSpeedAsync(decimal speed)
     {
         // FTMS uses 0.01 km/h units

@@ -60,7 +60,6 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Blazored.LocalStorage" Version="4.5.0"/>
-        <PackageReference Include="InTheHand.BluetoothLE" Version="4.0.43" />
         <PackageReference Include="LucHeart.CoreOSC" Version="1.4.0" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.10"/>
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="8.0.10"/>

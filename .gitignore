@@ -10,3 +10,6 @@
 .claude/
 *_SUMMARY.md
 *_ANALYSIS.md
+
+# Sass source maps
+*.css.map

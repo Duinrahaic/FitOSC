@@ -241,7 +241,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
-                if (config != null)
+                if (config is { SupportsIncline: true })
                 {
                     _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline + config.InclineIncrement, config.MinIncline, config.MaxIncline));
                     _logger.LogInformation("Treadmill incline up via SteamVR action");
@@ -252,7 +252,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
-                if (config != null)
+                if (config is { SupportsIncline: true })
                 {
                     _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline - config.InclineIncrement, config.MinIncline, config.MaxIncline));
                     _logger.LogInformation("Treadmill incline down via SteamVR action");
@@ -382,7 +382,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         decimal currentSpeed = speedValue.IsMetric ? speedValue.Value : speedValue.Value.ConvertMphToKph();
 
         // Normalize speed to 0.0-1.0 range based on max speed
-        float normalizedSpeed = (float)(Math.Clamp(currentSpeed,0,_modeConfig.MaxSpeed) / _modeConfig.MaxSpeed);
+        float normalizedSpeed = (float)(Math.Clamp(currentSpeed, 0, _modeConfig.MaxSpeed) / _modeConfig.MaxSpeed);
 
         // Clamp to 0.0-1.0 range
         normalizedSpeed = Math.Clamp(normalizedSpeed, 0f, 1f);

@@ -1995,6 +1995,19 @@ kbd {
   background: rgba(33, 150, 243, 0.1);
 }
 
+.experimental-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: 4px;
+  color: #ff9800;
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
 .scan-section {
   width: 100%;
   margin-top: 20px;
