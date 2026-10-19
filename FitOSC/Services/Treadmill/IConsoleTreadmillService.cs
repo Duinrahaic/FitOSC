@@ -122,7 +122,8 @@ public class IConsoleTreadmillService(ILogger<IConsoleTreadmillService> logger, 
 
     public override Task SetInclineAsync(decimal incline)
     {
-        _incline = Math.Round(Math.Clamp(incline, 0, MaxIncline));
+        // Whole percent, rounded half up as Kinomap's Math.round does.
+        _incline = Math.Round(Math.Clamp(incline, 0, MaxIncline), MidpointRounding.AwayFromZero);
         RaiseData(TranslateData([]));
         return Send(RouteInfo, (byte)((int)_incline + 1), 0x64, 0x64);
     }
@@ -134,7 +135,13 @@ public class IConsoleTreadmillService(ILogger<IConsoleTreadmillService> logger, 
     }
 
     private void PublishConfiguration() =>
-        RaiseConfiguration(new TreadmillConfiguration { MinIncline = 0, MaxIncline = MaxIncline, InclineIncrement = 1 });
+        RaiseConfiguration(new TreadmillConfiguration
+        {
+            MinIncline = 0,
+            MaxIncline = MaxIncline,
+            InclineIncrement = 1,
+            Commands = TreadmillCommands.Incline
+        });
 
     public override TreadmillTelemetry TranslateData(byte[] data) => Telemetry(
         (TreadmillTelemetryProperty.InstantaneousSpeed, _speed),

@@ -19,10 +19,10 @@ when that is missing, the Microchip ISSC service `49535343-fe7d-4ae5-8fa9-9fafd2
   (`A5 04`, three times 500 ms apart), `A1`, sport mode `A3`, route `AC` and sport data `A4`, and loading status `AF`
   until the console reports loaded. Connecting waits for that; a missing reply restarts the handshake after 5 s.
 - **Polling**, once a second after the handshake: `F0-A2-<ids>-<sum>`.
-- **Start**: when a data reply says the console is ready and waiting, the driver sends `A5 02`. The START, PAUSE and
-  STOP buttons and speed do nothing: **stop the belt with the console or the safety key**.
-- **Incline**: `AC` with incline + 1, `64`, `64`. Whole percent from 0 to 16, rounded (2 % with IDs `02 02` is
-  `F0-AC-02-02-03-64-64-6B`). 16 is Kinomap's default equipment cap; Kinomap's iConsole code itself has no upper
+- **Start**: when a data reply says the console is ready and waiting, the driver sends `A5 02`. START, PAUSE, STOP
+  and speed are not offered: **stop the belt with the console or the safety key**.
+- **Incline**: `AC` with incline + 1, `64`, `64`. Whole percent from 0 to 16, rounded half up as Kinomap does (2 % with IDs
+  `02 02` is `F0-AC-02-02-03-64-64-6B`). 16 is Kinomap's default equipment cap; Kinomap's iConsole code itself has no upper
   limit.
 
 | Value | Source | Shown as |
@@ -32,8 +32,7 @@ when that is missing, the Microchip ISSC service `49535343-fe7d-4ae5-8fa9-9fafd2
 | Incline | **the last incline FitOSC sent**, not a reading from the console | % |
 | State | data reply program/phase/mode: running, paused, stopped | Debug tab |
 
-Distance, calories, heart rate and elapsed time are not read. Do not press speed **+** / **-**: this driver reports
-no speed range, so FitOSC throws an error (see README).
+Distance, calories, heart rate and elapsed time are not read. Controls offered: incline **+** / **-** only.
 
 ## Checklist
 
@@ -46,8 +45,8 @@ Stand beside the belt for every command. Use inclines up to 3 %.
 3. **Incline.** Incline **+** from 0 %: `Wrote F0-AC-<ids>-02-64-64-…` and the treadmill reaches 1 %. Incline **-**
    returns to 0 %. FitOSC shows the value it sent, so compare it with the console's own display.
 4. **Pause and stop from the console.** Pause on the console: state Paused, speed 0. Stop: state Stopped.
-5. **Controls that do nothing.** Belt running at walking speed, hand on the console stop: press STOP in FitOSC. The
-   belt keeps running and the log shows no write other than polling. Stop it from the console.
+5. **Controls not offered.** While connected, START, PAUSE, STOP and speed **+** / **-** are disabled.
+   `FitOSC.setSpeed(3.0)` writes nothing other than polling.
 6. **Disconnect mid-handshake.** The disconnect button only appears once connected, so use the developer console.
    Belt clear, FitOSC disconnected: run
    `setTimeout(() => FitOSC.disconnectTreadmill(), 1000); FitOSC.connectTreadmill('<device name>', 'IConsole')`.
