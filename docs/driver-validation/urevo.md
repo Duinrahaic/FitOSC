@@ -18,27 +18,29 @@ command, sub-command (not for `Q`), data, `(sum of command, sub and data) XOR 5A
 - START: `02-53-01-00-00-00-00-00-00-00-00-0E-03` (a free run with no target), or `02-53-09-06-03` to resume when
   paused. PAUSE `02-53-0A-07-03`. STOP `02-53-03-0C-03`.
 - Speed and incline always go together: `02-53-02-<speed>-<incline>-<checksum>-03`, both in tenths (km/h and %),
-  rounded. 3.0 km/h at 0 % is `02-53-02-1E-00-29-03`; at 1.0 % it is `02-53-02-1E-0A-27-03`.
+  truncated as the app does (3.29 km/h is sent as 3.2). 3.0 km/h at 0 % is `02-53-02-1E-00-29-03`; at 1.0 % it is `02-53-02-1E-0A-27-03`.
 
 | Value | Status field | Shown as |
 |---|---|---|
 | Speed | 0.1 km/h | km/h (or mph) |
 | Incline | 0.1 % | % |
 | Elapsed time | uint16, s | duration |
-| Distance | uint16 × 10 m; × 1 m when the name starts with `URTM018` | km (or miles) |
+| Distance | uint16 × 10 m; × 1 m when the name is exactly `URTM018` | km (or miles) |
 | Calories | 0.1 kcal | kcal |
 | Steps | uint16 | `FitOSC.getAppState()` only |
 | State | standby, running, paused, stopped | Debug tab |
 
 Known gaps, which this checklist is meant to settle:
 
-- The incline-range reply also carries a configuration byte that the app reads, including a miles flag. This driver
-  ignores it and always reads speed as km/h. Line 7 checks a console set to miles.
-- The app treats only the exact name `URTM018` as the 1 m distance model; this driver matches any name starting with
-  it.
-- The app truncates speed and incline targets; this driver rounds. They differ by at most 0.1.
+- The incline-range reply also carries a configuration byte that the app reads, including a miles flag. The
+  recovered code does not name its bits, and the app's own speed unit stays 0.1 km/h, so this driver ignores the byte
+  and always reads speed as km/h. Line 7 checks a console set to miles.
+- The app selects the 1 m distance model when its model value equals `URTM018`; this driver compares the Bluetooth
+  name the same way. Whether the app's model value is always the advertised name is not confirmed, so record the
+  name and the distance in line 3.
 
-Speed **+** / **-** work within the reported range. Incline **-** stops at 0 % (README).
+Controls offered: START, PAUSE, STOP, speed **+** / **-** within the reported range, and incline **+** / **-** once
+an incline range is reported.
 
 ## Checklist
 

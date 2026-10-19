@@ -67,7 +67,8 @@ public class UrevoTreadmillService(ILogger<UrevoTreadmillService> logger, AppSta
 
     public override Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken)
     {
-        _metresPerDistanceUnit = deviceName.StartsWith(MetreDistanceModel, StringComparison.OrdinalIgnoreCase) ? 1m : 10m;
+        // The app selects this model by exact equality.
+        _metresPerDistanceUnit = string.Equals(deviceName, MetreDistanceModel, StringComparison.Ordinal) ? 1m : 10m;
         return base.ConnectAsync(deviceName, cancellationToken);
     }
 
@@ -150,7 +151,8 @@ public class UrevoTreadmillService(ILogger<UrevoTreadmillService> logger, AppSta
             SpeedIncrement = SpeedIncrement,
             MinIncline = _minIncline,
             MaxIncline = _maxIncline,
-            InclineIncrement = _maxIncline > _minIncline ? InclineIncrement : 0
+            InclineIncrement = _maxIncline > _minIncline ? InclineIncrement : 0,
+            Commands = TreadmillCommands.All
         });
 
     public override TreadmillTelemetry TranslateData(byte[] data)
@@ -246,7 +248,8 @@ public class UrevoTreadmillService(ILogger<UrevoTreadmillService> logger, AppSta
         PublishConfiguration();
     }
 
-    private static byte ToTenths(decimal value) => (byte)Math.Clamp(Math.Round(value * 10), 0, 255);
+    // The app truncates targets to tenths.
+    private static byte ToTenths(decimal value) => (byte)Math.Clamp(Math.Truncate(value * 10), 0, 255);
 
     private static bool HasSub(byte command) => command is not (StatusCommand or BikeCommand);
 
