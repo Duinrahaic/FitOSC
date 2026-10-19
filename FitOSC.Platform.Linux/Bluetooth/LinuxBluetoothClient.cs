@@ -418,7 +418,7 @@ public sealed class LinuxBluetoothClient(
         token.ThrowIfCancellationRequested();
         foreach (var proxy in proxies)
         {
-            if (!session.IsConnected) throw new BluetoothConnectionLostException("Device disconnected while resolving a characteristic.");
+            if (!session.IsConnected) throw new IOException("Device disconnected while resolving a characteristic.");
             var properties = await proxy.GetAllAsync().ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (properties.Service != service.ObjectPath || !Guid.TryParse(properties.UUID, out var candidate) || candidate != uuid) continue;
