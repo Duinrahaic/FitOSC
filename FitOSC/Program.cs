@@ -8,6 +8,7 @@ using FitOSC.Services;
 using FitOSC.Services.Configuration;
 using FitOSC.Services.Logger;
 using FitOSC.Services.OpenVR;
+using FitOSC.Services.Treadmill;
 using Photino.Blazor;
 using PhotinoX.App;
 
@@ -113,6 +114,10 @@ internal class Program
             });
 
             app = builder.Build();
+
+            // A wrongly registered driver fails here, at startup, rather than on the first connection.
+            _ = TreadmillDrivers.All;
+
             logger = app.Services.GetRequiredService<ILogger<Program>>();
 #if !WINDOWS
             if (manifestFailure is not null)

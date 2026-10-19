@@ -24,6 +24,7 @@ internal sealed class LinuxBluetoothSession(
     private volatile bool _deviceRemoved;
 
     internal IDevice1 Device { get; } = device;
+    internal string? Name { get; init; }
     internal IGattService1? Service { get; set; }
     internal Dictionary<Guid, Characteristic> Characteristics { get; } = [];
     internal bool DisconnectNeeded { get; set; }

@@ -241,7 +241,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
-                if (config != null)
+                if (config is { SupportsIncline: true })
                 {
                     _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline + config.InclineIncrement, config.MinIncline, config.MaxIncline));
                     _logger.LogInformation("Treadmill incline up via SteamVR action");
@@ -252,7 +252,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
-                if (config != null)
+                if (config is { SupportsIncline: true })
                 {
                     _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline - config.InclineIncrement, config.MinIncline, config.MaxIncline));
                     _logger.LogInformation("Treadmill incline down via SteamVR action");

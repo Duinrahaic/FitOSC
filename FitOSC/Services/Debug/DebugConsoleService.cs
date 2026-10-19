@@ -19,10 +19,6 @@ public class DebugConsoleService(
     OpenVRService openVr,
     VRChatLocomotionService locomotionService)
 {
-    // FTMS and WalkingPad service UUIDs for driver detection
-    private static readonly Guid FtmsServiceUuid = Guid.Parse("00001826-0000-1000-8000-00805f9b34fb");
-    private static readonly Guid WalkingPadServiceUuid = Guid.Parse("0000ffe0-0000-1000-8000-00805f9b34fb");
-
     [JSInvokable("Debug_ScanTreadmills")]
     public async Task<string> ScanTreadmills(int durationSeconds = 5)
     {
@@ -34,9 +30,11 @@ public class DebugConsoleService(
         var devices = await treadmill.ScanDevicesAsync(scanDuration);
         foreach (var device in devices)
         {
-            var drivers = new List<string>();
-            if (device.ServiceUuids.Contains(FtmsServiceUuid)) drivers.Add("FTMS");
-            if (device.ServiceUuids.Contains(WalkingPadServiceUuid)) drivers.Add("WalkingPad");
+            // Suggest every driver whose service the device advertises; several share the FFF0 serial service
+            var drivers = TreadmillDrivers.All
+                .Where(driver => driver.AdvertisedServices.Any(device.ServiceUuids.Contains))
+                .Select(driver => driver.Type.ToString())
+                .ToList();
             if (drivers.Count == 0) drivers.Add("Unknown");
             deviceInfo[device.Name] = drivers;
         }

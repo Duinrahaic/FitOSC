@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices.WindowsRuntime;
 using FitOSC.Utilities.BLE;
 using Windows.Devices.Bluetooth;
@@ -15,24 +16,26 @@ namespace FitOSC.Platform.Windows.Bluetooth
         private GattDeviceService? _service;
         private BluetoothLEAdvertisementWatcher? _watcher;
 
-        private readonly Dictionary<Guid, GattCharacteristic> _characteristics = new();
-        private readonly Dictionary<Guid, TypedEventHandler<GattCharacteristic, GattValueChangedEventArgs>> _subscriptions = new();
+        // Commands and polling write from other threads while connect and teardown change these.
+        private readonly ConcurrentDictionary<Guid, GattCharacteristic> _characteristics = new();
+        private readonly ConcurrentDictionary<Guid, TypedEventHandler<GattCharacteristic, GattValueChangedEventArgs>> _subscriptions = new();
+
+        // Services other than the connected one that own cached characteristics; released at teardown.
+        private readonly List<GattDeviceService> _otherServices = new();
+
+        private static readonly TimeSpan UnsubscribeTimeout = TimeSpan.FromSeconds(2);
+
+        private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(10);
 
         private Guid _lastServiceUuid;
-        private string? _lastDeviceName;
-        private bool _autoReconnect = true;
         private readonly SemaphoreSlim _connectionLock = new(1, 1);
         private bool _isDisconnecting;
 
-        /// <summary>
-        /// Canceled on dispose so pending auto-reconnects stop instead of reconnecting a released client.
-        /// </summary>
-        private readonly CancellationTokenSource _lifetime = new();
-
         public bool IsConnected => _device?.ConnectionStatus == BluetoothConnectionStatus.Connected;
-        public event Action? ConnectionLost;
 
-        public void EnableAutoReconnect(bool enable = true) => _autoReconnect = enable;
+        public string? DeviceName => _device?.Name;
+
+        public event Action? ConnectionLost;
 
         /// <summary>
         /// Scans for nearby Bluetooth LE devices that advertise a name, with the service UUIDs each one advertised.
@@ -101,38 +104,16 @@ namespace FitOSC.Platform.Windows.Bluetooth
 
         public async Task<bool> ConnectAsync(Guid serviceUuid, string? deviceName = null, CancellationToken cancellationToken = default)
         {
-            await _connectionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _connectionLock.WaitAsync(cancellationToken);
             try
             {
-                // Disconnect existing connection if any
-                if (IsConnected)
-                {
-                    logger.LogInformation("Disconnecting existing connection before reconnecting...");
-                    _connectionLock.Release();
-                    await DisconnectAsync().ConfigureAwait(false);
-                    await _connectionLock.WaitAsync().ConfigureAwait(false);
-                }
+                // Release anything left from a previous session, including one that dropped on its own.
+                await TearDownAsync();
 
                 _lastServiceUuid = serviceUuid;
-                _lastDeviceName = deviceName;
-                _autoReconnect = true; // Re-enable auto-reconnect for new connection
 
                 var tcs = new TaskCompletionSource<ulong>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var sw = Stopwatch.StartNew();
-
-                // Clean up any existing watcher
-                if (_watcher != null)
-                {
-                    try
-                    {
-                        if (_watcher.Status == BluetoothLEAdvertisementWatcherStatus.Started)
-                        {
-                            _watcher.Stop();
-                        }
-                    }
-                    catch { }
-                    _watcher = null;
-                }
 
                 _watcher = new BluetoothLEAdvertisementWatcher
                 {
@@ -145,11 +126,13 @@ namespace FitOSC.Platform.Windows.Bluetooth
                     {
                         string name = args.Advertisement.LocalName;
 
+                        // A chosen device must match by name; any device offering the service is only taken when none
+                        // was chosen, so a neighbouring treadmill with the same service is never connected instead.
                         bool nameMatch = !string.IsNullOrEmpty(deviceName) &&
-                                         !string.IsNullOrEmpty(name) &&
-                                         name.Contains(deviceName, StringComparison.OrdinalIgnoreCase);
+                                         string.Equals(name?.Trim(), deviceName.Trim(), StringComparison.OrdinalIgnoreCase);
 
-                        bool serviceMatch = args.Advertisement.ServiceUuids.Contains(serviceUuid);
+                        bool serviceMatch = string.IsNullOrEmpty(deviceName) &&
+                                            args.Advertisement.ServiceUuids.Contains(serviceUuid);
 
                         if (nameMatch || serviceMatch)
                         {
@@ -160,12 +143,7 @@ namespace FitOSC.Platform.Windows.Bluetooth
                                 nameMatch ? "Name" : "Service");
 
                             tcs.TrySetResult(args.BluetoothAddress);
-
-                            // Use sender parameter instead of _watcher to avoid null reference
-                            if (sender is BluetoothLEAdvertisementWatcher watcher)
-                            {
-                                watcher.Stop();
-                            }
+                            sender.Stop();
                         }
                     }
                     catch (Exception ex)
@@ -181,20 +159,17 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 try
                 {
                     ulong btAddress;
-                    using (var scanCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                    using (var scanTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                     {
-                        scanCancellation.CancelAfter(TimeSpan.FromSeconds(10));
-                        await using var scanRegistration = scanCancellation.Token.Register(() => tcs.TrySetCanceled(scanCancellation.Token)).ConfigureAwait(false);
-                        btAddress = await tcs.Task.ConfigureAwait(false);
+                        scanTimeout.CancelAfter(ScanTimeout);
+                        await using var registration = scanTimeout.Token.Register(() => tcs.TrySetCanceled(scanTimeout.Token));
+                        btAddress = await tcs.Task;
                     }
-                    sw.Stop();
+
                     logger.LogInformation("Scan completed in {Elapsed} ms", sw.ElapsedMilliseconds);
+                    StopWatcher();
 
-                    // Stop and cleanup watcher after successful scan
-                    _watcher.Stop();
-                    _watcher = null;
-
-                    _device = await BluetoothLEDevice.FromBluetoothAddressAsync(btAddress).AsTask(cancellationToken).ConfigureAwait(false);
+                    _device = await BluetoothLEDevice.FromBluetoothAddressAsync(btAddress).AsTask(cancellationToken);
                     if (_device == null)
                     {
                         logger.LogWarning("Could not connect to device.");
@@ -203,11 +178,11 @@ namespace FitOSC.Platform.Windows.Bluetooth
 
                     _device.ConnectionStatusChanged += Device_ConnectionStatusChanged;
 
-                    var result = await _device.GetGattServicesForUuidAsync(serviceUuid).AsTask(cancellationToken).ConfigureAwait(false);
+                    var result = await _device.GetGattServicesForUuidAsync(serviceUuid).AsTask(cancellationToken);
                     if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
                     {
                         logger.LogWarning("Service {ServiceUuid} not found on {Name}", serviceUuid, _device.Name);
-                        await CleanupFailedConnectionAsync().ConfigureAwait(false);
+                        await TearDownAsync();
                         return false;
                     }
 
@@ -215,25 +190,22 @@ namespace FitOSC.Platform.Windows.Bluetooth
                     logger.LogInformation("Connected to {Name} with service {ServiceUuid}", _device.Name, serviceUuid);
                     return true;
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    sw.Stop();
-                    logger.LogInformation("BLE connection canceled after {Elapsed} ms", sw.ElapsedMilliseconds);
-                    await CleanupFailedConnectionAsync().ConfigureAwait(false);
-                    throw;
+                    logger.LogWarning("BLE scan timed out after {Elapsed} ms", sw.ElapsedMilliseconds);
+                    await TearDownAsync();
+                    return false;
                 }
                 catch (OperationCanceledException)
                 {
-                    sw.Stop();
-                    logger.LogWarning("BLE scan timed out after {Elapsed} ms", sw.ElapsedMilliseconds);
-                    await CleanupFailedConnectionAsync().ConfigureAwait(false);
-                    return false;
+                    logger.LogWarning("BLE connection cancelled after {Elapsed} ms", sw.ElapsedMilliseconds);
+                    await TearDownAsync();
+                    throw;
                 }
                 catch (Exception ex)
                 {
-                    sw.Stop();
                     logger.LogError(ex, "Failed to connect after {Elapsed} ms", sw.ElapsedMilliseconds);
-                    await CleanupFailedConnectionAsync().ConfigureAwait(false);
+                    await TearDownAsync();
                     return false;
                 }
             }
@@ -243,98 +215,35 @@ namespace FitOSC.Platform.Windows.Bluetooth
             }
         }
 
-        private async Task CleanupFailedConnectionAsync()
+        private void StopWatcher()
         {
+            if (_watcher == null)
+                return;
+
             try
             {
-                if (_watcher != null)
-                {
-                    if (_watcher.Status == BluetoothLEAdvertisementWatcherStatus.Started)
-                    {
-                        _watcher.Stop();
-                    }
-                    _watcher = null;
-                }
-
-                if (_device != null)
-                {
-                    _device.ConnectionStatusChanged -= Device_ConnectionStatusChanged;
-                    _device.Dispose();
-                    _device = null;
-                }
-
-                _service?.Dispose();
-                _service = null;
+                if (_watcher.Status == BluetoothLEAdvertisementWatcherStatus.Started)
+                    _watcher.Stop();
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Error during failed connection cleanup");
+                logger.LogWarning(ex, "Error stopping BLE watcher");
             }
+            _watcher = null;
         }
 
         private void Device_ConnectionStatusChanged(BluetoothLEDevice sender, object args)
         {
-            if (!ReferenceEquals(sender, _device)) return;
-            if (sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected)
-            {
-                logger.LogWarning("Device disconnected: {Name}", sender.Name);
+            // Only a drop of the established session counts; teardown and half-made connections are not losses.
+            if (sender.ConnectionStatus != BluetoothConnectionStatus.Disconnected ||
+                sender.BluetoothAddress != _device?.BluetoothAddress || _service == null || _isDisconnecting)
+                return;
 
-                if (!_isDisconnecting) ConnectionLost?.Invoke();
-
-                if (!_autoReconnect || _isDisconnecting)
-                {
-                    logger.LogInformation("Auto-reconnect disabled or intentional disconnect, not attempting reconnection.");
-                    return;
-                }
-
-                ScheduleReconnect(disconnectFirst: false);
-            }
+            logger.LogWarning("Device disconnected: {Name}", sender.Name);
+            ConnectionLost?.Invoke();
         }
 
-        /// <summary>
-        /// Fire and forget reconnection on a background thread, stopped when the client is disposed.
-        /// </summary>
-        private void ScheduleReconnect(bool disconnectFirst)
-        {
-            var lifetimeToken = _lifetime.Token;
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    if (disconnectFirst)
-                    {
-                        await DisconnectAsync().ConfigureAwait(false);
-                        if (!_autoReconnect) return;
-                    }
-
-                    logger.LogInformation("Attempting reconnect in 2 seconds...");
-                    await Task.Delay(2000, lifetimeToken).ConfigureAwait(false);
-                    await ReconnectAsync(lifetimeToken).ConfigureAwait(false);
-                }
-                catch (Exception) when (lifetimeToken.IsCancellationRequested)
-                {
-                    logger.LogDebug("Auto-reconnect stopped because the client was disposed.");
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Error during auto-reconnect");
-                }
-            });
-        }
-
-        private async Task<bool> ReconnectAsync(CancellationToken cancellationToken)
-        {
-            if (_lastServiceUuid == Guid.Empty)
-            {
-                logger.LogWarning("No previous connection parameters stored, cannot reconnect.");
-                return false;
-            }
-
-            logger.LogInformation("Reconnecting to {DeviceName}...", _lastDeviceName ?? "<unknown>");
-            return await ConnectAsync(_lastServiceUuid, _lastDeviceName, cancellationToken).ConfigureAwait(false);
-        }
-
-        private async Task<bool> RefreshServiceAsync(CancellationToken cancellationToken)
+        private async Task<bool> RefreshServiceAsync()
         {
             try
             {
@@ -352,7 +261,7 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 _characteristics.Clear();
 
                 // Re-acquire service from device
-                var result = await _device.GetGattServicesForUuidAsync(_lastServiceUuid).AsTask(cancellationToken).ConfigureAwait(false);
+                var result = await _device.GetGattServicesForUuidAsync(_lastServiceUuid);
                 if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
                 {
                     logger.LogWarning("Failed to refresh service {ServiceUuid}: {Status}", _lastServiceUuid, result.Status);
@@ -363,14 +272,15 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 logger.LogInformation("Service refreshed successfully.");
                 return true;
             }
-            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception ex)
             {
                 logger.LogError(ex, "Error refreshing service");
                 return false;
             }
         }
 
-        public async Task<bool> SubscribeAsync(Guid characteristicUuid, Action<byte[]>? callback, CancellationToken cancellationToken = default)
+        public async Task<bool> SubscribeAsync(Guid characteristicUuid, Action<byte[]>? callback,
+            CancellationToken cancellationToken = default)
         {
             if (_service == null)
             {
@@ -397,47 +307,53 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 GattCharacteristicsResult result;
                 try
                 {
-                    result = await _service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken).ConfigureAwait(false);
+                    result = await _service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
                 }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
                 {
                     logger.LogError(ex, "Failed to get characteristic {Uuid}. Service may be in invalid state. Attempting to refresh service...", characteristicUuid);
 
                     // Try to re-acquire the service
-                    if (_device != null && await RefreshServiceAsync(cancellationToken).ConfigureAwait(false))
+                    if (_device != null && await RefreshServiceAsync())
                     {
                         try
                         {
-                            result = await _service!.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken).ConfigureAwait(false);
+                            result = await _service!.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
                         }
-                        catch (Exception ex2) when (!cancellationToken.IsCancellationRequested)
+                        catch (Exception ex2)
                         {
                             logger.LogError(ex2, "Failed to get characteristic {Uuid} after service refresh. Connection may be unstable.", characteristicUuid);
-
-                            // Service is in a bad state, trigger cleanup and reconnect
-                            ScheduleReconnect(disconnectFirst: true);
-
                             return false;
                         }
                     }
                     else
                     {
-                        logger.LogError("Failed to refresh service for characteristic {Uuid}. Triggering reconnect...", characteristicUuid);
-
-                        // Service refresh failed, trigger cleanup and reconnect
-                        ScheduleReconnect(disconnectFirst: true);
-
+                        logger.LogError("Failed to refresh service for characteristic {Uuid}", characteristicUuid);
                         return false;
                     }
                 }
 
-                if (result.Status != GattCommunicationStatus.Success || result.Characteristics.Count == 0)
+                if (result.Status == GattCommunicationStatus.Success && result.Characteristics.Count > 0)
                 {
-                    logger.LogWarning("Characteristic {Uuid} not found. Status: {Status}", characteristicUuid, result.Status);
-                    return false;
+                    characteristic = result.Characteristics[0];
+                }
+                else
+                {
+                    // Some vendor characteristics live outside the service used to connect.
+                    var other = await FindCharacteristicInOtherServicesAsync(characteristicUuid, cancellationToken);
+                    if (other == null)
+                    {
+                        logger.LogWarning("Characteristic {Uuid} not found. Status: {Status}", characteristicUuid, result.Status);
+                        return false;
+                    }
+
+                    characteristic = other;
                 }
 
-                characteristic = result.Characteristics[0];
                 _characteristics[characteristicUuid] = characteristic;
             }
 
@@ -451,7 +367,14 @@ namespace FitOSC.Platform.Windows.Bluetooth
                         var reader = DataReader.FromBuffer(args.CharacteristicValue);
                         var data = new byte[args.CharacteristicValue.Length];
                         reader.ReadBytes(data);
-                        callback(data);
+                        try
+                        {
+                            callback(data);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Error handling notification from {Uuid}: {Data}", characteristicUuid, Convert.ToHexString(data));
+                        }
                     };
 
                 characteristic.ValueChanged += handler;
@@ -461,13 +384,13 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 if (characteristic.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify))
                 {
                     var status = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                        GattClientCharacteristicConfigurationDescriptorValue.Notify).AsTask(cancellationToken).ConfigureAwait(false);
+                        GattClientCharacteristicConfigurationDescriptorValue.Notify).AsTask(cancellationToken);
 
                     if (status != GattCommunicationStatus.Success)
                     {
                         logger.LogWarning("Failed to subscribe to {Uuid}: {Status}", characteristicUuid, status);
                         characteristic.ValueChanged -= handler;
-                        _subscriptions.Remove(characteristicUuid);
+                        _subscriptions.TryRemove(characteristicUuid, out _);
                         return false;
                     }
 
@@ -476,13 +399,13 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 else if (characteristic.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Indicate))
                 {
                     var status = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                        GattClientCharacteristicConfigurationDescriptorValue.Indicate).AsTask(cancellationToken).ConfigureAwait(false);
+                        GattClientCharacteristicConfigurationDescriptorValue.Indicate).AsTask(cancellationToken);
 
                     if (status != GattCommunicationStatus.Success)
                     {
                         logger.LogWarning("Failed to subscribe to {Uuid}: {Status}", characteristicUuid, status);
                         characteristic.ValueChanged -= handler;
-                        _subscriptions.Remove(characteristicUuid);
+                        _subscriptions.TryRemove(characteristicUuid, out _);
                         return false;
                     }
 
@@ -492,7 +415,7 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 {
                     logger.LogWarning("Characteristic {Uuid} does not support notifications or indications.", characteristicUuid);
                     characteristic.ValueChanged -= handler;
-                    _subscriptions.Remove(characteristicUuid);
+                    _subscriptions.TryRemove(characteristicUuid, out _);
                     return false;
                 }
             }
@@ -504,6 +427,57 @@ namespace FitOSC.Platform.Windows.Bluetooth
             return true;
         }
 
+        /// <summary>
+        /// Searches the connected device's services, other than the one used to connect, for a characteristic.
+        /// The service that owns it is kept until teardown; every other enumerated service is released.
+        /// </summary>
+        private async Task<GattCharacteristic?> FindCharacteristicInOtherServicesAsync(Guid characteristicUuid,
+            CancellationToken cancellationToken)
+        {
+            if (_device == null)
+                return null;
+
+            var services = await _device.GetGattServicesAsync().AsTask(cancellationToken);
+            if (services.Status != GattCommunicationStatus.Success)
+            {
+                logger.LogWarning("Failed to enumerate GATT services: {Status}", services.Status);
+                return null;
+            }
+
+            GattCharacteristic? found = null;
+            GattDeviceService? owner = null;
+            try
+            {
+                foreach (var service in services.Services)
+                {
+                    if (service.Uuid == _lastServiceUuid)
+                        continue;
+
+                    var result = await service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
+                    if (result.Status == GattCommunicationStatus.Success && result.Characteristics.Count > 0)
+                    {
+                        logger.LogDebug("Found characteristic {Uuid} in service {ServiceUuid}", characteristicUuid, service.Uuid);
+                        found = result.Characteristics[0];
+                        owner = service;
+                        lock (_otherServices)
+                            _otherServices.Add(service);
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                // Released even when the search fails part-way.
+                foreach (var service in services.Services)
+                {
+                    if (service != owner)
+                        service.Dispose();
+                }
+            }
+
+            return found;
+        }
+
         public async Task UnsubscribeAsync(Guid characteristicUuid)
         {
             if (_characteristics.TryGetValue(characteristicUuid, out var characteristic) &&
@@ -511,9 +485,9 @@ namespace FitOSC.Platform.Windows.Bluetooth
             {
                 characteristic.ValueChanged -= handler;
                 await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                    GattClientCharacteristicConfigurationDescriptorValue.None).AsTask().ConfigureAwait(false);
+                    GattClientCharacteristicConfigurationDescriptorValue.None);
 
-                _subscriptions.Remove(characteristicUuid);
+                _subscriptions.TryRemove(characteristicUuid, out _);
                 logger.LogInformation("Unsubscribed from {Uuid}", characteristicUuid);
             }
         }
@@ -539,7 +513,7 @@ namespace FitOSC.Platform.Windows.Bluetooth
             output.AppendLine();
 
             // Get all services
-            var servicesResult = await _device.GetGattServicesAsync().AsTask().ConfigureAwait(false);
+            var servicesResult = await _device.GetGattServicesAsync();
             if (servicesResult.Status != GattCommunicationStatus.Success)
             {
                 return output.ToString() + "Error: Could not retrieve services";
@@ -548,113 +522,97 @@ namespace FitOSC.Platform.Windows.Bluetooth
             output.AppendLine($"Services Found: {servicesResult.Services.Count}");
             output.AppendLine("─────────────────────────────────────────────");
 
-            foreach (var service in servicesResult.Services)
+            // These are separate handles from the session's own service, so release them once described.
+            try
             {
-                output.AppendLine($"\n📦 Service UUID: {service.Uuid}");
-
-                // Get characteristics for this service
-                var charResult = await service.GetCharacteristicsAsync().AsTask().ConfigureAwait(false);
-                if (charResult.Status == GattCommunicationStatus.Success)
+                foreach (var service in servicesResult.Services)
                 {
-                    output.AppendLine($"   Characteristics: {charResult.Characteristics.Count}");
+                    output.AppendLine($"\n📦 Service UUID: {service.Uuid}");
 
-                    foreach (var characteristic in charResult.Characteristics)
+                    // Get characteristics for this service
+                    var charResult = await service.GetCharacteristicsAsync();
+                    if (charResult.Status == GattCommunicationStatus.Success)
                     {
-                        output.AppendLine($"   ├─ {characteristic.Uuid}");
-                        output.AppendLine($"   │  Properties: {characteristic.CharacteristicProperties}");
+                        output.AppendLine($"   Characteristics: {charResult.Characteristics.Count}");
+
+                        foreach (var characteristic in charResult.Characteristics)
+                        {
+                            output.AppendLine($"   ├─ {characteristic.Uuid}");
+                            output.AppendLine($"   │  Properties: {characteristic.CharacteristicProperties}");
+                        }
                     }
                 }
+            }
+            finally
+            {
+                foreach (var service in servicesResult.Services)
+                    service.Dispose();
             }
 
             return output.ToString();
         }
 
-        public async Task WriteAsync(Guid characteristicUuid, byte[] command, CancellationToken cancellationToken = default)
+        public async Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false,
+            CancellationToken cancellationToken = default)
         {
             const int maxRetries = 3;
-            int attemptCount = 0;
-            Exception? lastException = null;
+            var retryDelay = TimeSpan.FromMilliseconds(100);
 
-            while (attemptCount < maxRetries)
+            try
             {
-                try
+                for (var attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    attemptCount++;
-
-                    if (_service == null)
+                    try
                     {
-                        if (attemptCount < maxRetries)
-                        {
-                            logger.LogWarning("Not connected to service, retrying... (Attempt {Attempt}/{Max})", attemptCount, maxRetries);
-                            await Task.Delay(100, cancellationToken).ConfigureAwait(false); // Brief delay before retry
-                            continue;
-                        }
-                        throw new InvalidOperationException("Not connected to a service.");
-                    }
+                        var service = _service;
+                        if (service == null)
+                            throw new InvalidOperationException("Not connected to a service.");
 
-                    if (!_characteristics.TryGetValue(characteristicUuid, out var characteristic))
-                    {
-                        var result = await _service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken).ConfigureAwait(false);
-                        if (result.Status != GattCommunicationStatus.Success || result.Characteristics.Count == 0)
+                        if (!_characteristics.TryGetValue(characteristicUuid, out var characteristic))
                         {
-                            if (attemptCount < maxRetries)
-                            {
-                                logger.LogWarning("Characteristic {Uuid} not found, retrying... (Attempt {Attempt}/{Max})",
-                                    characteristicUuid, attemptCount, maxRetries);
-                                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                                continue;
-                            }
-                            throw new InvalidOperationException($"Characteristic {characteristicUuid} not found.");
+                            var result = await service.GetCharacteristicsForUuidAsync(characteristicUuid).AsTask(cancellationToken);
+                            if (result.Status != GattCommunicationStatus.Success || result.Characteristics.Count == 0)
+                                throw new InvalidOperationException($"Characteristic {characteristicUuid} not found.");
+
+                            characteristic = result.Characteristics[0];
+                            _characteristics[characteristicUuid] = characteristic;
                         }
 
-                        characteristic = result.Characteristics[0];
-                        _characteristics[characteristicUuid] = characteristic;
-                    }
-
-                    var buffer = command.AsBuffer();
-                    var status = await characteristic.WriteValueAsync(buffer, GattWriteOption.WriteWithoutResponse).AsTask(cancellationToken).ConfigureAwait(false);
-
-                    if (status == GattCommunicationStatus.Success)
-                    {
-                        logger.LogDebug("Wrote {Command} to {Uuid}", BitConverter.ToString(command), characteristicUuid);
-                        return; // Success - exit the method
-                    }
-                    else
-                    {
-                        if (attemptCount < maxRetries)
+                        var writeOption = withResponse ? GattWriteOption.WriteWithResponse : GattWriteOption.WriteWithoutResponse;
+                        var status = await characteristic.WriteValueAsync(command.AsBuffer(), writeOption).AsTask(cancellationToken);
+                        if (status == GattCommunicationStatus.Success)
                         {
-                            logger.LogWarning("Failed to write to {Uuid}: {Status}, retrying... (Attempt {Attempt}/{Max})",
-                                characteristicUuid, status, attemptCount, maxRetries);
-                            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                            continue;
+                            logger.LogDebug("Wrote {Command} to {Uuid}", BitConverter.ToString(command), characteristicUuid);
+                            return true;
                         }
-                        logger.LogWarning("Failed to write to {Uuid}: {Status}", characteristicUuid, status);
-                        return; // Exit after max retries
+
+                        logger.LogWarning("Failed to write to {Uuid}: {Status} (attempt {Attempt}/{Max})",
+                            characteristicUuid, status, attempt, maxRetries);
                     }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        logger.LogWarning(ex, "Error writing to {Uuid} (attempt {Attempt}/{Max})", characteristicUuid, attempt, maxRetries);
+                    }
+
+                    if (attempt < maxRetries)
+                        await Task.Delay(retryDelay, cancellationToken);
                 }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    lastException = ex;
-                    if (attemptCount < maxRetries)
-                    {
-                        logger.LogWarning(ex, "Error writing to {Uuid}, retrying... (Attempt {Attempt}/{Max})",
-                            characteristicUuid, attemptCount, maxRetries);
-                        await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        logger.LogError(ex, "Failed to write to {Uuid} after {Attempts} attempts", characteristicUuid, maxRetries);
-                    }
-                }
+
+                logger.LogError("Failed to write to {Uuid} after {Attempts} attempts", characteristicUuid, maxRetries);
+                return false;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return false;
             }
         }
-        
+
         public async Task<byte[]?> ReadAsync(Guid characteristicUuid, CancellationToken cancellationToken = default)
         {
             if (!_characteristics.TryGetValue(characteristicUuid, out var characteristic))
                 return null;
 
-            var result = await characteristic.ReadValueAsync().AsTask(cancellationToken).ConfigureAwait(false);
+            var result = await characteristic.ReadValueAsync().AsTask(cancellationToken);
             if (result.Status != GattCommunicationStatus.Success)
                 return null;
 
@@ -663,64 +621,64 @@ namespace FitOSC.Platform.Windows.Bluetooth
             reader.ReadBytes(buffer);
             return buffer;
         }
-        
+
         public async Task DisconnectAsync()
         {
-            await _connectionLock.WaitAsync().ConfigureAwait(false);
+            await _connectionLock.WaitAsync();
             try
             {
-                if (_isDisconnecting || _device == null)
-                {
-                    return;
-                }
+                await TearDownAsync();
+            }
+            finally
+            {
+                _connectionLock.Release();
+            }
+        }
 
-                _isDisconnecting = true;
-                _autoReconnect = false; // Prevent reconnection during intentional disconnect
+        /// <summary>
+        /// Releases the watcher, subscriptions, service and device. Callers must hold the connection lock.
+        /// </summary>
+        private async Task TearDownAsync()
+        {
+            StopWatcher();
 
+            if (_device == null)
+                return;
+
+            _isDisconnecting = true;
+            try
+            {
                 logger.LogInformation("Disconnecting from device...");
 
-                // Stop and dispose watcher if active
-                if (_watcher != null)
+                _device.ConnectionStatusChanged -= Device_ConnectionStatusChanged;
+
+                // Clearing notifications needs a live link; after a drop only the handlers are detached.
+                var linkUp = IsConnected;
+                var unsubscribeTasks = new List<Task>();
+                foreach (var kvp in _subscriptions)
                 {
+                    if (!_characteristics.TryGetValue(kvp.Key, out var characteristic))
+                        continue;
+
                     try
                     {
-                        if (_watcher.Status == BluetoothLEAdvertisementWatcherStatus.Started)
-                        {
-                            _watcher.Stop();
-                        }
-                        _watcher = null;
+                        characteristic.ValueChanged -= kvp.Value;
+                        if (linkUp)
+                            unsubscribeTasks.Add(characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
+                                GattClientCharacteristicConfigurationDescriptorValue.None).AsTask());
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Error stopping BLE watcher");
+                        logger.LogWarning(ex, "Error unsubscribing from characteristic {Uuid}", kvp.Key);
                     }
                 }
 
-                // Unsubscribe from all characteristics
-                var unsubscribeTasks = new List<Task>();
-                foreach (var kvp in _subscriptions.ToList())
-                {
-                    if (_characteristics.TryGetValue(kvp.Key, out var characteristic))
-                    {
-                        try
-                        {
-                            characteristic.ValueChanged -= kvp.Value;
-                            unsubscribeTasks.Add(characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                                GattClientCharacteristicConfigurationDescriptorValue.None).AsTask());
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogWarning(ex, "Error unsubscribing from characteristic {Uuid}", kvp.Key);
-                        }
-                    }
-                }
-
-                // Wait for all unsubscribe operations with timeout
-                if (unsubscribeTasks.Any())
+                if (unsubscribeTasks.Count > 0)
                 {
                     try
                     {
-                        await Task.WhenAll(unsubscribeTasks).ConfigureAwait(false);
+                        // A link that stalls must not hold teardown, and with it the next connection, indefinitely.
+                        await Task.WhenAll(unsubscribeTasks).WaitAsync(UnsubscribeTimeout).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
@@ -731,60 +689,44 @@ namespace FitOSC.Platform.Windows.Bluetooth
                 _subscriptions.Clear();
                 _characteristics.Clear();
 
-                // Unregister connection status handler
-                if (_device != null)
+                lock (_otherServices)
                 {
-                    try
-                    {
-                        _device.ConnectionStatusChanged -= Device_ConnectionStatusChanged;
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Error unregistering connection status handler");
-                    }
+                    foreach (var service in _otherServices)
+                        service.Dispose();
+                    _otherServices.Clear();
                 }
 
-                // Dispose service
-                if (_service != null)
+                try
                 {
-                    try
-                    {
-                        _service.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Error disposing GATT service");
-                    }
-                    _service = null;
+                    _service?.Dispose();
                 }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Error disposing GATT service");
+                }
+                _service = null;
 
-                // Dispose device
-                if (_device != null)
+                try
                 {
-                    try
-                    {
-                        _device.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Error disposing BLE device");
-                    }
-                    _device = null;
+                    _device.Dispose();
                 }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Error disposing BLE device");
+                }
+                _device = null;
 
                 logger.LogInformation("Disconnected successfully.");
             }
             finally
             {
                 _isDisconnecting = false;
-                _connectionLock.Release();
             }
         }
 
         public async ValueTask DisposeAsync()
         {
-            await _lifetime.CancelAsync().ConfigureAwait(false);
-            await DisconnectAsync().ConfigureAwait(false);
+            await DisconnectAsync();
             _connectionLock.Dispose();
         }
     }

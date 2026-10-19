@@ -1,4 +1,5 @@
 ﻿@using FitOSC.Models
+@using FitOSC.Services.Configuration
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
 @using FitOSC.Services.OSC
@@ -6,6 +7,7 @@
 @implements IDisposable
 @inject AppStateService AppState
 @inject TreadmillManager Treadmill
+@inject ConfigurationService ConfigService
 @inject IOscService OscService
 @inject OpenVRService VRService
 
@@ -38,9 +40,8 @@
     {
         if (Interface == AppInterface.Bluetooth && Status != ConnectionStatus.Connecting)
         {
-            // TODO: Get the last connected device name from settings/storage
-            // For now, we'll just try to reconnect to any FTMS device
-            await Treadmill.ConnectAsync("", TreadmillType.FTMS);
+            var treadmillSettings = ConfigService.GetConfiguration().Treadmill;
+            await Treadmill.ConnectAsync(treadmillSettings.LastDeviceName ?? "", treadmillSettings.TreadmillType);
         }
         else if (Interface == AppInterface.OSC && Status != ConnectionStatus.Connecting)
         {

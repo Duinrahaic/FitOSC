@@ -179,7 +179,11 @@ public class AppStateService
         lock (_notifyLock) _treadmillInput = input;
     }
 
-    /// <summary>Atomically releases this input; callbacks from older services cannot change newer input.</summary>
+    /// <summary>
+    /// Atomically releases this input and clears the reading, state and configuration it published; callbacks from
+    /// older services cannot change newer input. The connection status stays with the treadmill manager, which keeps
+    /// showing a reconnect while it replaces a dropped service.
+    /// </summary>
     public void ReleaseTreadmillInput(object input)
     {
         lock (_notifyLock)
@@ -191,8 +195,7 @@ public class AppStateService
                 cleared.Values[TreadmillTelemetryProperty.HeartRate] = _latestData.Values[TreadmillTelemetryProperty.HeartRate].Copy();
             _latestData = cleared;
             LatestState = TreadmillState.Stopped;
-            ConnectedDeviceName = null;
-            InterfaceStatus[AppInterface.Bluetooth] = ConnectionStatus.Disconnected;
+            LatestConfiguration = new TreadmillConfiguration();
             PrepareAppStateNotification(forceImmediate: true);
         }
         DrainAppStateNotifications();

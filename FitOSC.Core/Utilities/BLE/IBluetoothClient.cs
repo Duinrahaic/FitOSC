@@ -11,6 +11,11 @@ public interface IBluetoothClient : IAsyncDisposable
     /// </summary>
     bool IsConnected { get; }
 
+    /// <summary>
+    /// Name reported by the connected device, or null when not connected.
+    /// </summary>
+    string? DeviceName { get; }
+
     /// <summary>Raised outside platform signal locks when the device session is lost unexpectedly.</summary>
     event Action? ConnectionLost;
 
@@ -39,7 +44,10 @@ public interface IBluetoothClient : IAsyncDisposable
     /// <summary>
     /// Writes a command to a given characteristic.
     /// </summary>
-    Task WriteAsync(Guid characteristicUuid, byte[] command, CancellationToken cancellationToken = default);
+    /// <param name="withResponse">Whether to use an acknowledged GATT write instead of write-without-response.</param>
+    /// <returns>Whether the write reached the device; false once <paramref name="cancellationToken"/> is cancelled.</returns>
+    Task<bool> WriteAsync(Guid characteristicUuid, byte[] command, bool withResponse = false,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Reads the current value of a given characteristic.
