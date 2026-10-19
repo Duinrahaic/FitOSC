@@ -17,7 +17,7 @@ check byte) over service `0000fff0-…` (notify `fff1`, write `fff2`); replies a
 - **Incline** is the only command: `D2-<percent>-00-00-00-<check>`, whole percent from 0 to 16 (2 % is
   `D2-02-00-00-00-2F`). 16 is Kinomap's default equipment cap; its Endex class also holds a constant of 40. Treat 16
   as FitOSC's limit, not the console's.
-- START, PAUSE, STOP and speed do nothing: **stop the belt with the console or the safety key**.
+- START, PAUSE, STOP and speed are not offered: **stop the belt with the console or the safety key**.
 
 | Value | Reply | Shown as |
 |---|---|---|
@@ -30,7 +30,7 @@ check byte) over service `0000fff0-…` (notify `fff1`, write `fff2`); replies a
 Kinomap drops the hundredths of speed; FitOSC keeps them, so FitOSC may read up to 0.09 km/h above Kinomap.
 Calories, heart rate and elapsed time are not read.
 
-Do not press speed **+** / **-**: this driver reports no speed range, so FitOSC throws an error (see README).
+Controls offered: incline **+** / **-** only. START, PAUSE, STOP and speed **+** / **-** are disabled.
 
 ## Checklist
 
@@ -45,8 +45,8 @@ Stand beside the belt for every first command. Use inclines up to 3 %.
    `FitOSC.setIncline(2)` gives `D2-02-…` and 2 %; incline **-** steps back down to 0 %.
 5. **Negative incline.** Only if the console can decline: set -1 % or -2 % on the console. FitOSC shows the same
    negative value (not 255 or 254).
-6. **Controls that do nothing.** Belt running at a walking speed, hand on the console stop: press STOP in FitOSC. The
-   belt keeps running and the log shows no new write other than polling. Stop it from the console.
+6. **Controls not offered.** While connected, START, PAUSE, STOP and speed **+** / **-** are disabled.
+   `FitOSC.setSpeed(3.0)` writes nothing other than polling.
 7. **Disconnect and reconnect.** README section 5; the handshake runs again after each reconnect.
 
 Pass: lines 1-4, 6 and 7 pass; line 5 passes or is not applicable.

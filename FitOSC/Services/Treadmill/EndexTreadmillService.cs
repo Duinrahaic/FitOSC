@@ -114,7 +114,13 @@ public class EndexTreadmillService(ILogger<EndexTreadmillService> logger, AppSta
     }
 
     private void PublishConfiguration() =>
-        RaiseConfiguration(new TreadmillConfiguration { MinIncline = 0, MaxIncline = MaxIncline, InclineIncrement = 1 });
+        RaiseConfiguration(new TreadmillConfiguration
+        {
+            MinIncline = 0,
+            MaxIncline = MaxIncline,
+            InclineIncrement = 1,
+            Commands = TreadmillCommands.Incline
+        });
 
     public override TreadmillTelemetry TranslateData(byte[] data) => Telemetry(
         (TreadmillTelemetryProperty.InstantaneousSpeed, _speed),
