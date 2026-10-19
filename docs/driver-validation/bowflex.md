@@ -25,8 +25,8 @@ the treadmill. There is no public specification for this protocol.
 
 Not shown: distance, calories, heart rate, elapsed time.
 
-Controls: none. START, PAUSE and STOP do nothing; stop the belt with the console. Incline **+** / **-** send nothing.
-Do not press speed **+** / **-**: this driver reports no speed range, so FitOSC throws an error (see README).
+Controls: none. START, PAUSE, STOP and the speed and incline **+** / **-** controls stay disabled; stop the belt
+with the console.
 
 ## Checklist
 
@@ -38,8 +38,8 @@ Do not press speed **+** / **-**: this driver reports no speed range, so FitOSC 
    (a stall that recovers on the next change points at stream reassembly; attach the log).
 4. **Incline.** Step the console incline 0 → 5 → 10 → 0%. FitOSC matches each step within 2 s.
 5. **Stopping.** Stop from the console: speed returns to 0 within 2 s and state shows Stopped.
-6. **No control.** Press START, PAUSE, STOP and incline **+** once each with the belt stopped: nothing happens on the
-   treadmill and the log shows no new `Wrote` line.
+6. **No control.** START, PAUSE, STOP and the speed and incline **+** / **-** controls are disabled while connected,
+   and `FitOSC.setIncline(2)` writes nothing.
 7. **Disconnect and reconnect.** README section 5. After each reconnect, step 1's stream-start write appears once
    more and data resumes.
 
