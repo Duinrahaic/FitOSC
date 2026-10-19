@@ -9,10 +9,17 @@ near the console's stop button for every test that moves the belt.
 ## 1. Get the build
 
 **Preview artifact.** Every push to a driver pull request runs **Driver preview build (Windows)**. Open the pull
-request, go to **Checks**, pick that workflow, and download `FitOSC-preview-pr<number>-<commit>-win-x64` from the
-run's **Artifacts** list (you must be signed in to GitHub). Use the run for the newest commit on the pull request, and
-check that `PREVIEW-BUILD.txt` inside it names that commit. Artifacts expire after 30 days; a maintainer can re-run the
-workflow from the same page to rebuild one.
+request, go to **Checks**, pick that workflow, and download `FitOSC-preview-pr<number>-<driver>-<commit>-win-x64`
+from the run's **Artifacts** list (you must be signed in to GitHub), for example
+`FitOSC-preview-pr44-ES-Linker-c14084b-win-x64`. Use the run for the newest commit on the pull request, and check that
+`PREVIEW-BUILD.txt` inside it names that commit. Artifacts expire after 30 days. To rebuild one, a maintainer re-runs
+the workflow from the same page, or runs `gh workflow run driver-preview.yml --ref driver/<name>` (that artifact is
+named `FitOSC-preview-manual-<driver>-<commit>-win-x64`).
+
+Extract the artifact to a new folder and run `FitOSC-<driver>-Preview.exe` (for example
+`FitOSC-ES-Linker-Preview.exe`; `PREVIEW-BUILD.txt` gives the exact name). The build includes the .NET runtime. It
+reports a version such as `2.1.0-preview.pr44.3` under **Settings** > **About**; right-click the exe >
+**Properties** > **Details**: **Product version** is that version followed by `+<commit>`. Record it.
 
 **Local build.** From a checkout of the pull request (for example `gh pr checkout <number>`), with the .NET 8 SDK:
 
@@ -20,14 +27,14 @@ workflow from the same page to rebuild one.
 dotnet publish FitOSC/FitOSC.csproj --configuration Release --runtime win-x64 --self-contained --output preview
 ```
 
-Either way, extract to a new folder and run `FitOSC.exe`; the build includes the .NET runtime. A preview artifact
-reports a version such as `2.1.0-preview.pr40.3` under **Settings** > **About**. Right-click `FitOSC.exe` >
-**Properties** > **Details**: **Product version** is that version followed by `+<commit>` (a local build shows the
-project version instead). Record it.
+Run `preview\FitOSC.exe`. Its **Product version** is the project version followed by `+<commit>`.
 
 The preview shares settings (`%APPDATA%\FitOSC\config.json`) and logs with an installed FitOSC, so back up
-`config.json` first if you care about it. FitOSC may offer an update because a preview counts as older than the
-release; ignore it while testing, because installing the release replaces the preview.
+`config.json` first if you care about it. If **Automatically connect to last known device on startup** is on, the
+preview connects to the last treadmill with the last driver as soon as it starts; turn it off before switching
+drivers. Leave **Auto-launch with SteamVR** off while testing a preview: SteamVR launches `FitOSC.exe`, not the preview.
+FitOSC may offer an update because a preview counts as older than the release; ignore it while testing, because
+installing the release replaces the preview.
 
 ## 2. Select the driver and connect
 
