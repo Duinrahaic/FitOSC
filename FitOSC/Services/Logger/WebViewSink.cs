@@ -50,8 +50,9 @@ public class WebViewSink() : ILogEventSink
             source = fullName.Split('.').Last();
         }
 
-        var escaped = message.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        string script = $"console.{level}(\"[{source}] {escaped}\");";
+        // Serialized as a JSON string so line breaks, such as in stack traces, cannot break the script and drop the line.
+        var line = System.Text.Json.JsonSerializer.Serialize($"{logEvent.Timestamp:HH:mm:ss.fff} [{source}] {message}");
+        string script = $"console.{level}({line});";
 
         _ = _webView.ExecuteScriptAsync(script);
     }

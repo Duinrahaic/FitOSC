@@ -94,6 +94,7 @@ public class AppStateService
         _cachedAppState.ConnectionStates = InterfaceStatus;
         _cachedAppState.TreadmillConfiguration = LatestConfiguration ?? _cachedAppState.TreadmillConfiguration;
         _cachedAppState.DeviceName = ConnectedDeviceName;
+        _cachedAppState.BluetoothDetail = BluetoothDetail;
 
         // Update nested OpenVR data in-place
         _cachedAppState.OpenVR.Yaw = LatestHeadYaw;
@@ -185,6 +186,20 @@ public class AppStateService
     {
         InterfaceStatus[appInterface] = status;
         NotifyAppStateUpdated(forceImmediate: true); // Connection changes should be immediate
+    }
+
+    /// <summary>
+    /// What the treadmill connection is doing or why it failed, for the user; null when there is nothing to say.
+    /// </summary>
+    public string? BluetoothDetail { get; private set; }
+
+    /// <summary>
+    /// Publishes the treadmill connection status together with its detail.
+    /// </summary>
+    public void PublishBluetoothStatus(ConnectionStatus status, string? detail)
+    {
+        BluetoothDetail = detail;
+        PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, status);
     }
 
     /// <summary>

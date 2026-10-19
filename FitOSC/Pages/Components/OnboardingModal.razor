@@ -530,11 +530,6 @@
 
         try
         {
-            if (_isBluetoothConnected)
-            {
-                await TreadmillManager.DisconnectAsync();
-            }
-
             await TreadmillManager.ConnectAsync(deviceName, _selectedTreadmillType);
         }
         catch (Exception ex)

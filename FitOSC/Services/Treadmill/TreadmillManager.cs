@@ -1,4 +1,5 @@
-﻿using FitOSC.Models;
+﻿using System.Diagnostics;
+using FitOSC.Models;
 using FitOSC.Services.State;
 using FitOSC.Utilities.BLE;
 
@@ -16,8 +17,14 @@ namespace FitOSC.Services.Treadmill;
 public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appState, WindowsBluetoothClient bluetoothClient)
 {
     private static readonly TimeSpan ConnectionTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan FirstReconnectDelay = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(30);
+
+    // A first connect retries a few times within the connection timeout before it reports a failure.
+    private const int ConnectAttempts = 3;
+    private static readonly TimeSpan ConnectRetryDelay = TimeSpan.FromSeconds(1);
+
+    // A dropped treadmill usually comes back within seconds, so reconnecting starts at once and backs off only a little.
+    private static readonly TimeSpan FirstReconnectDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(5);
 
     private readonly ILogger _logger = loggerFactory.CreateLogger<TreadmillManager>();
 
@@ -35,48 +42,84 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     /// </summary>
     private CancellationTokenSource? _session;
 
+    // The treadmill the session is for, from its first attempt until it ends.
+    private string? _sessionDevice;
+    private TreadmillType _sessionType;
+
     private int _reconnecting;
 
+    // When the current connection came up, for logging how long it lasted before a drop.
+    private long _connectedSince;
+
     /// <summary>
-    /// Connects to a treadmill by device name and type.
-    /// If a service is already active, it disconnects before switching.
+    /// Connects to a treadmill by device name and type. Asking for the treadmill the session already has, connected or
+    /// still connecting, changes nothing; any other treadmill replaces the session.
     /// </summary>
     /// <param name="deviceName">The advertised BLE device name to connect to.</param>
     /// <param name="type">The treadmill type (default is FTMS).</param>
     public async Task ConnectAsync(string deviceName, TreadmillType type = TreadmillType.FTMS)
     {
+        if (IsSessionFor(deviceName, type))
+            return;
+
         // Stop an in-flight connect or reconnect rather than waiting for it to finish.
         _session?.Cancel();
         await _sessionLock.WaitAsync();
         try
         {
+            if (IsSessionFor(deviceName, type))
+                return;
+
             await EndSessionAsync();
 
             var driver = TreadmillDrivers.Find(type);
             if (driver == null)
             {
                 _logger.LogError("No treadmill driver is registered for {Type}", type);
-                appState.SetConnectedDeviceName(null);
-                appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Error);
+                PublishStatus(ConnectionStatus.Error, $"No driver is available for {type}");
                 return;
             }
-
-            appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connecting);
 
             var session = new CancellationTokenSource();
             _session = session;
+            _sessionDevice = deviceName;
+            _sessionType = type;
 
-            var status = await TryConnectAsync(driver, deviceName, session.Token);
-            if (status != ConnectionStatus.Connected)
+            var started = Stopwatch.GetTimestamp();
+            (ConnectionStatus Status, string? Reason) result;
+            for (var attempt = 1; ; attempt++)
             {
+                PublishStatus(ConnectionStatus.Connecting, attempt == 1
+                    ? $"Connecting to {deviceName}"
+                    : $"Connecting to {deviceName} (attempt {attempt} of {ConnectAttempts})");
+
+                result = await TryConnectAsync(driver, deviceName, session.Token);
+                if (result.Status == ConnectionStatus.Connected || session.IsCancellationRequested ||
+                    attempt == ConnectAttempts || Stopwatch.GetElapsedTime(started) >= ConnectionTimeout)
+                    break;
+
+                try
+                {
+                    await Task.Delay(ConnectRetryDelay, session.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+
+            if (result.Status != ConnectionStatus.Connected)
+            {
+                // A session cancelled by another connect or a disconnect leaves the status to that call.
+                if (session.IsCancellationRequested)
+                    return;
+
                 await EndSessionAsync();
-                appState.SetConnectedDeviceName(null);
-                appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, status);
+                PublishStatus(result.Status, result.Reason);
                 return;
             }
 
-            appState.SetConnectedDeviceName(deviceName);
-            appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connected);
+            PublishStatus(ConnectionStatus.Connected, null, deviceName);
         }
         finally
         {
@@ -84,11 +127,25 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         }
     }
 
+    private bool IsSessionFor(string deviceName, TreadmillType type) =>
+        _session is { IsCancellationRequested: false } && _sessionType == type &&
+        string.Equals(_sessionDevice?.Trim(), deviceName.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Publishes the Bluetooth status with the connected device's name and a reason the user can read.</summary>
+    private void PublishStatus(ConnectionStatus status, string? detail, string? deviceName = null)
+    {
+        if (status == ConnectionStatus.Connected)
+            Interlocked.Exchange(ref _connectedSince, Stopwatch.GetTimestamp());
+        appState.SetConnectedDeviceName(deviceName);
+        appState.PublishBluetoothStatus(status, detail);
+    }
+
     /// <summary>
     /// Connects and initializes a fresh instance of the driver within <see cref="ConnectionTimeout"/>. On success it
-    /// becomes the active service; on any failure it is disposed. Callers hold the session lock.
+    /// becomes the active service; on any failure it is disposed and the reason is returned. Callers hold the session lock.
     /// </summary>
-    private async Task<ConnectionStatus> TryConnectAsync(TreadmillDriver driver, string deviceName, CancellationToken session)
+    private async Task<(ConnectionStatus Status, string? Reason)> TryConnectAsync(TreadmillDriver driver, string deviceName,
+        CancellationToken session)
     {
         ITreadmillService service;
         try
@@ -98,7 +155,7 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not create the {Driver} driver", driver.Name);
-            return ConnectionStatus.Error;
+            return (ConnectionStatus.Error, $"The {driver.Name} driver could not start");
         }
 
         // Active before connecting so a drop during initialization is handled once the lock is free.
@@ -108,7 +165,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(session);
         timeout.CancelAfter(ConnectionTimeout);
 
-        ConnectionStatus status;
+        var started = Stopwatch.GetTimestamp();
+        (ConnectionStatus, string?) result;
         try
         {
             // Bounded here too, so a driver step that ignores the token cannot hold the session lock past the timeout.
@@ -116,26 +174,36 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             {
                 await service.RequestControlAsync().WaitAsync(timeout.Token);
                 if (service.IsConnected)
-                    return ConnectionStatus.Connected;
+                {
+                    _logger.LogInformation("Attempt for {Device} connected in {Elapsed:F1} s", deviceName,
+                        Stopwatch.GetElapsedTime(started).TotalSeconds);
+                    return (ConnectionStatus.Connected, null);
+                }
+
+                _logger.LogWarning("{Device} set up but the link was already down", deviceName);
             }
 
             _logger.LogError("Treadmill {Device} did not finish connecting", deviceName);
-            status = ConnectionStatus.Disconnected;
+            result = (ConnectionStatus.Disconnected, $"Couldn't find or set up {deviceName}");
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             if (!session.IsCancellationRequested)
                 _logger.LogError("Connection timed out after {Timeout} seconds", ConnectionTimeout.TotalSeconds);
-            status = session.IsCancellationRequested ? ConnectionStatus.Disconnected : ConnectionStatus.Error;
+            result = session.IsCancellationRequested
+                ? (ConnectionStatus.Disconnected, null)
+                : (ConnectionStatus.Error, $"Timed out connecting to {deviceName}");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during treadmill connection");
-            status = ConnectionStatus.Error;
+            result = (ConnectionStatus.Error, $"Error connecting to {deviceName}: {ex.Message}");
         }
 
+        _logger.LogWarning("Attempt for {Device} failed after {Elapsed:F1} s: {Status} ({Reason})", deviceName,
+            Stopwatch.GetElapsedTime(started).TotalSeconds, result.Item1, result.Item2 ?? "cancelled");
         await RetireActiveAsync();
-        return status;
+        return result;
     }
 
     private void OnConnectionLost(ITreadmillService service, TreadmillDriver driver, string deviceName, CancellationToken session)
@@ -147,21 +215,24 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     }
 
     /// <summary>
-    /// Retires the dropped service and connects fresh instances of its driver, backing off until one succeeds or the
-    /// session is ended by <see cref="DisconnectAsync"/> or a new <see cref="ConnectAsync"/>.
+    /// Retires the dropped service and connects fresh instances of its driver, the first at once and then backing off
+    /// up to <see cref="MaxReconnectDelay"/>, until one succeeds or the session is ended by <see cref="DisconnectAsync"/>
+    /// or a connect to another treadmill.
     /// </summary>
     private async Task ReconnectAsync(TreadmillDriver driver, string deviceName, CancellationToken session)
     {
         try
         {
-            _logger.LogWarning("Lost connection to {Device}; reconnecting", deviceName);
+            var lostAt = Stopwatch.GetTimestamp();
+            _logger.LogWarning("Lost connection to {Device} after {Uptime:F1} s connected; reconnecting", deviceName,
+                Stopwatch.GetElapsedTime(Interlocked.Read(ref _connectedSince), lostAt).TotalSeconds);
             await _sessionLock.WaitAsync(session);
             try
             {
                 // Retire first so no late notification can republish the old reading. Connecting is published before
                 // the idle reading so listeners such as history see a reconnect rather than a stopped treadmill.
                 await RetireActiveAsync();
-                appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connecting);
+                PublishStatus(ConnectionStatus.Connecting, $"Lost {deviceName}; reconnecting");
                 PublishIdleTreadmill();
             }
             finally
@@ -169,22 +240,25 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
                 _sessionLock.Release();
             }
 
-            var delay = FirstReconnectDelay;
-            while (true)
+            var delay = TimeSpan.Zero;
+            for (var attempt = 1; ; attempt++)
             {
-                await Task.Delay(delay, session);
+                if (delay > TimeSpan.Zero)
+                    await Task.Delay(delay, session);
 
                 await _sessionLock.WaitAsync(session);
                 try
                 {
-                    if (await TryConnectAsync(driver, deviceName, session) == ConnectionStatus.Connected)
+                    PublishStatus(ConnectionStatus.Connecting, $"Reconnecting to {deviceName} (attempt {attempt})");
+                    if ((await TryConnectAsync(driver, deviceName, session)).Status == ConnectionStatus.Connected)
                     {
                         // Losses are ignored while reconnecting, so re-check the link once they are handled again.
                         Interlocked.Exchange(ref _reconnecting, 0);
                         if (_active?.IsConnected == true)
                         {
-                            appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Connected);
-                            _logger.LogInformation("Reconnected to {Device}", deviceName);
+                            PublishStatus(ConnectionStatus.Connected, null, deviceName);
+                            _logger.LogInformation("Reconnected to {Device} after {Attempts} attempt(s) in {Elapsed:F1} s", deviceName,
+                                attempt, Stopwatch.GetElapsedTime(lostAt).TotalSeconds);
                             return;
                         }
 
@@ -198,7 +272,9 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
                     _sessionLock.Release();
                 }
 
-                delay = TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxReconnectDelay.Ticks));
+                delay = delay == TimeSpan.Zero
+                    ? FirstReconnectDelay
+                    : TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxReconnectDelay.Ticks));
             }
         }
         catch (OperationCanceledException) when (session.IsCancellationRequested)
@@ -217,6 +293,7 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     {
         _session?.Cancel();
         _session = null;
+        _sessionDevice = null;
         Interlocked.Exchange(ref _reconnecting, 0);
 
         await RetireActiveAsync();
@@ -305,8 +382,7 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
         try
         {
             await EndSessionAsync();
-            appState.SetConnectedDeviceName(null);
-            appState.PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, ConnectionStatus.Disconnected);
+            PublishStatus(ConnectionStatus.Disconnected, null);
         }
         finally
         {
