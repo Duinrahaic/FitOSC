@@ -131,6 +131,7 @@ public class AppStateService
                 ConnectionStates = new System.Collections.ObjectModel.ReadOnlyDictionary<AppInterface, ConnectionStatus>(
                     new Dictionary<AppInterface, ConnectionStatus>(InterfaceStatus)),
                 DeviceName = ConnectedDeviceName,
+                BluetoothDetail = BluetoothDetail,
                 OpenVR = new OpenVRData
                 {
                     Yaw = LatestHeadYaw,
@@ -293,6 +294,26 @@ public class AppStateService
         {
             InterfaceStatus[appInterface] = status;
             PrepareAppStateNotification(forceImmediate: true); // Connection changes should be immediate
+        }
+
+        DrainAppStateNotifications();
+    }
+
+    /// <summary>
+    /// What the treadmill connection is doing or why it failed, for the user; null when there is nothing to say.
+    /// </summary>
+    public string? BluetoothDetail { get; private set; }
+
+    /// <summary>
+    /// Publishes the treadmill connection status together with its detail, in one notification.
+    /// </summary>
+    public void PublishBluetoothStatus(ConnectionStatus status, string? detail)
+    {
+        lock (_notifyLock)
+        {
+            BluetoothDetail = detail;
+            InterfaceStatus[AppInterface.Bluetooth] = status;
+            PrepareAppStateNotification(forceImmediate: true);
         }
 
         DrainAppStateNotifications();

@@ -52,7 +52,7 @@
             }
             else
             {
-                <span class="no-device">Not connected</span>
+                <span class="no-device">@(_appState?.BluetoothDetail ?? "Not connected")</span>
             }
         </div>
     </div>
@@ -363,21 +363,18 @@
         await TreadmillManager.DisconnectAsync();
     }
 
+    // Connecting to the treadmill that is already connected does nothing, so a deliberate reconnect disconnects first.
     private async Task ReconnectTreadmill()
     {
         var treadmillType = Enum.Parse<TreadmillType>(_selectedTreadmillType);
-        await TreadmillManager.ConnectAsync(_currentDeviceName ?? "", treadmillType);
+        var deviceName = _currentDeviceName ?? "";
+        await TreadmillManager.DisconnectAsync();
+        await TreadmillManager.ConnectAsync(deviceName, treadmillType);
     }
 
     private async Task ConnectToDevice(string deviceName)
     {
         var treadmillType = Enum.Parse<TreadmillType>(_selectedTreadmillType);
-
-        if (_isBluetoothConnected)
-        {
-            await TreadmillManager.DisconnectAsync();
-        }
-
         await TreadmillManager.ConnectAsync(deviceName, treadmillType);
     }
 

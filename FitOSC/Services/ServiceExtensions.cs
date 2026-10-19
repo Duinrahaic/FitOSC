@@ -107,6 +107,12 @@ public static class ServiceExtensions
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
                 .WriteTo.Sink(new LogStreamSink(logStream))
+                // A daily file a user can send when reporting a problem; the last week is kept.
+                .WriteTo.File(
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FitOSC", "logs", "fitosc-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 7,
+                    outputTemplate: "{Timestamp:HH:mm:ss.fff} {Level:u3} [{SourceContext}] {Message:lj}{NewLine}{Exception}")
                 .CreateLogger());
         return builder;
     }
