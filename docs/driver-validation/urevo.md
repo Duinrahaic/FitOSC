@@ -44,16 +44,20 @@ Speed **+** / **-** work within the reported range. Incline **-** stops at 0 % (
 
 Stand beside the belt for every first command. Use speeds up to 4 km/h and inclines up to 3 %.
 
-1. **Connect.** Connected within 30 s. Within 5 s the log shows both `UREVO reported … range` lines, after which the
-   two range queries stop. Record both ranges and the Bluetooth name.
+1. **Connect.** Connected within 30 s. Within 5 s both range queries (`02-50-02-08-03` and `02-50-03-09-03`) stop
+   repeating. Record the `UREVO reported speed range …` and `UREVO reported incline range …` lines and the Bluetooth
+   name. A model without incline answers the incline query with equal limits: that query stops with no incline line
+   and incline control stays off, which is a pass. A speed query that stops without a speed line means the treadmill
+   sent a speed range the driver ignored; record it, because speed then stays limited to 1.0-6.0 km/h.
 2. **Start.** Press START: `Wrote 02-53-01-00-…-0E-03` and the belt starts.
 3. **Readings.** At 3.0 km/h for 60 s: FitOSC speed matches the console within 0.1 km/h, incline matches, elapsed time
    matches within 2 s, distance within the console's last digit (10 m), and calories within 1 kcal. Compare steps
    from `FitOSC.getAppState()` with the console if it shows them.
 4. **Speed.** Speed **+** once: the belt rises about 0.3 km/h and the bytes carry the new speed with the current
    incline. `FitOSC.setSpeed(3.0)` gives `02-53-02-1E-<incline>-…`.
-5. **Incline.** Only on a model with incline (line 1 reported a range): incline **+** once gives `…-1E-0A-…` at
-   3.0 km/h and 1.0 %, speed unchanged. Incline **-** returns to 0 %.
+5. **Incline.** Only on a model with incline (line 1 logged an incline range): at 3.0 km/h, `FitOSC.setIncline(1)`
+   gives `02-53-02-1E-0A-27-03` and the treadmill reaches 1.0 %, speed unchanged. Incline **+** and **-** step 0.1 %
+   (one press from 1.0 % sends incline byte `0B` or `09`). `FitOSC.setIncline(0)` returns to 0 %.
 6. **Pause, resume, stop.** PAUSE: `02-53-0A-07-03`, state Paused. START: `02-53-09-06-03`, belt resumes. STOP:
    `02-53-03-0C-03`, belt stops.
 7. **Miles.** Only if the console can switch to miles: switch it, run 2.0 mph by the console and record what FitOSC
