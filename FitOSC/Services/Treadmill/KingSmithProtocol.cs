@@ -31,8 +31,11 @@ public static class KingSmithProtocol
 
     public static byte[] SetMode(KingSmithMode mode) => Command(StatusCommand, SetModeKey, (byte)mode);
 
-    /// <summary>Toggles the belt between running and paused.</summary>
+    /// <summary>Starts the belt. A running belt ignores it, so it does not pause; see <see cref="StopBelt"/>.</summary>
     public static byte[] StartOrPause() => Command(StatusCommand, StartPauseKey, 0x01);
+
+    /// <summary>Stops the belt by setting its speed to 0, which is how the protocol pauses.</summary>
+    public static byte[] StopBelt() => Command(StatusCommand, SetSpeedKey, 0x00);
 
     private static byte[] Command(byte command, params byte[] payload)
     {

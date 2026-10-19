@@ -31,6 +31,11 @@ public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger
     private bool _parametersKnown;
     private int _pollTicks;
 
+    // The protocol has no pause, so a paused belt is held at speed 0 and looks stopped. This keeps it reported as
+    // paused, so the workout is not ended, until it is started, stopped or given a speed. Commands set it while
+    // notifications read it.
+    private volatile bool _paused;
+
     protected override IReadOnlyList<SerialChannel> Channels { get; } = [Channel];
 
     protected override TimeSpan PollInterval { get; } = TimeSpan.FromMilliseconds(500);
@@ -48,6 +53,7 @@ public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger
         _maxSpeed = DefaultMaxSpeed;
         _parametersKnown = false;
         _pollTicks = 0;
+        _paused = false;
     }
 
     protected override async Task PollAsync()
@@ -69,20 +75,34 @@ public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger
             }
         }
 
-        if (_status?.BeltState != KingSmithBeltState.Running)
-            await WriteAsync(KingSmithProtocol.StartOrPause());
+        if (_status?.BeltState != KingSmithBeltState.Running && !await WriteAsync(KingSmithProtocol.StartOrPause()))
+            return;
+        _paused = false;
     }
 
+    /// <summary>Stops a moving belt by setting its speed to 0; Start sets it running again.</summary>
     public override async Task PauseAsync()
     {
-        if (_status?.BeltState == KingSmithBeltState.Running)
-            await WriteAsync(KingSmithProtocol.StartOrPause());
+        if (_status is not { } status || (status.BeltState != KingSmithBeltState.Running && status.SpeedKph == 0))
+            return;
+
+        if (await WriteAsync(KingSmithProtocol.StopBelt()))
+        {
+            _paused = true;
+            RaiseState(TreadmillState.Paused);
+        }
     }
 
-    public override Task StopAsync() => WriteAsync(KingSmithProtocol.SetMode(KingSmithMode.Standby));
+    public override Task StopAsync()
+    {
+        _paused = false;
+        return WriteAsync(KingSmithProtocol.SetMode(KingSmithMode.Standby));
+    }
 
     public override async Task SetSpeedAsync(decimal speed)
     {
+        // A speed sets the belt moving again.
+        _paused = false;
         var clamped = Math.Clamp(speed, MinSpeed, _maxSpeed);
         Logger.LogInformation("Setting KingSmith speed: {Speed:F1} km/h", clamped);
         await WriteAsync(KingSmithProtocol.SetSpeed(clamped));
@@ -143,7 +163,7 @@ public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger
 
         _status = status;
         RaiseData(TranslateData(frame));
-        RaiseState(status.BeltState switch
+        RaiseState(_paused ? TreadmillState.Paused : status.BeltState switch
         {
             KingSmithBeltState.Running => TreadmillState.Running,
             KingSmithBeltState.Paused => TreadmillState.Paused,
