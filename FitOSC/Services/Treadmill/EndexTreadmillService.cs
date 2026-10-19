@@ -163,7 +163,8 @@ public class EndexTreadmillService(ILogger<EndexTreadmillService> logger, AppSta
                 _speed = _status == EndexStatus.Running ? data[2] + data[3] / 100m : 0;
                 break;
             case QueryIncline:
-                _incline = data[2];
+                // Signed whole percent, as Kinomap reads it.
+                _incline = (sbyte)data[2];
                 break;
             case QueryDistance:
                 _distanceMeters = data[2] * 1000 + data[3] * 10;
