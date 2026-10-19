@@ -35,7 +35,7 @@ public class KingSmithFtmsTreadmillService(ILogger<KingSmithFtmsTreadmillService
         }
 
         await UnlockAsync();
-        await WriteControlPointAsync(new byte[] { 0x00 });
+        await base.RequestControlAsync();
     }
 
     public override async Task StartAsync()
