@@ -122,7 +122,8 @@ public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger
         {
             MinSpeed = MinSpeed,
             MaxSpeed = _maxSpeed,
-            SpeedIncrement = SpeedIncrement
+            SpeedIncrement = SpeedIncrement,
+            Commands = TreadmillCommands.Start | TreadmillCommands.Pause | TreadmillCommands.Stop | TreadmillCommands.Speed
         });
 
     public override TreadmillTelemetry TranslateData(byte[] data)
