@@ -280,7 +280,8 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
             SpeedIncrement = stepSpeed,
             MinIncline = minIncline,
             MaxIncline = maxIncline,
-            InclineIncrement = stepIncline
+            InclineIncrement = stepIncline,
+            Commands = TreadmillCommands.All
         };
         RaiseConfiguration(_configuration);
     }
