@@ -154,7 +154,8 @@ public class FitShowTreadmillService(ILogger<FitShowTreadmillService> logger, Ap
     }
 
     /// <summary>
-    /// Kinomap reads max then min from a long reply; a 7-byte reply carries the span and how far it reaches below zero.
+    /// Kinomap reads max then min from a long reply. A 7-byte reply carries a signed byte after the span: a positive
+    /// value is how far the span reaches below zero, a negative one is the minimum itself.
     /// </summary>
     private void HandleInclineRange(byte[] frame)
     {
@@ -166,8 +167,9 @@ public class FitShowTreadmillService(ILogger<FitShowTreadmillService> logger, Ap
         }
         else if (frame.Length == 7)
         {
-            max = frame[3] - frame[4];
-            min = -frame[4];
+            var below = (sbyte)frame[4];
+            max = frame[3] - Math.Max((int)below, 0);
+            min = -Math.Abs((int)below);
         }
         else
         {
