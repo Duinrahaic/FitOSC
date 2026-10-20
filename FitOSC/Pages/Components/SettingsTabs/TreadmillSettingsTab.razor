@@ -176,11 +176,15 @@
         }
     }
 
-    private async Task ConnectToDevice(string deviceName)
+    private async Task ConnectToDevice(string deviceName, bool reconnect = false)
     {
+        if (Busy)
+            return;
         _connectingDevice = deviceName;
         try
         {
+            if (reconnect)
+                await TreadmillManager.DisconnectAsync();
             await TreadmillManager.ConnectAsync(deviceName, Draft.TreadmillType, Draft.Connection);
         }
         finally { _connectingDevice = null; }
@@ -192,7 +196,7 @@
         }
     }
 
-    private Task ReconnectTreadmill() => ConnectToDevice(_appState?.DeviceName ?? "");
+    private Task ReconnectTreadmill() => ConnectToDevice(_appState?.DeviceName ?? "", reconnect: true);
 
     private Task DisconnectTreadmill() => TreadmillManager.DisconnectAsync();
 

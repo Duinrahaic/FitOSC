@@ -504,26 +504,37 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
     /// <returns>List of discovered device names.</returns>
     public async Task<IEnumerable<string>> ScanAsync(TimeSpan duration, BluetoothConnectionSettings? connection = null)
     {
-        await _sessionLock.WaitAsync();
         try
         {
             LastConnectionError = null;
             var settings = ResolveConnection(connection);
-            if (_activeClient is ESPHomeBluetoothClient { IsRelayConnected: true } live && _sessionConnection == settings)
-                return await live.ScanAsync(duration);
+            if (settings.Type == BluetoothConnectionType.Local)
+                return await ScanWithNewClientAsync(duration, settings);
 
-            await using var client = clientFactory.Create(settings);
-            return await client.ScanAsync(duration);
+            await _sessionLock.WaitAsync();
+            try
+            {
+                if (_activeClient is ESPHomeBluetoothClient { IsRelayConnected: true } live && _sessionConnection == settings)
+                    return await live.ScanAsync(duration);
+
+                return await ScanWithNewClientAsync(duration, settings);
+            }
+            finally
+            {
+                _sessionLock.Release();
+            }
         }
         catch (Exception ex)
         {
             LastConnectionError = ex.Message;
             throw;
         }
-        finally
-        {
-            _sessionLock.Release();
-        }
+    }
+
+    private async Task<IEnumerable<string>> ScanWithNewClientAsync(TimeSpan duration, BluetoothConnectionSettings settings)
+    {
+        await using var client = clientFactory.Create(settings);
+        return await client.ScanAsync(duration);
     }
 
     /// <summary>

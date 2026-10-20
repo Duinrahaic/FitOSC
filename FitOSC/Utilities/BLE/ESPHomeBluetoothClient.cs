@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
+using System.Threading.Channels;
 using FitOSC.Models;
 using FitOSC.Utilities.BLE.ESPHome;
 using FitOSC.Utilities.BLE.ESPHome.Protocol;
@@ -26,6 +27,15 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
     private ulong _soughtAddress;
     private long _generation;
 
+    // Notifications reach the driver through one ordered consumer, never on the API receive loop: a serial driver's
+    // callback waits for its poll tick, which waits for a write result that only the receive loop can deliver.
+    private const int NotificationBacklog = 256;
+    private readonly Channel<Notification> _notifications =
+        Channel.CreateBounded<Notification>(new BoundedChannelOptions(NotificationBacklog) { SingleReader = true });
+    private readonly Task _notificationPump;
+
+    private sealed record Notification(long Generation, uint Handle, Action<byte[]> Callback, byte[] Data);
+
     private sealed record DiscoveredDevice(ulong Address, uint AddressType, string Name)
     {
         public string DisplayName => $"{Name} [{FormatAddress(Address)}]";
@@ -35,6 +45,7 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
     {
         _settings = settings with { };
         _logger = logger;
+        _notificationPump = Task.Run(PumpNotificationsAsync);
     }
 
     public override bool IsConnected => _ready && _session?.IsConnected == true;
@@ -229,7 +240,7 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
                 }
             }, cancellationToken);
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException || IsOperationFailure(ex, cancellationToken))
         {
             _logger.LogWarning(ex, "Failed to subscribe to {Uuid}", characteristicUuid);
             return false;
@@ -308,7 +319,7 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
         {
             return false;
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException || IsOperationFailure(ex, cancellationToken))
         {
             _logger.LogWarning(ex, "Failed to write {Command} to {Uuid}", Convert.ToHexString(command), characteristicUuid);
             return false;
@@ -332,12 +343,20 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
                 return response.Data.ToByteArray();
             }, cancellationToken);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (IsOperationFailure(ex, cancellationToken))
         {
             _logger.LogWarning(ex, "Failed to read {Uuid}", characteristicUuid);
             return null;
         }
     }
+
+    /// <summary>
+    /// Whether a GATT operation failed in the relay or the link: an error reply, a lost session, or a timeout, which
+    /// has already closed the session. Only the caller's own cancellation is not a failure.
+    /// </summary>
+    private static bool IsOperationFailure(Exception ex, CancellationToken cancellationToken) =>
+        ex is IOException or TimeoutException ||
+        (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested);
 
     private async Task<T> RunGattAsync<T>(Func<ESPHomeApiConnection, ulong, Task<T>> operation,
         CancellationToken cancellationToken)
@@ -391,10 +410,15 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
                 break;
             case ApiMessageType.BluetoothGattNotifyDataResponse:
                 var data = BluetoothGATTNotifyDataResponse.Parser.ParseFrom(packet.Payload);
-                if (data.Address == _address && _subscriptions.TryGetValue(data.Handle, out var callback))
+                // Read the generation first, so a frame racing a disconnect is tagged with the link it came from.
+                var generation = Volatile.Read(ref _generation);
+                if (data.Address == _address && _subscriptions.TryGetValue(data.Handle, out var callback) &&
+                    !_notifications.Writer.TryWrite(new Notification(generation, data.Handle, callback, data.Data.ToByteArray())))
                 {
-                    try { callback(data.Data.ToByteArray()); }
-                    catch (Exception ex) { _logger.LogError(ex, "Error handling treadmill telemetry from ESPHome"); }
+                    // Dropping a frame could lose a command reply, so end the session instead and let it reconnect.
+                    _logger.LogError("The treadmill driver fell {Backlog} notifications behind; closing the ESPHome proxy session",
+                        NotificationBacklog);
+                    _session?.Abort(new IOException("The treadmill driver stopped keeping up with notifications."));
                 }
                 break;
             case ApiMessageType.BluetoothDeviceConnectionResponse:
@@ -402,6 +426,20 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
                 if (state.Address == _address && !state.Connected)
                     ClearDevice();
                 break;
+        }
+    }
+
+    private async Task PumpNotificationsAsync()
+    {
+        await foreach (var notification in _notifications.Reader.ReadAllAsync())
+        {
+            // Skip frames queued for a link or subscription that has since ended.
+            if (notification.Generation != Volatile.Read(ref _generation) ||
+                !_subscriptions.TryGetValue(notification.Handle, out var current) ||
+                !ReferenceEquals(current, notification.Callback))
+                continue;
+            try { notification.Callback(notification.Data); }
+            catch (Exception ex) { _logger.LogError(ex, "Error handling treadmill telemetry from ESPHome"); }
         }
     }
 
@@ -509,6 +547,15 @@ public sealed class ESPHomeBluetoothClient : BaseBluetoothClient
     public override Task<string> GetDeviceInfoAsync() => Task.FromResult(
         $"ESPHome proxy: {_settings.Host}:{_settings.Port}\nFirmware: {_session?.DeviceInfo?.EsphomeVersion ?? "not connected"}\n" +
         $"Treadmill: {(IsConnected ? _deviceName : "not connected")}\nCharacteristics: {_characteristics.Count}");
+
+    /// <summary>
+    /// Waits for the notification consumer after disconnecting, which already stopped new frames from being delivered.
+    /// </summary>
+    protected override async Task OnDispose()
+    {
+        _notifications.Writer.TryComplete();
+        await _notificationPump;
+    }
 
     // _operations is not disposed: a driver's late command after disposal then reports a disconnect instead of throwing
     // ObjectDisposedException. Disconnecting already closed the relay session.
