@@ -1,0 +1,136 @@
+// BluetoothConnectionEditor: shared by onboarding and settings.
+// These are its standalone styles; .settings-window refines them into settings rows.
+
+.bt-connection {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 16px;
+  text-align: left;
+}
+
+.bt-connection-type {
+  display: grid;
+  gap: 6px;
+}
+
+.bt-connection-label {
+  color: $color-text-muted;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.bt-connection-choice {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: $color-background;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+
+  label { position: relative; flex: 1 1 auto; min-width: 0; }
+  input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+  input:disabled { cursor: not-allowed; }
+  span { display: block; padding: 5px 12px; border-radius: 4px; font-size: 13px; color: $color-text-muted; text-align: center; white-space: nowrap; }
+  input:checked + span { background: #2c2c2c; color: #fff; }
+  input:disabled + span { opacity: 0.6; }
+  input:focus-visible + span { box-shadow: 0 0 0 2px #64b5f6; }
+}
+
+.bt-connection-proxy {
+  display: grid;
+  gap: 12px;
+  padding-left: 14px;
+  border-left: 2px solid #3a3a3a;
+}
+
+.bt-connection-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px;
+  gap: 12px;
+}
+
+.bt-connection-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+
+  > label { color: #cfcfcf; font-size: 12.5px; font-weight: 500; }
+
+  input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 13.5px;
+    color: $color-text;
+    background: #101010;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+
+    &::placeholder { color: #606060; }
+    &:focus-visible { outline: none; border-color: $color-accent; box-shadow: 0 0 0 3px rgba($color-accent, 0.25); }
+    &:disabled { opacity: 0.6; cursor: not-allowed; }
+  }
+}
+
+.bt-connection-secret {
+  display: flex;
+  gap: 6px;
+}
+
+.bt-connection-reveal {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: $color-text-muted;
+  background: #262626;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover { color: $color-text; background: #303030; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 2px #64b5f6; }
+}
+
+.bt-connection-note {
+  margin: 0;
+  color: $color-text-muted;
+  font-size: 12.5px;
+}
+
+// Relay status: its own status, separate from the treadmill's device status.
+.bt-connection-result {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bt-connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: $color-text-muted;
+  font-size: 13px;
+
+  &::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: #5a5a5a; }
+  &.ok { color: $color-text; }
+  &.ok::before { background: #81c784; }
+  &.busy::before { background: $color-accent; }
+  &.error::before { background: #ff8a80; }
+}
+
+.bt-connection-detail {
+  color: #ff8a80;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 400px) {
+  .bt-connection-pair { grid-template-columns: minmax(0, 1fr); }
+  .bt-connection-choice span { white-space: normal; }
+}

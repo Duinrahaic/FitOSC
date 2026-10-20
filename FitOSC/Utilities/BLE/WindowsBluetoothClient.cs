@@ -54,7 +54,8 @@ namespace FitOSC.Utilities.BLE
         /// <param name="scanDuration">How long to scan for devices</param>
         /// <param name="serviceUuidFilter">Optional service UUID to filter devices by</param>
         /// <returns>List of discovered device names</returns>
-        public async Task<IEnumerable<string>> ScanAsync(TimeSpan scanDuration, Guid? serviceUuidFilter = null)
+        public override async Task<IEnumerable<string>> ScanAsync(TimeSpan scanDuration, Guid? serviceUuidFilter = null,
+            CancellationToken cancellationToken = default)
         {
             var discoveredDevices = new HashSet<string>();
             var tcs = new TaskCompletionSource<bool>();
@@ -107,7 +108,7 @@ namespace FitOSC.Utilities.BLE
                 scanWatcher.Start();
 
                 // Wait for the scan duration
-                await Task.Delay(scanDuration);
+                await Task.Delay(scanDuration, cancellationToken);
 
                 // Stop the watcher
                 scanWatcher.Stop();
@@ -115,7 +116,7 @@ namespace FitOSC.Utilities.BLE
 
                 return discoveredDevices.OrderBy(d => d).ToList();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Error during BLE scan");
                 return Enumerable.Empty<string>();

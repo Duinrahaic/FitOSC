@@ -1,137 +1,116 @@
-@using FitOSC.Models
-@using FitOSC.Services
-@using FitOSC.Services.Configuration
 @using FitOSC.Services.History
-@using FitOSC.Services.State
-@inject ConfigurationService ConfigService
 @inject HistoryService HistoryService
-@inject AppStateService AppState
-@inject OnboardingService OnboardingService
 @implements IDisposable
 
-<div class="settings-section">
-    <div class="settings-header">
-        <h3>User Preferences</h3>
-        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
-    </div>
+<section class="page" aria-labelledby="settings-general-heading">
+    <h2 id="settings-general-heading">General</h2>
 
-    <div class="settings-item">
-        <label>Preferred Units</label>
-        <div class="unit-toggle">
-            <button class="unit-button @(_preferMetric ? "active" : "")" @onclick="() => SetPreferMetric(true)">Metric</button>
-            <button class="unit-button @(!_preferMetric ? "active" : "")" @onclick="() => SetPreferMetric(false)">Imperial</button>
+    <div class="row inline">
+        <div class="lab"><span class="t" id="settings-units-label">Units</span></div>
+        <div class="ctl seg" role="radiogroup" aria-labelledby="settings-units-label">
+            <label><input type="radio" name="settings-units" checked="@Draft.PreferMetric" @onchange="() => SetPreferMetric(true)" /><span>Metric</span></label>
+            <label><input type="radio" name="settings-units" checked="@(!Draft.PreferMetric)" @onchange="() => SetPreferMetric(false)" /><span>Imperial</span></label>
         </div>
     </div>
-</div>
 
-<div class="settings-section">
-    <div class="settings-header">
-        <h3>Session History</h3>
-        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/general-usage/interface-overview"/>
-        <button class="btn-danger btn-sm btn-header-action" @onclick="ClearAllHistory">
-            <i class="fa-solid fa-trash-can"></i>
-            Clear
-        </button>
+    <h3>History</h3>
+    <div class="row inline">
+        <div class="lab"><label for="settings-history-enabled">Save walking sessions</label></div>
+        <input class="switch" type="checkbox" role="switch" id="settings-history-enabled"
+               @bind="Draft.HistoryEnabled" @bind:after="Notify" />
+    </div>
+    @if (Draft.HistoryEnabled)
+    {
+        <div class="row">
+            <div class="lab">
+                <label for="settings-min-duration">Minimum session length</label>
+                <small>Shorter sessions aren't saved.</small>
+            </div>
+            <div class="ctl w-sm">
+                <div class="unit">
+                    <input type="number" id="settings-min-duration" aria-describedby="settings-min-duration-error" min="1" max="60" step="1"
+                           aria-invalid="@(Draft.MinimumSessionDurationError is null ? null : "true")"
+                           @bind="Draft.MinimumSessionDuration" @bind:after="Notify" /><span>min</span>
+                </div>
+                <FieldError Id="settings-min-duration-error" Message="@Draft.MinimumSessionDurationError" />
+            </div>
+        </div>
+    }
+    <div class="row inline">
+        <div class="lab">
+            <span class="t">Clear history</span>
+            <small role="status">@_clearStatus</small>
+        </div>
+        <button class="settings-btn danger" type="button" @onclick="ClearHistory">@(_confirmClear ? "Confirm" : "Clear…")</button>
     </div>
 
-    <div class="settings-item">
-        <label class="toggle-switch">
-            <input type="checkbox" @bind="_historyEnabled" />
-            <span class="toggle-track"></span>
-            <span class="toggle-label">Enable session history tracking</span>
-        </label>
+    <h3>System</h3>
+    <div class="row inline">
+        <div class="lab">
+            <label for="settings-gpu">Hardware acceleration</label>
+            <small id="settings-gpu-description">Applies after restart.</small>
+        </div>
+        <input class="switch" type="checkbox" role="switch" id="settings-gpu" aria-describedby="settings-gpu-description"
+               @bind="Draft.UseHardwareAcceleration" @bind:after="Notify" />
     </div>
-
-    <div class="settings-item">
-        <label>Minimum Session Duration (minutes)</label>
-        <input type="number" min="1" max="60" @bind="_minimumSessionDuration" placeholder="5" />
-        <p class="settings-hint">Sessions shorter than this duration will not be saved to history</p>
+    <div class="row inline">
+        <div class="lab"><label for="settings-steamvr">Launch with SteamVR</label></div>
+        <input class="switch" type="checkbox" role="switch" id="settings-steamvr"
+               @bind="Draft.LaunchWithSteamVR" @bind:after="Notify" />
     </div>
-</div>
-
-<div class="settings-section">
-    <div class="settings-header">
-        <h3>Performance</h3>
+    <div class="row inline">
+        <div class="lab"><span class="t">Setup wizard</span></div>
+        <button class="settings-btn" type="button" @onclick="RunSetup">Run again</button>
     </div>
-
-    <div class="settings-item">
-        <label class="toggle-switch">
-            <input type="checkbox" @bind="_useHardwareAcceleration" />
-            <span class="toggle-track"></span>
-            <span class="toggle-label">Use hardware acceleration</span>
-        </label>
-        <p class="settings-hint">Disabling may reduce GPU usage. Requires app restart to take effect.</p>
-    </div>
-</div>
-
-<div class="settings-section">
-    <div class="settings-header">
-        <h3>Onboarding</h3>
-    </div>
-
-    <div class="settings-item">
-        <button class="btn-secondary" @onclick="ResetOnboarding">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            Run Setup Wizard
-        </button>
-        <p class="settings-hint">Re-run the initial setup wizard to configure your treadmill and walking mode.</p>
-    </div>
-</div>
+</section>
 
 @code {
-    [Parameter] public Action<bool>? OnPreferMetricChanged { get; set; }
-    [Parameter] public EventCallback ShouldCloseSettings { get; set; }
-    private bool _preferMetric = true;
-    private bool _historyEnabled = true;
-    private int _minimumSessionDuration = 5;
-    private bool _useHardwareAcceleration = true;
+    private const string ClearDescription = "Removes all saved sessions.";
 
-    protected override void OnInitialized()
+    [Parameter, EditorRequired] public SettingsDraft.GeneralDraft Draft { get; set; } = default!;
+    [Parameter] public EventCallback Changed { get; set; }
+    [Parameter] public EventCallback RunSetup { get; set; }
+
+    private bool _confirmClear;
+    private string _clearStatus = ClearDescription;
+    private CancellationTokenSource? _confirmTimeout;
+
+    private Task Notify() => Changed.InvokeAsync();
+
+    private Task SetPreferMetric(bool preferMetric)
     {
-        var config = ConfigService.GetConfiguration();
-        _preferMetric = config.User.PreferMetric;
-        _historyEnabled = config.User.HistoryEnabled;
-        _minimumSessionDuration = config.User.MinimumSessionDuration;
-        _useHardwareAcceleration = config.User.UseHardwareAcceleration;
+        Draft.PreferMetric = preferMetric;
+        return Notify();
     }
 
-    private void ClearAllHistory()
+    private void ClearHistory()
     {
-        HistoryService.ClearAllHistory();
+        _confirmTimeout?.Cancel();
+        if (_confirmClear)
+        {
+            HistoryService.ClearAllHistory();
+            _confirmClear = false;
+            _clearStatus = "History cleared.";
+            return;
+        }
+
+        _confirmClear = true;
+        _clearStatus = "Click Confirm to delete. This can't be undone.";
+        _confirmTimeout = new CancellationTokenSource();
+        _ = DisarmClearAsync(_confirmTimeout.Token);
     }
 
-    private void SetPreferMetric(bool preferMetric)
+    private async Task DisarmClearAsync(CancellationToken token)
     {
-        _preferMetric = preferMetric;
-
-        // Update AppState immediately so ButtonAdjuster and KPIBox update in real-time
-        AppState.UpdatePreferredUnits(preferMetric);
-
-        // Notify WalkingSettingsTab to update its display
-        OnPreferMetricChanged?.Invoke(preferMetric);
-
-        StateHasChanged();
+        try { await Task.Delay(TimeSpan.FromSeconds(5), token); }
+        catch (OperationCanceledException) { return; }
+        await InvokeAsync(() =>
+        {
+            _confirmClear = false;
+            _clearStatus = ClearDescription;
+            StateHasChanged();
+        });
     }
 
-    private async Task ResetOnboarding()
-    {
-        OnboardingService.TriggerOnboarding();
-        await ShouldCloseSettings.InvokeAsync();
-    }
-
-    public AppConfiguration GetConfiguration()
-    {
-        var config = ConfigService.GetConfiguration();
-        config.User.PreferMetric = _preferMetric;
-        config.User.HistoryEnabled = _historyEnabled;
-        config.User.MinimumSessionDuration = _minimumSessionDuration;
-        config.User.UseHardwareAcceleration = _useHardwareAcceleration;
-
-        return config;
-    }
-
-    public void Dispose()
-    {
-        // No subscriptions to clean up
-    }
+    public void Dispose() => _confirmTimeout?.Cancel();
 }

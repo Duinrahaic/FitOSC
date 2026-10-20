@@ -3,8 +3,8 @@ using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
-public class WalkingPadTreadmillService(ILogger<WalkingPadTreadmillService> logger, AppStateService appState)
-    : TreadmillService(appState, new WindowsBluetoothClient(logger))
+public class WalkingPadTreadmillService(AppStateService appState, BaseBluetoothClient client)
+    : TreadmillService(appState, client)
 {
     private static readonly Guid ServiceUuid = Guid.Parse("0000ffe0-0000-1000-8000-00805f9b34fb");
     private static readonly Guid DataUuid = Guid.Parse("0000ffe1-0000-1000-8000-00805f9b34fb");

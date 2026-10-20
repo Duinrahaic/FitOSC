@@ -98,6 +98,11 @@
                             </div>
                             <h2>@(_isBluetoothConnected ? "Treadmill Connected" : "Connect Your Treadmill")</h2>
                             <p>@(_isBluetoothConnected ? $"Connected to {_currentDeviceName}" : "Make sure your treadmill is powered on and in pairing mode.")</p>
+                            <BluetoothConnectionEditor Settings="_connection" Disabled="@(_isScanning || _isConnecting || _isBluetoothConnected)" Changed="OnConnectionChanged" />
+                            @if (!string.IsNullOrEmpty(TreadmillManager.LastConnectionError))
+                            {
+                                <p class="settings-hint" role="alert">@TreadmillManager.LastConnectionError</p>
+                            }
                             <div class="scan-section">
                                 @if (_isBluetoothConnected)
                                 {
@@ -108,7 +113,7 @@
                                 }
                                 else
                                 {
-                                    <button class="btn-scan" @onclick="ScanForDevices" disabled="@_isScanning">
+                                    <button class="btn-scan" @onclick="ScanForDevices" disabled="@(_isScanning || _isConnecting)">
                                         <i class="fa @(_isScanning ? "fa-spinner fa-spin" : "fa-search")"></i>
                                         @if (_isScanning)
                                         {
@@ -135,7 +140,7 @@
                                                 }
                                                 else
                                                 {
-                                                    <button class="btn-connect" @onclick="() => ConnectToDevice(device)" disabled="@_isConnecting">
+                                                    <button class="btn-connect" @onclick="() => ConnectToDevice(device)" disabled="@(_isScanning || _isConnecting)">
                                                         @if (_isConnecting && _selectedDevice == device)
                                                         {
                                                             <i class="fa fa-spinner fa-spin"></i>
@@ -303,6 +308,7 @@
     private bool _isScanning = false;
     private bool _hasScanned = false;
     private bool _isConnecting = false;
+    private BluetoothConnectionSettings _connection = new();
     private List<string> _discoveredDevices = new();
     private string? _selectedDevice = null;
 
@@ -346,6 +352,7 @@
         _currentStep = WizardStep.Welcome;
         _wantsTreadmill = null;
         _selectedTreadmillType = config.Treadmill.TreadmillType;
+        _connection = config.Treadmill.Connection with { };
         _selectedWalkingMode = config.WalkingMode.DefaultMode;
         _preferMetric = config.User.PreferMetric;
         _isScanning = false;
@@ -468,7 +475,7 @@
             var allDevices = new HashSet<string>();
             for (int i = 0; i < 5; i++)
             {
-                var devices = await TreadmillManager.ScanAsync(TimeSpan.FromSeconds(2));
+                var devices = await TreadmillManager.ScanAsync(TimeSpan.FromSeconds(2), _connection);
                 foreach (var device in devices)
                 {
                     allDevices.Add(device);
@@ -492,6 +499,13 @@
     {
         _selectedDevice = deviceName;
         StateHasChanged();
+    }
+
+    private void OnConnectionChanged()
+    {
+        _discoveredDevices.Clear();
+        _selectedDevice = null;
+        _hasScanned = false;
     }
 
     private IEnumerable<string> GetSortedDevices()
@@ -530,7 +544,7 @@
 
         try
         {
-            await TreadmillManager.ConnectAsync(deviceName, _selectedTreadmillType);
+            await TreadmillManager.ConnectAsync(deviceName, _selectedTreadmillType, _connection);
         }
         catch (Exception ex)
         {
@@ -554,6 +568,7 @@
 
         // Save settings
         config.Treadmill.TreadmillType = _selectedTreadmillType;
+        config.Treadmill.Connection = _connection with { };
         config.WalkingMode.DefaultMode = _selectedWalkingMode;
         config.User.PreferMetric = _preferMetric;
 

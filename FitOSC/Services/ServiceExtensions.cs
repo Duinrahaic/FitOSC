@@ -25,8 +25,7 @@ public static class ServiceExtensions
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
         services.AddSingleton<ConfigurationService>();
-        services.AddSingleton<WindowsBluetoothClient>(sp =>
-            new WindowsBluetoothClient(sp.GetRequiredService<ILogger<WindowsBluetoothClient>>()));
+        services.AddSingleton<BluetoothClientFactory>();
         services.AddSingleton<TreadmillManager>();
         services.AddSingleton<IOscService,OscService>();
         services.AddSingleton<AppStateService>();

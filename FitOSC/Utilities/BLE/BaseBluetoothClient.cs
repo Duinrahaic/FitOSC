@@ -30,6 +30,14 @@
         public abstract Task<bool> ConnectAsync(Guid serviceUuid, string? deviceName, CancellationToken cancellationToken);
 
         /// <summary>
+        /// Lists the names of nearby devices, for choosing one to pass to <see cref="ConnectAsync"/>.
+        /// </summary>
+        /// <param name="duration">How long to listen for advertisements.</param>
+        /// <param name="serviceUuidFilter">Optional service UUID; devices advertising other services are left out.</param>
+        public abstract Task<IEnumerable<string>> ScanAsync(TimeSpan duration, Guid? serviceUuidFilter = null,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Subscribes to a given characteristic and invokes the callback on notifications.
         /// A null callback only resolves and caches the characteristic.
         /// </summary>
