@@ -8,8 +8,8 @@ namespace FitOSC.Services.Treadmill;
 
 [TreadmillDriver(TreadmillType.FTMS, "FTMS (Generic)", "Most Bluetooth treadmills use this standard",
     AdvertisedServices = ["00001826-0000-1000-8000-00805f9b34fb"])]
-public class FTMSTreadmillService(ILogger logger, AppStateService appState)
-    : TreadmillService(appState, new WindowsBluetoothClient(logger))
+public class FTMSTreadmillService(ILogger logger, AppStateService appState, BaseBluetoothClient client)
+    : TreadmillService(appState, client)
 {
     private static readonly Guid FtmsService = Guid.Parse("00001826-0000-1000-8000-00805f9b34fb");
     protected static readonly Guid ControlPoint = Guid.Parse("00002ad9-0000-1000-8000-00805f9b34fb");

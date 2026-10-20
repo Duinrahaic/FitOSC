@@ -8,6 +8,9 @@
 # Claude notes and development documentation
 /notes/
 .claude/
+esphome/secrets.yaml
+esphome/.esphome/
+esphome/.gitignore
 *_SUMMARY.md
 *_ANALYSIS.md
 
