@@ -45,7 +45,9 @@ internal sealed class ESPHomeApiConnection : IAsyncDisposable
             await OpenSocketAsync(host, settings.Port, timeout.Token);
             _stream = _tcp.GetStream();
             await HandshakeAsync(settings.EncryptionKey.Trim(), timeout.Token);
-            _receiveLoop = ReceiveLoopAsync();
+            // The API loops run on the thread pool, not the caller's (UI) context, so a busy or blocked UI thread
+            // cannot stop replies, pings, or the timeouts that end a stalled session.
+            _receiveLoop = Task.Run(ReceiveLoopAsync);
 
             var hello = await RequestAsync(ApiMessageType.HelloRequest,
                 new HelloRequest { ClientInfo = "FitOSC", ApiVersionMajor = 1, ApiVersionMinor = 15 },
@@ -63,7 +65,7 @@ internal sealed class ESPHomeApiConnection : IAsyncDisposable
             if ((capabilities.BluetoothProxy?.FeatureFlags & requiredFeatures) != requiredFeatures)
                 throw new ESPHomeConnectionException("The ESPHome device does not offer an active Bluetooth proxy. Enable bluetooth_proxy with active connections in its firmware.");
 
-            _keepAliveLoop = KeepAliveLoopAsync();
+            _keepAliveLoop = Task.Run(KeepAliveLoopAsync);
         }
         catch (Exception ex)
         {
