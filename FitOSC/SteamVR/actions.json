@@ -11,6 +11,10 @@
     {
       "controller_type": "vive_controller",
       "binding_url": "bindings_vive_controller.json"
+    },
+    {
+      "controller_type": "frame_controller",
+      "binding_url": "bindings_frame_controller.json"
     }
   ],
   "actions": [
