@@ -40,6 +40,24 @@
               "output": "/actions/fitosc/in/RecenterYaw"
             }
           }
+        },
+        {
+          "path": "/user/hand/left/input/dpad_up",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/WalkingSpeedUp"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/dpad_down",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/WalkingSpeedDown"
+            }
+          }
         }
       ]
     }
