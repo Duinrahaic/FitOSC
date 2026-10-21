@@ -1,0 +1,106 @@
+# Unsigned Windows preview build for testing a pull request on hardware. It only builds and uploads a workflow
+# artifact: no release, tag, secret or write permission is used, and pull requests from forks get the same
+# read-only treatment (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request).
+name: Driver preview build (Windows)
+
+on:
+  pull_request:
+    branches: [development]
+  # Builds the selected branch. The Actions page offers it once this file is on the default branch; before that,
+  # `gh workflow run driver-preview.yml --ref <branch>` works.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: driver-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      # The pull request's own head commit, so the artifact matches a commit listed on the pull request.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Name the preview
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Driver branches get their driver's name; any other branch gets a cleaned-up branch name.
+          $drivers = @{
+            'driver/kingsmith-ftms'  = 'KingSmith-FTMS'
+            'driver/fitshow'         = 'FitShow'
+            'driver/endex'           = 'Endex'
+            'driver/iconsole'        = 'iConsole'
+            'driver/rsc'             = 'RSC'
+            'driver/urevo'           = 'UREVO'
+            'driver/bowflex'         = 'Bowflex'
+            'driver/wahoo-kickr-run' = 'Wahoo-KICKR-RUN'
+            'driver/es-linker'       = 'ES-Linker'
+          }
+          $driver = $drivers[$env:BRANCH]
+          if (-not $driver) {
+            $driver = (($env:BRANCH -replace '^driver/', '') -replace '[^A-Za-z0-9]+', '-').Trim('-')
+            if ($driver.Length -gt 40) { $driver = $driver.Substring(0, 40).Trim('-') }
+            if (-not $driver) { $driver = 'branch' }
+          }
+
+          $short = $env:COMMIT.Substring(0, 7)
+          $base = ([xml](Get-Content FitOSC/FitOSC.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          $label = if ($env:PR_NUMBER) { "pr$($env:PR_NUMBER)" } else { "manual" }
+          $version = "$base-preview.$label.$($env:RUN_NUMBER)"
+          $exe = "FitOSC-$driver-Preview.exe"
+          "PREVIEW_VERSION=$version" >> $env:GITHUB_ENV
+          "PREVIEW_EXE=$exe" >> $env:GITHUB_ENV
+          "PREVIEW_NAME=FitOSC-preview-$label-$driver-$short-win-x64" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force ./preview | Out-Null
+          @(
+            "FitOSC preview build - not a release"
+            "Driver build: $driver"
+            "Run: $exe (in this folder)"
+            "Version: $version (Settings > About; $exe Properties > Details shows $version+<commit>)"
+            "Pull request: $(if ($env:PR_NUMBER) { "#$($env:PR_NUMBER)" } else { 'none (manual run)' })"
+            "Commit: $($env:COMMIT)"
+            "Workflow run: $($env:RUN_URL)"
+            ""
+            "Self-contained win-x64: no .NET install is needed. Keep the other files next to the exe."
+            "Settings and logs are shared with an installed FitOSC: %APPDATA%\FitOSC (logs in %APPDATA%\FitOSC\logs)."
+            "Auto-launch with SteamVR starts FitOSC.exe, not this preview; leave it off while testing."
+            "Validation steps: docs/driver-validation in the pull request."
+          ) | Set-Content -Encoding utf8 ./preview/PREVIEW-BUILD.txt
+
+      # The app is a single-file bundle, so renaming its exe keeps the bundled assembly, runtime config and
+      # dependencies together; the native libraries beside it are found by folder, not by exe name.
+      - name: Publish self-contained win-x64
+        run: |
+          dotnet publish FitOSC/FitOSC.csproj --configuration Release --runtime win-x64 --self-contained --output ./preview -p:Version=$env:PREVIEW_VERSION
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if (Test-Path ./preview/FitOSC.dll) { throw "Expected a single-file publish; FitOSC.dll was published separately" }
+          Rename-Item ./preview/FitOSC.exe $env:PREVIEW_EXE
+
+      - name: Upload preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PREVIEW_NAME }}
+          path: ./preview
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
