@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
     <PropertyGroup>
         <TargetFramework>net8.0-windows10.0.19041</TargetFramework>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -60,6 +60,10 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Blazored.LocalStorage" Version="4.5.0"/>
+        <PackageReference Include="Google.Protobuf" Version="3.36.2" />
+        <PackageReference Include="Grpc.Tools" Version="2.84.0" PrivateAssets="All" />
+        <PackageReference Include="Noise.NET" Version="1.0.0" />
+        <PackageReference Include="libsodium" Version="1.0.22" />
         <PackageReference Include="LucHeart.CoreOSC" Version="1.4.0" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.10"/>
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="8.0.10"/>
@@ -145,6 +149,10 @@
     </ItemGroup>
     <ItemGroup>
       <Folder Include="Extensions\" />
+    </ItemGroup>
+    <ItemGroup>
+      <Protobuf Include="Utilities\BLE\ESPHome\api.proto" GrpcServices="None" />
+      <None Update="Utilities\BLE\ESPHome\ESPHome-LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" TargetPath="licenses\ESPHome.txt" />
     </ItemGroup>
     <ItemGroup>
       <None Remove="Assets\icon.ico" />

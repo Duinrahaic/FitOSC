@@ -1,4 +1,5 @@
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -7,8 +8,8 @@ namespace FitOSC.Services.Treadmill;
 /// </summary>
 [TreadmillDriver(TreadmillType.KingSmith, "KingSmith WalkingPad / Legacy", "WalkingPad and older KingSmith treadmills",
     AdvertisedServices = ["0000fe00-0000-1000-8000-00805f9b34fb"])]
-public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger, AppStateService appState)
-    : SerialTreadmillService(logger, appState)
+public class KingSmithTreadmillService(ILogger<KingSmithTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : SerialTreadmillService(logger, appState, client)
 {
     private static readonly SerialChannel Channel = new(
         Guid.Parse("0000fe00-0000-1000-8000-00805f9b34fb"),
