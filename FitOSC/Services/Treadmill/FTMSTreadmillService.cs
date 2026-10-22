@@ -66,6 +66,11 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
     // The last stop or pause the machine reported, so a stationary belt is not guessed from elapsed time.
     private TreadmillState? _machineState;
 
+    // Consoles on the EQiSports app's firmware, recognised by their step count in flag bit 13, roll steps over at
+    // 10,000 and elapsed time at 100 minutes; the app unwraps both.
+    private readonly RolloverCounter _steps = new(10000);
+    private readonly RolloverCounter _elapsedSeconds = new(6000);
+
     public override async Task<bool> ConnectAsync(string deviceName, CancellationToken cancellationToken)
     {
         if (!await Client.ConnectAsync(FtmsService, deviceName, cancellationToken))
@@ -514,8 +519,15 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         // Only a packet that carries speed is a fresh belt sample; carried-over speed is not.
         var hasSpeed = telemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Enabled;
 
-        // Carry over fields this packet did not include. One it reported as unknown is not replaced by an old value.
         var flags = new FtmsTelemetryFlags(data);
+        if (flags.HasSteps)
+        {
+            Unwrap(telemetry, TreadmillTelemetryProperty.StepCount, _steps);
+            if (flags.HasElapsedTime)
+                Unwrap(telemetry, TreadmillTelemetryProperty.ElapsedTime, _elapsedSeconds);
+        }
+
+        // Carry over fields this packet did not include. One it reported as unknown is not replaced by an old value.
         if (_lastTelemetry != null)
         {
             foreach (var (property, last) in _lastTelemetry.Values)
@@ -539,8 +551,24 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
         // A moving belt is running. A stationary one keeps the machine's own stop or pause; failing that, it is paused
         // part-way through a session and stopped otherwise.
         var elapsed = telemetry.Values[TreadmillTelemetryProperty.ElapsedTime];
-        RaiseState(telemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Value > 0 ? TreadmillState.Running
-            : _machineState ?? (elapsed.Enabled && elapsed.Value > 0 ? TreadmillState.Paused : TreadmillState.Stopped));
+        var state = telemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Value > 0 ? TreadmillState.Running
+            : _machineState ?? (elapsed.Enabled && elapsed.Value > 0 ? TreadmillState.Paused : TreadmillState.Stopped);
+        if (state == TreadmillState.Stopped)
+            MarkCountersStopped();
+        RaiseState(state);
+    }
+
+    private static void Unwrap(TreadmillTelemetry telemetry, TreadmillTelemetryProperty property, RolloverCounter counter)
+    {
+        var value = telemetry.Values[property];
+        if (value.Enabled)
+            value.Value = counter.Update((int)value.Value);
+    }
+
+    private void MarkCountersStopped()
+    {
+        _steps.MarkStopped();
+        _elapsedSeconds.MarkStopped();
     }
 
     private void HandleStatus(byte[] data)
@@ -560,6 +588,8 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
             return;
 
         _machineState = state == TreadmillState.Running ? null : state;
+        if (state == TreadmillState.Stopped)
+            MarkCountersStopped();
         RaiseState(state.Value);
     }
 
@@ -573,5 +603,30 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
             pending.TrySetResult(data[2]);
         else if (data[2] != ResultSuccess)
             logger.LogWarning("Treadmill rejected control point opcode {Opcode:X2} with result {Result:X2}", data[1], data[2]);
+    }
+
+    /// <summary>
+    /// A console counter that rolls over at <paramref name="wrap"/>. A drop from the top tenth of the range, with no stop
+    /// in between, is a rollover and adds one period; any other drop is a new workout counting from zero.
+    /// </summary>
+    private sealed class RolloverCounter(int wrap)
+    {
+        private int _last;
+        private int _offset;
+        private volatile bool _stopped;
+
+        public int Update(int raw)
+        {
+            if (raw < _last)
+            {
+                _offset = !_stopped && _last >= wrap - wrap / 10 ? _offset + wrap : 0;
+                _stopped = false;
+            }
+
+            _last = raw;
+            return _offset + raw;
+        }
+
+        public void MarkStopped() => _stopped = true;
     }
 }
