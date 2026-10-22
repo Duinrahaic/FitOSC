@@ -703,7 +703,10 @@ namespace FitOSC.Utilities.BLE
                             _characteristics[characteristicUuid] = characteristic;
                         }
 
-                        var writeOption = withResponse ? GattWriteOption.WriteWithResponse : GattWriteOption.WriteWithoutResponse;
+                        // A characteristic that only accepts acknowledged writes gets one even when the caller didn't ask.
+                        var acknowledged = withResponse ||
+                            !characteristic.CharacteristicProperties.HasFlag(GattCharacteristicProperties.WriteWithoutResponse);
+                        var writeOption = acknowledged ? GattWriteOption.WriteWithResponse : GattWriteOption.WriteWithoutResponse;
                         var status = await characteristic.WriteValueAsync(command.AsBuffer(), writeOption).AsTask(cancellationToken);
                         if (status == GattCommunicationStatus.Success)
                         {
