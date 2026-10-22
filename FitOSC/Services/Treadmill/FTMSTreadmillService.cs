@@ -468,6 +468,14 @@ public class FTMSTreadmillService(ILogger logger, AppStateService appState)
             SetSigned(td, TreadmillTelemetryProperty.Power, BitConverter.ToInt16(data, flags.PosForceBelt + 2), 1m);
         }
 
+        // Step Count (uint24), a vendor extension in reserved flag bit 13
+        if (flags.HasSteps)
+        {
+            td.Values[TreadmillTelemetryProperty.StepCount].Enabled = true;
+            td.Values[TreadmillTelemetryProperty.StepCount].Value =
+                BitConverter.ToUInt16(data, flags.PosSteps) + (data[flags.PosSteps + 2] << 16);
+        }
+
         return td;
     }
 

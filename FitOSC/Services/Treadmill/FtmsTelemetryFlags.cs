@@ -16,9 +16,10 @@ public class FtmsTelemetryFlags
     public bool HasElapsedTime { get; init; }
     public bool HasRemainingTime { get; init; }
     public bool HasForceBelt { get; init; }
+    public bool HasSteps { get; init; }
 
     // ---- Bit positions  ----
-    // Bit 0 is "More Data": when set, Instantaneous Speed is omitted. Bits 13-15 are reserved.
+    // Bit 0 is "More Data": when set, Instantaneous Speed is omitted. Bits 14-15 are reserved.
     public const int BitMoreData = 0;
     public const int BitAvgSpeed = 1;
     public const int BitTotDistance = 2;
@@ -32,6 +33,10 @@ public class FtmsTelemetryFlags
     public const int BitElapsedTime = 10;
     public const int BitRemainingTime = 11;
     public const int BitForceBelt = 12;
+
+    // Reserved by the spec; consoles on the EQiSports app's firmware use it for a step count after Force on Belt and
+    // Power Output.
+    public const int BitSteps = 13;
 
     // ---- Calculated byte offsets in payload ----
     public int PosInsSpeed { get; private set; } = -1;
@@ -47,6 +52,7 @@ public class FtmsTelemetryFlags
     public int PosElapsedTime { get; private set; } = -1;
     public int PosRemainingTime { get; private set; } = -1;
     public int PosForceBelt { get; private set; } = -1;
+    public int PosSteps { get; private set; } = -1;
 
     /// <summary>Number of bytes the flags say the packet contains.</summary>
     public int Length { get; }
@@ -73,6 +79,7 @@ public class FtmsTelemetryFlags
         HasElapsedTime = (flags & (1 << BitElapsedTime)) != 0;
         HasRemainingTime = (flags & (1 << BitRemainingTime)) != 0;
         HasForceBelt = (flags & (1 << BitForceBelt)) != 0;
+        HasSteps = (flags & (1 << BitSteps)) != 0;
 
         // Calculate and assign byte positions
         PosInsSpeed = HasInsSpeed ? pos : -1; pos += HasInsSpeed ? 2 : 0; // uint16
@@ -88,6 +95,7 @@ public class FtmsTelemetryFlags
         PosElapsedTime = HasElapsedTime ? pos : -1; pos += HasElapsedTime ? 2 : 0; // uint16
         PosRemainingTime = HasRemainingTime ? pos : -1; pos += HasRemainingTime ? 2 : 0; // uint16
         PosForceBelt = HasForceBelt ? pos : -1; pos += HasForceBelt ? 4 : 0; // sint16 force + sint16 power
+        PosSteps = HasSteps ? pos : -1; pos += HasSteps ? 3 : 0; // uint24
         Length = pos;
     }
     // ---- Debugging convenience ----
@@ -99,6 +107,6 @@ public class FtmsTelemetryFlags
                $"InsPace={HasInsPace} (pos {PosInsPace}), AvgPace={HasAvgPace} (pos {PosAvgPace}), " +
                $"Kcal={HasKcal} (pos {PosKcal}), HR={HasHR} (pos {PosHR}), MET={HasMET} (pos {PosMET}),\n" +
                $"ElapsedTime={HasElapsedTime} (pos {PosElapsedTime}), RemainingTime={HasRemainingTime} (pos {PosRemainingTime}), " +
-               $"ForceBelt={HasForceBelt} (pos {PosForceBelt}), Length={Length}";
+               $"ForceBelt={HasForceBelt} (pos {PosForceBelt}), Steps={HasSteps} (pos {PosSteps}), Length={Length}";
     }
 }
