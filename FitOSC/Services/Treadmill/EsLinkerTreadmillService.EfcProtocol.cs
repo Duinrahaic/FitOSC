@@ -3,7 +3,7 @@ namespace FitOSC.Services.Treadmill;
 public partial class EsLinkerTreadmillService
 {
     /// <summary>
-    /// Experimental: Evaluating driver
+    /// The EFC protocol, over the <c>ffeeddcc-…</c> vendor service.
     /// </summary>
     private sealed class EfcProtocol : EqiProtocol
     {
