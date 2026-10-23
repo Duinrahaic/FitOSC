@@ -3,9 +3,10 @@ using FitOSC.Services.State;
 namespace FitOSC.Services.Treadmill;
 
 /// <summary>
-/// Experimental: Evaluating driver
+/// EQiSports / CitySports treadmills, over the ES Linker or EFC serial protocol depending on the service the treadmill
+/// offers.
 /// </summary>
-[TreadmillDriver(TreadmillType.EsLinker, "EQiSports / CitySports", "CitySports, GearStone, Esang and Superfit treadmills with an ES Linker module", Experimental = true,
+[TreadmillDriver(TreadmillType.EsLinker, "EQiSports / CitySports", "CitySports, GearStone, Esang and Superfit treadmills with an ES Linker module",
     AdvertisedServices = ["0000fff0-0000-1000-8000-00805f9b34fb", "ffeeddcc-bbaa-9988-7766-554433221100"])]
 public partial class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, AppStateService appState)
     : SerialTreadmillService(logger, appState)
@@ -78,7 +79,7 @@ public partial class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> 
     }
 
     /// <summary>
-    /// Experimental: Evaluating driver
+    /// State and conversions shared by the ES Linker and EFC protocols.
     /// </summary>
     private abstract class EqiProtocol(EsLinkerTreadmillService service, int caloriesWrap, decimal caloriesPerKcal)
     {

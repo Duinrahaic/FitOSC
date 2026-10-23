@@ -1,9 +1,10 @@
 # EQiSports / CitySports (ES Linker) driver checklist
 
-Treadmill Type: **EQiSports / CitySports (Experimental)**. Shared steps (build, connecting, evidence, reconnect) are
+Treadmill Type: **EQiSports / CitySports**. Shared steps (build, connecting, evidence, reconnect) are
 in [README.md](README.md).
 
-Status: not yet tested on hardware. A CITYSPORTS-Linker treadmill has been seen to offer only the EFC service.
+Status: the EFC protocol passed on a CITYSPORTS-Linker treadmill, which offers only the EFC service. The ES Linker
+protocol has not been tested on hardware.
 
 ## What the driver does
 

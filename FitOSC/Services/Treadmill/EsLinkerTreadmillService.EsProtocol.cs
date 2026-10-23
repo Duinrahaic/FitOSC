@@ -3,7 +3,7 @@ namespace FitOSC.Services.Treadmill;
 public partial class EsLinkerTreadmillService
 {
     /// <summary>
-    /// Experimental: Evaluating driver
+    /// The ES Linker protocol, over the <c>fff0</c> service.
     /// </summary>
     private sealed class EsProtocol(EsLinkerTreadmillService service)
         : EqiProtocol(service, caloriesWrap: 100000, caloriesPerKcal: 100)
