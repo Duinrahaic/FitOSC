@@ -17,6 +17,16 @@
         public abstract string? DeviceName { get; }
 
         /// <summary>
+        /// The name to show people for a device name from <see cref="ScanAsync"/> or <see cref="DeviceName"/>.
+        /// Clients that tell same-named devices apart append the address as " [AA:BB:…]"; this leaves it out.
+        /// </summary>
+        public static string Label(string deviceName)
+        {
+            var start = deviceName.LastIndexOf(" [", StringComparison.Ordinal);
+            return start > 0 && deviceName.EndsWith(']') ? deviceName[..start] : deviceName;
+        }
+
+        /// <summary>
         /// Raised when an established connection drops without <see cref="DisconnectAsync"/> being called.
         /// </summary>
         public event Action? ConnectionLost;

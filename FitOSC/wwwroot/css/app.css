@@ -887,8 +887,25 @@ html .app main {
   box-sizing: border-box;
 }
 .treadmill-interaction .treadmill-utility-bar .icon {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   color: #a0a0a0;
   transition: all 0.3s ease;
+}
+.treadmill-interaction .treadmill-utility-bar .icon:focus-visible {
+  outline: 2px solid #64b5f6;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.treadmill-interaction .treadmill-utility-bar .icon:disabled {
+  cursor: default;
 }
 .treadmill-interaction .treadmill-utility-bar .icon.scanning {
   animation: pulse 1.5s ease-in-out infinite;
@@ -1561,6 +1578,7 @@ html .app main {
   --settings-bg: #161616;
   --settings-nav: #121212;
   --settings-field: #101010;
+  --settings-group: #1d1d1d;
   --settings-line: #2a2a2a;
   --settings-line-strong: #3a3a3a;
   --settings-text: #e8e8e8;
@@ -1622,8 +1640,7 @@ html .app main {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   padding: 8px 12px;
   border-radius: 6px;
   color: var(--settings-muted);
@@ -1652,6 +1669,13 @@ html .app main {
   width: 3px;
   border-radius: 2px;
   background: var(--settings-accent);
+}
+.settings-window .settings-menu > button > i {
+  flex: 0 0 16px;
+  text-align: center;
+}
+.settings-window .settings-menu > button .settings-menu-label {
+  flex: 1;
 }
 .settings-window .settings-menu > button .dot {
   flex: none;
@@ -1708,15 +1732,44 @@ html .app main {
   flex-wrap: wrap;
   gap: 6px 12px;
 }
+.settings-window .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 24px 0 8px;
+}
+.settings-window .section-heading h3 {
+  margin: 0;
+}
 .settings-window h3 {
-  margin: 26px 0 0;
-  padding-bottom: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--settings-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  margin: 24px 0 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--settings-muted);
+  letter-spacing: normal;
+  text-transform: none;
   border: 0;
+}
+.settings-window .group {
+  min-width: 0;
+  margin-top: 12px;
+  padding: 2px 14px;
+  background: var(--settings-group);
+  border-radius: 8px;
+}
+.settings-window .group .row, .settings-window .group .bt-connection-type {
+  padding: 10px 0;
+}
+.settings-window .group > .note {
+  padding: 10px 0;
+}
+.settings-window h3 + .group, .settings-window .section-heading + .group {
+  margin-top: 0;
+}
+.settings-window details > .group {
+  margin-top: 4px;
 }
 .settings-window .row,
 .settings-window .bt-connection-type {
@@ -1725,7 +1778,6 @@ html .app main {
   gap: 16px;
   min-width: 0;
   padding: 12px 0;
-  border-bottom: 1px solid var(--settings-line);
 }
 .settings-window .row.col {
   flex-direction: column;
@@ -1785,6 +1837,9 @@ html .app main {
   color: var(--settings-error);
   font-size: 12px;
 }
+.settings-window .err.spaced {
+  margin-top: 10px;
+}
 .settings-window .note {
   margin: 0;
   color: var(--settings-muted);
@@ -1803,15 +1858,15 @@ html .app main {
 .settings-window .note.console > span {
   white-space: nowrap;
 }
-.settings-window .note a, .settings-window .credits a {
+.settings-window .note a {
   color: #90caf9;
   text-decoration: none;
   border-radius: 3px;
 }
-.settings-window .note a:hover, .settings-window .credits a:hover {
+.settings-window .note a:hover {
   text-decoration: underline;
 }
-.settings-window .note a:focus-visible, .settings-window .credits a:focus-visible {
+.settings-window .note a:focus-visible {
   outline: none;
   box-shadow: var(--settings-focus);
 }
@@ -2017,9 +2072,6 @@ html .app main {
   letter-spacing: normal;
   text-transform: none;
 }
-.settings-window .bt-connection-type + .bt-connection-note {
-  margin-top: 8px;
-}
 .settings-window details > summary {
   display: flex;
   align-items: center;
@@ -2078,6 +2130,44 @@ html .app main {
 .settings-window .status.error::before {
   background: var(--settings-error);
 }
+.settings-window .device-card .row {
+  gap: 12px;
+}
+.settings-window .device-card .status {
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+.settings-window .device-card .device-err {
+  margin: 0;
+  padding-bottom: 12px;
+}
+.settings-window .device-card .devices, .settings-window .device-card > .results {
+  padding: 6px 0 8px;
+  border-top: 1px solid var(--settings-line);
+}
+.settings-window .device-card.connected {
+  box-shadow: inset 0 0 0 1px rgba(33, 150, 243, 0.35);
+}
+.settings-window .device-card.connected .device-icon {
+  color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+}
+.settings-window .device-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--settings-muted);
+  background: #262626;
+}
+.settings-window .device-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .settings-window .results {
   margin: 0;
   color: var(--settings-muted);
@@ -2095,10 +2185,6 @@ html .app main {
   gap: 10px;
   min-width: 0;
   padding: 6px 0;
-  border-bottom: 1px solid var(--settings-line);
-}
-.settings-window .devices li:last-child {
-  border-bottom: 0;
 }
 .settings-window .devices .name {
   flex: 1;
@@ -2106,11 +2192,6 @@ html .app main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.settings-window .devices .tag {
-  flex: none;
-  color: var(--settings-faint);
-  font-size: 12px;
 }
 .settings-window .spin {
   display: inline-block;
@@ -2131,8 +2212,7 @@ html .app main {
 }
 .settings-window dt, .settings-window dd {
   margin: 0;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--settings-line);
+  padding: 7px 0;
   font-size: 13px;
 }
 .settings-window dt {
@@ -2152,42 +2232,129 @@ html .app main {
 .settings-window dd.error {
   color: var(--settings-error);
 }
-.settings-window .links {
+.settings-window .about-id {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding-top: 4px;
+}
+.settings-window .about-id img {
+  width: 64px;
+  height: 64px;
+}
+.settings-window .about-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.settings-window .about-title {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.settings-window .about-version {
+  color: var(--settings-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.settings-window .about-new {
+  color: #90caf9;
+}
+.settings-window .about-links {
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 20px;
+  margin-top: 18px;
 }
-.settings-window .link {
+.settings-window .about-links a {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
-  padding: 9px 0;
-  font-size: 13.5px;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--settings-text);
   text-decoration: none;
-  border-bottom: 1px solid var(--settings-line);
 }
-.settings-window .link span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.settings-window .about-links a i {
+  flex: none;
+  width: 18px;
+  text-align: center;
   color: var(--settings-faint);
-  font-size: 12px;
 }
-.settings-window .link:hover {
+.settings-window .about-links a i.kofi {
+  color: #f48fb1;
+}
+.settings-window .about-links a:hover, .settings-window .about-links a:hover i:not(.kofi) {
   color: #90caf9;
 }
-.settings-window .link:focus-visible {
+.settings-window .about-links a:focus-visible {
   outline: none;
   box-shadow: var(--settings-focus);
   border-radius: 3px;
 }
-.settings-window .credits {
-  margin: 8px 0 0;
+.settings-window .about-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 18px;
+}
+.settings-window .about-chips a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
   color: var(--settings-muted);
+  text-decoration: none;
+  border: 1px solid var(--settings-line-strong);
+  border-radius: 15px;
+}
+.settings-window .about-chips a:hover {
+  color: var(--settings-text);
+  background: #222;
+}
+.settings-window .about-chips a:focus-visible {
+  outline: none;
+  box-shadow: var(--settings-focus);
+}
+.settings-window .about-credits {
+  margin: 28px 0 0;
+  color: var(--settings-faint);
   font-size: 12.5px;
-  line-height: 1.9;
+  line-height: 1.7;
+}
+.settings-window .about-credits a {
+  color: var(--settings-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: 3px;
+}
+.settings-window .about-credits a:hover {
+  color: #90caf9;
+  text-decoration: underline;
+}
+.settings-window .about-credits a:focus-visible {
+  outline: none;
+  box-shadow: var(--settings-focus);
+}
+.settings-window .link {
+  justify-self: start;
+  font-size: 13px;
+  color: #90caf9;
+  text-decoration: none;
+  border-radius: 3px;
+}
+.settings-window .link:hover {
+  text-decoration: underline;
+}
+.settings-window .link:focus-visible {
+  outline: none;
+  box-shadow: var(--settings-focus);
 }
 .settings-window .settings-foot {
   display: flex;
@@ -2207,7 +2374,7 @@ html .app main {
 }
 @media (max-width: 600px) {
   .settings-window .settings-body {
-    grid-template-columns: 116px minmax(0, 1fr);
+    grid-template-columns: 136px minmax(0, 1fr);
   }
   .settings-window .settings-menu {
     padding: 10px 6px;
@@ -2235,13 +2402,19 @@ html .app main {
   .settings-window .row:not(.inline) .seg, .settings-window .bt-connection-choice {
     display: flex;
   }
-  .settings-window .pair, .settings-window .bt-connection-pair, .settings-window .links {
+  .settings-window .pair, .settings-window .bt-connection-pair, .settings-window .about-links {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-window .about-id {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .settings-window .about-id .settings-btn {
+    grid-column: 1/-1;
   }
 }
 @media (max-width: 400px) {
   .settings-window .settings-body {
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: 132px minmax(0, 1fr);
   }
   .settings-window .settings-menu {
     padding: 8px 4px;
@@ -2413,16 +2586,17 @@ html .app main {
   box-shadow: 0 0 0 2px #64b5f6;
 }
 
-.bt-connection-note {
-  margin: 0;
-  color: #a0a0a0;
-  font-size: 12.5px;
-}
-
 .bt-connection-result {
   display: grid;
   gap: 2px;
   min-width: 0;
+}
+
+.bt-connection-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .bt-connection-status {

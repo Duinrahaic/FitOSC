@@ -1,86 +1,85 @@
 @using FitOSC.Models
-@using FitOSC.Services.Configuration
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
+@using FitOSC.Utilities.BLE
 @inject AppStateService AppStateService
 @inject TreadmillManager TreadmillManager
-@inject ConfigurationService ConfigService
 @implements IDisposable
 
 <section class="page" aria-labelledby="settings-treadmill-heading">
     <h2 id="settings-treadmill-heading">Treadmill</h2>
 
-    <div class="row">
-        <div class="lab"><label for="settings-driver">Driver</label></div>
-        <div class="ctl w-md">
-            <DropdownSelect TValue="TreadmillType" Id="settings-driver" Options="DriverOptions"
-                            Value="Draft.TreadmillType" ValueChanged="SetDriver" Disabled="@Busy" />
+    <div class="group">
+        <div class="row">
+            <div class="lab"><label for="settings-driver">Driver</label></div>
+            <div class="ctl w-md">
+                <DropdownSelect TValue="TreadmillType" Id="settings-driver" Options="DriverOptions"
+                                Value="Draft.TreadmillType" ValueChanged="SetDriver" Disabled="@Busy" />
+            </div>
         </div>
+        <BluetoothConnectionEditor Settings="Draft.Connection" Disabled="@(Busy || IsConnected)" Changed="OnConnectionChanged" />
     </div>
-    <BluetoothConnectionEditor Settings="Draft.Connection" Disabled="@(Busy || IsConnected)" Changed="OnConnectionChanged" />
     @if (ShowValidation && Draft.ConnectionError(Baseline) is { } connectionError)
     {
         <p class="err" role="alert">@connectionError</p>
     }
 
-    <h3>Device</h3>
-    <div class="row inline">
-        <div class="lab"><span class="status @StatusClass">@StatusText</span></div>
-        @if (IsConnected)
-        {
-            <div class="actions">
-                <button class="settings-btn" type="button" @onclick="ReconnectTreadmill" disabled="@Busy">Reconnect</button>
-                <button class="settings-btn" type="button" @onclick="DisconnectTreadmill" disabled="@Busy">Disconnect</button>
+    <h3>Bluetooth device</h3>
+    <div class="group device-card @(IsConnected ? "connected" : "")">
+        <div class="row inline">
+            <span class="device-icon" aria-hidden="true"><i class="fa-brands fa-bluetooth-b"></i></span>
+            <div class="lab">
+                <span class="device-name">@DeviceTitle</span>
+                <span class="status @StatusClass" role="status">@StatusText</span>
             </div>
-        }
-        else
-        {
-            <button class="settings-btn primary" type="button" @onclick="ScanForDevices" disabled="@Busy">
-                @(_isScanning ? "Scanning…" : _hasScanned ? "Scan again" : "Scan")
-            </button>
-        }
-    </div>
-    <div class="row col">
-        @if (!string.IsNullOrEmpty(TreadmillManager.LastConnectionError))
-        {
-            <p class="err" role="alert">@TreadmillManager.LastConnectionError</p>
-        }
-        @if (_isScanning)
-        {
-            <p class="results" aria-live="polite"><span class="spin" aria-hidden="true"></span>Looking for treadmills…</p>
-        }
-        else if (_discoveredDevices.Count > 0)
-        {
-            <ul class="devices" aria-label="Found treadmills">
-                @foreach (var device in _discoveredDevices)
-                {
-                    <li>
-                        <span class="name">@device</span>
-                        @if (device == _defaultDeviceName)
-                        {
-                            <span class="tag">Last used</span>
-                        }
-                        <button class="settings-btn" type="button" @onclick="() => ConnectToDevice(device)" disabled="@Busy">
-                            @(_connectingDevice == device ? "Connecting…" : "Connect")
-                        </button>
-                    </li>
-                }
-            </ul>
-        }
-        else
-        {
-            <p class="results" aria-live="polite">
-                @(_hasScanned ? "No treadmills found. Check it's on and not connected to another app." : "Scan to find treadmills, then pick one to connect.")
-            </p>
-        }
-    </div>
-    <div class="row inline">
-        <div class="lab">
-            <label for="settings-autoconnect">Connect automatically</label>
-            <small>Reconnect to the last treadmill on start.</small>
+            @if (IsConnected)
+            {
+                <div class="actions">
+                    <button class="settings-btn" type="button" @onclick="ReconnectTreadmill" disabled="@Busy">Reconnect</button>
+                    <button class="settings-btn" type="button" @onclick="DisconnectTreadmill" disabled="@Busy">Disconnect</button>
+                </div>
+            }
+            else
+            {
+                <button class="settings-btn primary" type="button" @onclick="ScanForDevices" disabled="@Busy">
+                    @(_isScanning ? "Scanning…" : _hasScanned ? "Scan again" : "Scan")
+                </button>
+            }
         </div>
-        <input class="switch" type="checkbox" role="switch" id="settings-autoconnect"
-               @bind="Draft.AutoConnect" @bind:after="Notify" />
+        @if (DeviceError is { } error)
+        {
+            <p class="err device-err" role="alert">@error</p>
+        }
+        @if (!IsConnected && !_isScanning)
+        {
+            @if (_discoveredDevices.Count > 0)
+            {
+                <ul class="devices" aria-label="Found treadmills">
+                    @foreach (var device in _discoveredDevices)
+                    {
+                        <li>
+                            <span class="name">@BaseBluetoothClient.Label(device)</span>
+                            <button class="settings-btn" type="button" @onclick="() => ConnectToDevice(device)" disabled="@Busy">
+                                @(_connectingDevice == device ? "Connecting…" : "Connect")
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+            else if (_hasScanned && DeviceError is null)
+            {
+                <p class="results" role="status">No treadmills found.</p>
+            }
+        }
+    </div>
+    <div class="group">
+        <div class="row inline">
+            <div class="lab">
+                <label for="settings-autoconnect">Connect on startup</label>
+            </div>
+            <input class="switch" type="checkbox" role="switch" id="settings-autoconnect"
+                   @bind="Draft.AutoConnect" @bind:after="Notify" />
+        </div>
     </div>
 </section>
 
@@ -100,7 +99,6 @@
     private bool _hasScanned;
     private string? _connectingDevice;
     private List<string> _discoveredDevices = new();
-    private string? _defaultDeviceName;
 
     private bool Busy => _isScanning || _connectingDevice is not null;
 
@@ -109,17 +107,23 @@
 
     private bool IsConnected => BluetoothStatus == ConnectionStatus.Connected;
 
+    private string? DeviceError => !IsConnected && !Busy ? TreadmillManager.LastConnectionError : null;
+
+    private string DeviceTitle =>
+        (IsConnected ? _appState?.DeviceName : _connectingDevice) is { } device ? BaseBluetoothClient.Label(device) : "No treadmill connected";
+
     private string StatusText => _isScanning
         ? "Scanning"
+        : _connectingDevice is not null ? "Connecting"
         : BluetoothStatus switch
         {
-            ConnectionStatus.Connected => $"Connected to {_appState?.DeviceName ?? "treadmill"}",
+            ConnectionStatus.Connected => "Connected",
             ConnectionStatus.Connecting => _appState?.BluetoothDetail ?? "Connecting",
             ConnectionStatus.Error => "Connection failed",
             _ => "Not connected"
         };
 
-    private string? StatusClass => BluetoothStatus switch
+    private string? StatusClass => Busy ? "busy" : DeviceError is not null ? "error" : BluetoothStatus switch
     {
         ConnectionStatus.Connected => "ok",
         ConnectionStatus.Connecting => "busy",
@@ -131,7 +135,6 @@
     {
         AppStateService.AppStateUpdated += UpdateAppState;
         _appState = AppStateService.GetCurrentAppStateInfo();
-        _defaultDeviceName = ConfigService.GetConfiguration().Treadmill.LastDeviceName;
     }
 
     private void UpdateAppState(AppStateInfo info)
@@ -152,7 +155,6 @@
     {
         _discoveredDevices.Clear();
         _hasScanned = false;
-        _defaultDeviceName = null;
         return Notify();
     }
 
@@ -191,7 +193,6 @@
 
         if (TreadmillManager.LastConnectionError is null)
         {
-            _defaultDeviceName = deviceName;
             await Connected.InvokeAsync();
         }
     }

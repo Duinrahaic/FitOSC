@@ -9,121 +9,125 @@
 <section class="page" aria-labelledby="settings-integrations-heading">
     <h2 id="settings-integrations-heading">Integrations</h2>
 
-    <div class="row inline">
-        <div class="lab">
-            <label for="settings-websocket">WebSocket</label>
-            <small>Stream telemetry to overlays.</small>
-        </div>
-        <input class="switch" type="checkbox" role="switch" id="settings-websocket" aria-expanded="@Expanded(Draft.WebSocketEnabled)"
-               @bind="Draft.WebSocketEnabled" @bind:after="Notify" />
-    </div>
-    @if (Draft.WebSocketEnabled)
-    {
-        <div class="sub-block">
-            <div class="field">
-                <label for="settings-websocket-address">Address</label>
-                <input type="text" id="settings-websocket-address" value="ws://localhost:@(WebSocketService.Port)/" readonly />
+    <div class="group">
+        <div class="row inline">
+            <div class="lab">
+                <label for="settings-websocket">WebSocket</label>
             </div>
-            <p class="note">
-                @(WebSocketService.IsEnabled
-                    ? $"Running · {WebSocketService.ConnectedClients} client(s) connected"
-                    : "Starts after saving.")
-            </p>
+            <input class="switch" type="checkbox" role="switch" id="settings-websocket" aria-expanded="@Expanded(Draft.WebSocketEnabled)"
+                   @bind="Draft.WebSocketEnabled" @bind:after="Notify" />
         </div>
-    }
+        @if (Draft.WebSocketEnabled)
+        {
+            <div class="sub-block">
+                <div class="field">
+                    <label for="settings-websocket-address">Address</label>
+                    <input type="text" id="settings-websocket-address" value="ws://localhost:@(WebSocketService.Port)/" readonly />
+                </div>
+                <p class="note">
+                    @(WebSocketService.IsEnabled
+                        ? $"Running · {WebSocketService.ConnectedClients} client(s) connected"
+                        : "Starts after saving.")
+                </p>
+            </div>
+        }
+    </div>
 
-    <div class="row inline">
-        <div class="lab">
-            <label for="settings-pulsoid">Pulsoid</label>
-            <small>Heart rate from your tracker.</small>
-        </div>
-        <input class="switch" type="checkbox" role="switch" id="settings-pulsoid" aria-expanded="@Expanded(Draft.PulsoidEnabled)"
-               @bind="Draft.PulsoidEnabled" @bind:after="Notify" />
-    </div>
-    @if (Draft.PulsoidEnabled)
-    {
-        <div class="sub-block">
-            <div class="field">
-                <label for="settings-pulsoid-key">API key</label>
-                <div class="with-btn">
-                    <input type="@(_showPulsoidKey ? "text" : "password")" id="settings-pulsoid-key" placeholder="From pulsoid.net/ui/keys"
-                           autocomplete="off" spellcheck="false"
-                           @bind="Draft.PulsoidApiKey" @bind:event="oninput" @bind:after="Notify" />
-                    <button class="settings-btn icon" type="button" aria-label="@(_showPulsoidKey ? "Hide API key" : "Show API key")"
-                            aria-pressed="@(_showPulsoidKey ? "true" : "false")" @onclick="() => _showPulsoidKey = !_showPulsoidKey">
-                        <i class="fa-solid @(_showPulsoidKey ? "fa-eye-slash" : "fa-eye")" aria-hidden="true"></i>
-                    </button>
-                </div>
+    <div class="group">
+        <div class="row inline">
+            <div class="lab">
+                <label for="settings-pulsoid">Pulsoid</label>
             </div>
-            <p class="note">
-                @if (PulsoidService.IsConnected)
-                {
-                    <text>Connected · @PulsoidService.LastHeartRate bpm</text>
-                }
-                else
-                {
-                    <text>Get a key at <a href="https://pulsoid.net/ui/keys" target="_blank">pulsoid.net/ui/keys</a>. Connects after saving.</text>
-                }
-            </p>
+            <input class="switch" type="checkbox" role="switch" id="settings-pulsoid" aria-expanded="@Expanded(Draft.PulsoidEnabled)"
+                   @bind="Draft.PulsoidEnabled" @bind:after="Notify" />
         </div>
-    }
+        @if (Draft.PulsoidEnabled)
+        {
+            <div class="sub-block">
+                <div class="field">
+                    <label for="settings-pulsoid-key">API key</label>
+                    <div class="with-btn">
+                        <input type="@(_showPulsoidKey ? "text" : "password")" id="settings-pulsoid-key"
+                               autocomplete="off" spellcheck="false"
+                               @bind="Draft.PulsoidApiKey" @bind:event="oninput" @bind:after="Notify" />
+                        <button class="settings-btn icon" type="button" aria-label="@(_showPulsoidKey ? "Hide API key" : "Show API key")"
+                                aria-pressed="@(_showPulsoidKey ? "true" : "false")" @onclick="() => _showPulsoidKey = !_showPulsoidKey">
+                            <i class="fa-solid @(_showPulsoidKey ? "fa-eye-slash" : "fa-eye")" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="note">
+                    @if (PulsoidService.IsConnected)
+                    {
+                        <text>Connected · @PulsoidService.LastHeartRate bpm</text>
+                    }
+                    else
+                    {
+                        <text>Not connected</text>
+                    }
+                </p>
+                <a class="link" href="https://pulsoid.net/ui/keys" target="_blank">Get API key</a>
+            </div>
+        }
+    </div>
 
-    <div class="row inline">
-        <div class="lab">
-            <label for="settings-midi">MIDI</label>
-            <small>Send telemetry as control changes.</small>
+    <div class="group">
+        <div class="row inline">
+            <div class="lab">
+                <label for="settings-midi">MIDI</label>
+            </div>
+            <input class="switch" type="checkbox" role="switch" id="settings-midi" aria-expanded="@Expanded(Draft.MidiEnabled)"
+                   @bind="Draft.MidiEnabled" @bind:after="Notify" />
         </div>
-        <input class="switch" type="checkbox" role="switch" id="settings-midi" aria-expanded="@Expanded(Draft.MidiEnabled)"
-               @bind="Draft.MidiEnabled" @bind:after="Notify" />
+        @if (Draft.MidiEnabled)
+        {
+            <div class="sub-block">
+                <div class="pair">
+                    <div class="field">
+                        <label for="settings-midi-device">Output</label>
+                        <DropdownSelect TValue="string" Id="settings-midi-device" Options="_midiOptions"
+                                        Value="@(Draft.MidiOutputDevice ?? "")" ValueChanged="SetMidiOutputDevice" />
+                    </div>
+                    <div class="field">
+                        <label for="settings-midi-channel">Channel</label>
+                        <input type="number" id="settings-midi-channel" aria-describedby="settings-midi-channel-error" min="1" max="16" step="1" aria-invalid="@Invalid(Draft.MidiChannelError)"
+                               @bind="Draft.MidiChannel" @bind:after="Notify" />
+                        <FieldError Id="settings-midi-channel-error" Message="@Draft.MidiChannelError" />
+                    </div>
+                </div>
+                <div class="trio">
+                    <div class="field">
+                        <label for="settings-midi-speed">Speed CC</label>
+                        <input type="number" id="settings-midi-speed" aria-describedby="settings-midi-speed-error" min="0" max="127" step="1" aria-invalid="@Invalid(Draft.MidiSpeedCCError)"
+                               @bind="Draft.MidiSpeedCC" @bind:after="Notify" />
+                        <FieldError Id="settings-midi-speed-error" Message="@Draft.MidiSpeedCCError" />
+                    </div>
+                    <div class="field">
+                        <label for="settings-midi-heart-rate">Heart rate CC</label>
+                        <input type="number" id="settings-midi-heart-rate" aria-describedby="settings-midi-heart-rate-error" min="0" max="127" step="1" aria-invalid="@Invalid(Draft.MidiHeartRateCCError)"
+                               @bind="Draft.MidiHeartRateCC" @bind:after="Notify" />
+                        <FieldError Id="settings-midi-heart-rate-error" Message="@Draft.MidiHeartRateCCError" />
+                    </div>
+                    <div class="field">
+                        <label for="settings-midi-incline">Incline CC</label>
+                        <input type="number" id="settings-midi-incline" aria-describedby="settings-midi-incline-error" min="0" max="127" step="1" aria-invalid="@Invalid(Draft.MidiInclineCCError)"
+                               @bind="Draft.MidiInclineCC" @bind:after="Notify" />
+                        <FieldError Id="settings-midi-incline-error" Message="@Draft.MidiInclineCCError" />
+                    </div>
+                </div>
+                <p class="note">
+                    @if (_midiOutputDevices.Count == 0)
+                    {
+                        <text>No MIDI outputs found on this PC.</text>
+                    }
+                    else
+                    {
+                        <text>@(MidiService.IsConnected ? "Connected" : "Not connected")</text>
+                    }
+                </p>
+            </div>
+        }
     </div>
-    @if (Draft.MidiEnabled)
-    {
-        <div class="sub-block">
-            <div class="pair">
-                <div class="field">
-                    <label for="settings-midi-device">Output</label>
-                    <DropdownSelect TValue="string" Id="settings-midi-device" Options="_midiOptions"
-                                    Value="@(Draft.MidiOutputDevice ?? "")" ValueChanged="SetMidiOutputDevice" />
-                </div>
-                <div class="field">
-                    <label for="settings-midi-channel">Channel</label>
-                    <input type="number" id="settings-midi-channel" aria-describedby="settings-midi-channel-error" min="1" max="16" step="1" aria-invalid="@Invalid(Draft.MidiChannelError)"
-                           @bind="Draft.MidiChannel" @bind:after="Notify" />
-                    <FieldError Id="settings-midi-channel-error" Message="@Draft.MidiChannelError" />
-                </div>
-            </div>
-            <div class="trio">
-                <div class="field">
-                    <label for="settings-midi-speed">Speed CC</label>
-                    <input type="number" id="settings-midi-speed" aria-describedby="settings-midi-speed-error" min="0" max="127" step="1" aria-invalid="@Invalid(Draft.MidiSpeedCCError)"
-                           @bind="Draft.MidiSpeedCC" @bind:after="Notify" />
-                    <FieldError Id="settings-midi-speed-error" Message="@Draft.MidiSpeedCCError" />
-                </div>
-                <div class="field">
-                    <label for="settings-midi-heart-rate">Heart rate CC</label>
-                    <input type="number" id="settings-midi-heart-rate" aria-describedby="settings-midi-heart-rate-error" min="0" max="127" step="1" aria-invalid="@Invalid(Draft.MidiHeartRateCCError)"
-                           @bind="Draft.MidiHeartRateCC" @bind:after="Notify" />
-                    <FieldError Id="settings-midi-heart-rate-error" Message="@Draft.MidiHeartRateCCError" />
-                </div>
-                <div class="field">
-                    <label for="settings-midi-incline">Incline CC</label>
-                    <input type="number" id="settings-midi-incline" aria-describedby="settings-midi-incline-error" min="0" max="127" step="1" aria-invalid="@Invalid(Draft.MidiInclineCCError)"
-                           @bind="Draft.MidiInclineCC" @bind:after="Notify" />
-                    <FieldError Id="settings-midi-incline-error" Message="@Draft.MidiInclineCCError" />
-                </div>
-            </div>
-            <p class="note">
-                @if (_midiOutputDevices.Count == 0)
-                {
-                    <text>No MIDI outputs found on this PC.</text>
-                }
-                else
-                {
-                    <text>@(MidiService.IsConnected ? "Connected." : "Not connected.") Changes apply after saving.</text>
-                }
-            </p>
-        </div>
-    }
 </section>
 
 @code {

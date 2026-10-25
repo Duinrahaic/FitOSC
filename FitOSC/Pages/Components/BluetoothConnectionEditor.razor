@@ -3,7 +3,7 @@
 @inject TreadmillManager TreadmillManager
 @implements IDisposable
 
-<div class="bt-connection">
+<div class="bt-connection" aria-description="@(Disabled ? "Disconnect the treadmill and finish any scan before changing the connection." : null)">
     <div class="bt-connection-type">
         <span class="bt-connection-label" id="@(_id + "-type")">Connect via</span>
         <div class="bt-connection-choice" role="radiogroup" aria-labelledby="@(_id + "-type")">
@@ -19,14 +19,20 @@
             </label>
         </div>
     </div>
-    @if (Disabled)
-    {
-        <p class="bt-connection-note">Disconnect the treadmill and finish any scan before changing the connection.</p>
-    }
-
     @if (Settings.Type == BluetoothConnectionType.ESPHome)
     {
         <div class="bt-connection-proxy">
+            <div class="bt-connection-result" role="status" aria-live="polite" aria-atomic="true"
+                 aria-busy="@(RelayStatus == RelayState.Checking ? "true" : "false")">
+                <div class="bt-connection-summary">
+                    <span class="bt-connection-label">Relay</span>
+                    <span class="bt-connection-status @RelayStatusClass">@RelayStatusText</span>
+                </div>
+                @if (Relay?.Detail is { } detail)
+                {
+                    <span class="bt-connection-detail">@detail</span>
+                }
+            </div>
             <div class="bt-connection-pair">
                 <div class="bt-connection-field">
                     <label for="@(_id + "-host")">Host or IP</label>
@@ -42,7 +48,7 @@
             <div class="bt-connection-field">
                 <label for="@(_id + "-key")">API encryption key</label>
                 <div class="bt-connection-secret">
-                    <input id="@(_id + "-key")" type="@(_showKey ? "text" : "password")" placeholder="From api: encryption: key"
+                    <input id="@(_id + "-key")" type="@(_showKey ? "text" : "password")"
                            autocomplete="off" spellcheck="false"
                            @bind="Settings.EncryptionKey" @bind:event="oninput" @bind:after="NotifyChanged" disabled="@Disabled" />
                     <button type="button" class="bt-connection-reveal" aria-label="@(_showKey ? "Hide key" : "Show key")"
@@ -50,14 +56,6 @@
                         <i class="fa-solid @(_showKey ? "fa-eye-slash" : "fa-eye")" aria-hidden="true"></i>
                     </button>
                 </div>
-            </div>
-            <div class="bt-connection-result" role="status" aria-live="polite" aria-atomic="true"
-                 aria-busy="@(RelayStatus == RelayState.Checking ? "true" : "false")">
-                <span class="bt-connection-status @RelayStatusClass">@RelayStatusText</span>
-                @if (Relay?.Detail is { } detail)
-                {
-                    <span class="bt-connection-detail">@detail</span>
-                }
             </div>
         </div>
     }
@@ -95,10 +93,10 @@
 
     private string RelayStatusText => RelayStatus switch
     {
-        RelayState.Checking => "Checking relay…",
+        RelayState.Checking => "Checking…",
         RelayState.Success => "Success",
-        RelayState.Failed => "Relay connection failed",
-        _ => "Enter the relay's host, port, and API encryption key."
+        RelayState.Failed => "Connection failed",
+        _ => "Not configured"
     };
 
     private string? RelayStatusClass => RelayStatus switch

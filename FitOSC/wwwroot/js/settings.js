@@ -8,7 +8,7 @@ export function initialize(root) {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
             event.preventDefault();
             const save = root.querySelector('[data-settings-save]');
-            if (!save.disabled) save.click();
+            if (save && !save.disabled) save.click();
             return;
         }
 

@@ -97,17 +97,18 @@
   &:focus-visible { outline: none; box-shadow: 0 0 0 2px #64b5f6; }
 }
 
-.bt-connection-note {
-  margin: 0;
-  color: $color-text-muted;
-  font-size: 12.5px;
-}
-
 // Relay status: its own status, separate from the treadmill's device status.
 .bt-connection-result {
   display: grid;
   gap: 2px;
   min-width: 0;
+}
+
+.bt-connection-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .bt-connection-status {

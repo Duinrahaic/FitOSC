@@ -5,74 +5,74 @@
 <section class="page" aria-labelledby="settings-general-heading">
     <h2 id="settings-general-heading">General</h2>
 
-    <div class="row inline">
-        <div class="lab"><span class="t" id="settings-units-label">Units</span></div>
-        <div class="ctl seg" role="radiogroup" aria-labelledby="settings-units-label">
-            <label><input type="radio" name="settings-units" checked="@Draft.PreferMetric" @onchange="() => SetPreferMetric(true)" /><span>Metric</span></label>
-            <label><input type="radio" name="settings-units" checked="@(!Draft.PreferMetric)" @onchange="() => SetPreferMetric(false)" /><span>Imperial</span></label>
+    <div class="group">
+        <div class="row inline">
+            <div class="lab"><span class="t" id="settings-units-label">Units</span></div>
+            <div class="ctl seg" role="radiogroup" aria-labelledby="settings-units-label">
+                <label><input type="radio" name="settings-units" checked="@Draft.PreferMetric" @onchange="() => SetPreferMetric(true)" /><span>Metric</span></label>
+                <label><input type="radio" name="settings-units" checked="@(!Draft.PreferMetric)" @onchange="() => SetPreferMetric(false)" /><span>Imperial</span></label>
+            </div>
         </div>
     </div>
 
     <h3>History</h3>
-    <div class="row inline">
-        <div class="lab"><label for="settings-history-enabled">Save walking sessions</label></div>
-        <input class="switch" type="checkbox" role="switch" id="settings-history-enabled"
-               @bind="Draft.HistoryEnabled" @bind:after="Notify" />
-    </div>
-    @if (Draft.HistoryEnabled)
-    {
-        <div class="row">
-            <div class="lab">
-                <label for="settings-min-duration">Minimum session length</label>
-                <small>Shorter sessions aren't saved.</small>
-            </div>
-            <div class="ctl w-sm">
-                <div class="unit">
-                    <input type="number" id="settings-min-duration" aria-describedby="settings-min-duration-error" min="1" max="60" step="1"
-                           aria-invalid="@(Draft.MinimumSessionDurationError is null ? null : "true")"
-                           @bind="Draft.MinimumSessionDuration" @bind:after="Notify" /><span>min</span>
+    <div class="group">
+        <div class="row inline">
+            <div class="lab"><label for="settings-history-enabled">Save walking sessions</label></div>
+            <input class="switch" type="checkbox" role="switch" id="settings-history-enabled"
+                   @bind="Draft.HistoryEnabled" @bind:after="Notify" />
+        </div>
+        @if (Draft.HistoryEnabled)
+        {
+            <div class="row">
+                <div class="lab">
+                    <label for="settings-min-duration">Minimum saved session</label>
                 </div>
-                <FieldError Id="settings-min-duration-error" Message="@Draft.MinimumSessionDurationError" />
+                <div class="ctl w-sm">
+                    <div class="unit">
+                        <input type="number" id="settings-min-duration" aria-describedby="settings-min-duration-error" min="1" max="60" step="1"
+                               aria-invalid="@(Draft.MinimumSessionDurationError is null ? null : "true")"
+                               @bind="Draft.MinimumSessionDuration" @bind:after="Notify" /><span>min</span>
+                    </div>
+                    <FieldError Id="settings-min-duration-error" Message="@Draft.MinimumSessionDurationError" />
+                </div>
             </div>
-        </div>
-    }
-    <div class="row inline">
-        <div class="lab">
-            <span class="t">Clear history</span>
-            <small role="status">@_clearStatus</small>
-        </div>
-        <button class="settings-btn danger" type="button" @onclick="ClearHistory">@(_confirmClear ? "Confirm" : "Clear…")</button>
+        }
     </div>
 
     <h3>System</h3>
-    <div class="row inline">
-        <div class="lab">
-            <label for="settings-gpu">Hardware acceleration</label>
-            <small id="settings-gpu-description">Applies after restart.</small>
+    <div class="group">
+        <div class="row inline">
+            <div class="lab">
+                <label for="settings-gpu">Hardware acceleration</label>
+            </div>
+            <input class="switch" type="checkbox" role="switch" id="settings-gpu"
+                   @bind="Draft.UseHardwareAcceleration" @bind:after="Notify" />
         </div>
-        <input class="switch" type="checkbox" role="switch" id="settings-gpu" aria-describedby="settings-gpu-description"
-               @bind="Draft.UseHardwareAcceleration" @bind:after="Notify" />
+        <div class="row inline">
+            <div class="lab"><label for="settings-steamvr">Launch with SteamVR</label></div>
+            <input class="switch" type="checkbox" role="switch" id="settings-steamvr"
+                   @bind="Draft.LaunchWithSteamVR" @bind:after="Notify" />
+        </div>
     </div>
-    <div class="row inline">
-        <div class="lab"><label for="settings-steamvr">Launch with SteamVR</label></div>
-        <input class="switch" type="checkbox" role="switch" id="settings-steamvr"
-               @bind="Draft.LaunchWithSteamVR" @bind:after="Notify" />
+
+    <div class="row actions">
+        <button class="settings-btn" type="button" @onclick="RunSetup">Run setup</button>
+        <button class="settings-btn danger" type="button" @onclick="ClearHistory">@(_confirmClear ? "Delete all history" : "Clear history")</button>
     </div>
-    <div class="row inline">
-        <div class="lab"><span class="t">Setup wizard</span></div>
-        <button class="settings-btn" type="button" @onclick="RunSetup">Run again</button>
-    </div>
+    @if (_clearStatus is not null)
+    {
+        <p class="note spaced" role="status">@_clearStatus</p>
+    }
 </section>
 
 @code {
-    private const string ClearDescription = "Removes all saved sessions.";
-
     [Parameter, EditorRequired] public SettingsDraft.GeneralDraft Draft { get; set; } = default!;
     [Parameter] public EventCallback Changed { get; set; }
     [Parameter] public EventCallback RunSetup { get; set; }
 
     private bool _confirmClear;
-    private string _clearStatus = ClearDescription;
+    private string? _clearStatus;
     private CancellationTokenSource? _confirmTimeout;
 
     private Task Notify() => Changed.InvokeAsync();
@@ -95,7 +95,7 @@
         }
 
         _confirmClear = true;
-        _clearStatus = "Click Confirm to delete. This can't be undone.";
+        _clearStatus = "This can't be undone.";
         _confirmTimeout = new CancellationTokenSource();
         _ = DisarmClearAsync(_confirmTimeout.Token);
     }
@@ -107,7 +107,7 @@
         await InvokeAsync(() =>
         {
             _confirmClear = false;
-            _clearStatus = ClearDescription;
+            _clearStatus = null;
             StateHasChanged();
         });
     }

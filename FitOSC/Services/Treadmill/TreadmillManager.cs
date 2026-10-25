@@ -125,8 +125,8 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
             for (var attempt = 1; ; attempt++)
             {
                 PublishStatus(ConnectionStatus.Connecting, attempt == 1
-                    ? $"Connecting to {deviceName}"
-                    : $"Connecting to {deviceName} (attempt {attempt} of {ConnectAttempts})");
+                    ? $"Connecting to {BaseBluetoothClient.Label(deviceName)}"
+                    : $"Connecting to {BaseBluetoothClient.Label(deviceName)} (attempt {attempt} of {ConnectAttempts})");
 
                 result = await TryConnectAsync(driver, deviceName, settings, session.Token);
                 if (result.Status == ConnectionStatus.Connected || session.IsCancellationRequested ||
@@ -148,12 +148,12 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
                 // A session cancelled by another connect or a disconnect leaves the status to that call.
                 if (session.IsCancellationRequested)
                 {
-                    LastConnectionError = $"Connecting to {deviceName} was cancelled";
+                    LastConnectionError = $"Connecting to {BaseBluetoothClient.Label(deviceName)} was cancelled";
                     return;
                 }
 
                 await EndSessionAsync();
-                LastConnectionError = result.Reason ?? $"Couldn't connect to {deviceName}";
+                LastConnectionError = result.Reason ?? $"Couldn't connect to {BaseBluetoothClient.Label(deviceName)}";
                 PublishStatus(result.Status, result.Reason);
                 return;
             }
@@ -254,12 +254,12 @@ public class TreadmillManager(ILoggerFactory loggerFactory, AppStateService appS
                 _logger.LogError("Connection timed out after {Timeout} seconds", ConnectionTimeout.TotalSeconds);
             result = session.IsCancellationRequested
                 ? (ConnectionStatus.Disconnected, null)
-                : (ConnectionStatus.Error, $"Timed out connecting to {deviceName}");
+                : (ConnectionStatus.Error, $"Timed out connecting to {BaseBluetoothClient.Label(deviceName)}");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during treadmill connection");
-            result = (ConnectionStatus.Error, $"Error connecting to {deviceName}: {ex.Message}");
+            result = (ConnectionStatus.Error, $"Error connecting to {BaseBluetoothClient.Label(deviceName)}: {ex.Message}");
         }
 
         _logger.LogWarning("Attempt for {Device} failed after {Elapsed:F1} s: {Status} ({Reason})", deviceName,

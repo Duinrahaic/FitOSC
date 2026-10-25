@@ -4,89 +4,91 @@
 <section class="page" aria-labelledby="settings-walking-heading">
     <h2 id="settings-walking-heading">Walking</h2>
 
-    <div class="row">
-        <div class="lab">
-            <span class="t" id="settings-mode-label">Default mode</span>
-            <small>@(Draft.DefaultMode == WalkingMode.Override ? "Uses fixed speed presets." : "Follows treadmill speed.")</small>
-        </div>
-        <div class="ctl seg" role="radiogroup" aria-labelledby="settings-mode-label">
-            <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Dynamic)" @onchange="() => SetMode(WalkingMode.Dynamic)" /><span>Dynamic</span></label>
-            <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Override)" @onchange="() => SetMode(WalkingMode.Override)" /><span>Override</span></label>
-        </div>
-    </div>
-    <div class="row">
-        <div class="lab">
-            <label for="settings-max-speed">Max speed</label>
-            <small>Speed that maps to full stick.</small>
-        </div>
-        <div class="ctl w-sm">
-            <div class="unit">
-                <input type="number" id="settings-max-speed" aria-describedby="settings-max-speed-error" step="0.1" min="0.1" aria-invalid="@Invalid(Draft.MaxSpeedError)"
-                       value="@Draft.MaxSpeed(Metric).ToString(CultureInfo.InvariantCulture)" @onchange="SetMaxSpeed" /><span>@(Metric ? "km/h" : "mph")</span>
+    <div class="group">
+        <div class="row">
+            <div class="lab">
+                <span class="t" id="settings-mode-label">Default mode</span>
             </div>
-            <FieldError Id="settings-max-speed-error" Message="@Draft.MaxSpeedError" />
+            <div class="ctl seg" role="radiogroup" aria-labelledby="settings-mode-label">
+                <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Dynamic)" @onchange="() => SetMode(WalkingMode.Dynamic)" /><span>Treadmill</span></label>
+                <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Override)" @onchange="() => SetMode(WalkingMode.Override)" /><span>Presets</span></label>
+            </div>
         </div>
-    </div>
-    <div class="row">
-        <div class="lab">
-            <label for="settings-trim">Trim</label>
-            <small>Output scale. 1.00 is unchanged.</small>
-        </div>
-        <div class="ctl w-sm">
-            <input type="number" id="settings-trim" aria-describedby="settings-trim-error" step="0.05" min="0" max="2" aria-invalid="@Invalid(Draft.DefaultTrimError)"
-                   @bind="Draft.DefaultTrim" @bind:after="Notify" />
-            <FieldError Id="settings-trim-error" Message="@Draft.DefaultTrimError" />
-        </div>
+        @if (Draft.DefaultMode == WalkingMode.Dynamic || Draft.MaxSpeedError is not null || Draft.DefaultTrimError is not null)
+        {
+            <div class="row">
+                <div class="lab">
+                    <label for="settings-max-speed">Speed at full output</label>
+                </div>
+                <div class="ctl w-sm">
+                    <div class="unit">
+                        <input type="number" id="settings-max-speed" aria-describedby="settings-max-speed-error" step="0.1" min="0.1" aria-invalid="@Invalid(Draft.MaxSpeedError)"
+                               value="@Draft.MaxSpeed(Metric).ToString(CultureInfo.InvariantCulture)" @onchange="SetMaxSpeed" /><span>@(Metric ? "km/h" : "mph")</span>
+                    </div>
+                    <FieldError Id="settings-max-speed-error" Message="@Draft.MaxSpeedError" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="lab">
+                    <label for="settings-trim">Output multiplier</label>
+                </div>
+                <div class="ctl w-sm">
+                    <div class="unit">
+                        <input type="number" id="settings-trim" aria-describedby="settings-trim-error" step="0.05" min="0" max="2" aria-invalid="@Invalid(Draft.DefaultTrimError)"
+                               @bind="Draft.DefaultTrim" @bind:after="Notify" /><span>×</span>
+                    </div>
+                    <FieldError Id="settings-trim-error" Message="@Draft.DefaultTrimError" />
+                </div>
+            </div>
+        }
     </div>
 
     <details open="@_advancedOpen">
         <summary>Advanced</summary>
-        <div class="row">
-            <div class="lab">
-                <label for="settings-smoothing">Smoothing</label>
-                <small>Lower is smoother.</small>
-            </div>
-            <div class="ctl w-sm">
-                <input type="number" id="settings-smoothing" aria-describedby="settings-smoothing-error" step="0.05" min="0" max="1" aria-invalid="@Invalid(Draft.SmoothingFactorError)"
-                       @bind="Draft.SmoothingFactor" @bind:after="Notify" />
-                <FieldError Id="settings-smoothing-error" Message="@Draft.SmoothingFactorError" />
-            </div>
-        </div>
-        <div class="row">
-            <div class="lab">
-                <label for="settings-turn">Max turn angle</label>
-                <small>Total head range is twice this.</small>
-            </div>
-            <div class="ctl w-sm">
-                <div class="unit">
-                    <input type="number" id="settings-turn" aria-describedby="settings-turn-error" step="5" min="45" max="180" aria-invalid="@Invalid(Draft.MaxTurnAngleError)"
-                           @bind="Draft.MaxTurnAngle" @bind:after="Notify" /><span>deg</span>
+        <div class="group">
+            <div class="row">
+                <div class="lab">
+                    <label for="settings-smoothing">Movement response</label>
                 </div>
-                <FieldError Id="settings-turn-error" Message="@Draft.MaxTurnAngleError" />
-            </div>
-        </div>
-        <div class="row">
-            <div class="lab">
-                <label for="settings-interval">OSC update interval</label>
-                <small>@(Draft.UpdateIntervalMs > 0 ? $"{1000 / Draft.UpdateIntervalMs} Hz" : "—")</small>
-            </div>
-            <div class="ctl w-sm">
-                <div class="unit">
-                    <input type="number" id="settings-interval" aria-describedby="settings-interval-error" step="5" min="10" max="100" aria-invalid="@Invalid(Draft.UpdateIntervalMsError)"
-                           @bind="Draft.UpdateIntervalMs" @bind:after="Notify" /><span>ms</span>
+                <div class="ctl w-sm">
+                    <input type="number" id="settings-smoothing" aria-describedby="settings-smoothing-error" step="0.05" min="0" max="1" aria-invalid="@Invalid(Draft.SmoothingFactorError)"
+                           @bind="Draft.SmoothingFactor" @bind:after="Notify" />
+                    <FieldError Id="settings-smoothing-error" Message="@Draft.SmoothingFactorError" />
                 </div>
-                <FieldError Id="settings-interval-error" Message="@Draft.UpdateIntervalMsError" />
             </div>
-        </div>
-        <div class="row">
-            <div class="lab">
-                <label for="settings-ramp">Thumbstick ramp</label>
-                <small>Lower is more gradual.</small>
+            <div class="row">
+                <div class="lab">
+                    <label for="settings-turn">Head turn limit</label>
+                </div>
+                <div class="ctl w-sm">
+                    <div class="unit">
+                        <input type="number" id="settings-turn" aria-describedby="settings-turn-error" step="5" min="45" max="180" aria-invalid="@Invalid(Draft.MaxTurnAngleError)"
+                               @bind="Draft.MaxTurnAngle" @bind:after="Notify" /><span>deg</span>
+                    </div>
+                    <FieldError Id="settings-turn-error" Message="@Draft.MaxTurnAngleError" />
+                </div>
             </div>
-            <div class="ctl w-sm">
-                <input type="number" id="settings-ramp" aria-describedby="settings-ramp-error" step="0.01" min="0.01" max="0.5" aria-invalid="@Invalid(Draft.ThumbstickRampSpeedError)"
-                       @bind="Draft.ThumbstickRampSpeed" @bind:after="Notify" />
-                <FieldError Id="settings-ramp-error" Message="@Draft.ThumbstickRampSpeedError" />
+            <div class="row">
+                <div class="lab">
+                    <label for="settings-interval">OSC update interval</label>
+                </div>
+                <div class="ctl w-sm">
+                    <div class="unit">
+                        <input type="number" id="settings-interval" aria-describedby="settings-interval-error" step="5" min="10" max="100" aria-invalid="@Invalid(Draft.UpdateIntervalMsError)"
+                               @bind="Draft.UpdateIntervalMs" @bind:after="Notify" /><span>ms</span>
+                    </div>
+                    <FieldError Id="settings-interval-error" Message="@Draft.UpdateIntervalMsError" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="lab">
+                    <label for="settings-ramp">Thumbstick response</label>
+                </div>
+                <div class="ctl w-sm">
+                    <input type="number" id="settings-ramp" aria-describedby="settings-ramp-error" step="0.01" min="0.01" max="0.5" aria-invalid="@Invalid(Draft.ThumbstickRampSpeedError)"
+                           @bind="Draft.ThumbstickRampSpeed" @bind:after="Notify" />
+                    <FieldError Id="settings-ramp-error" Message="@Draft.ThumbstickRampSpeedError" />
+                </div>
             </div>
         </div>
     </details>

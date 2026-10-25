@@ -34,7 +34,9 @@
                     {
                         <button type="button" class="@(_draft.IsChanged(menuPage, _baseline) ? "dirty" : null)"
                                 aria-current="@(menuPage == _activePage ? "page" : null)" @onclick="() => _activePage = menuPage">
-                            @menuPage.ToString()<span class="dot" aria-hidden="true"></span>
+                            <i class="fa-solid @PageIcon(menuPage)" aria-hidden="true"></i>
+                            <span class="settings-menu-label">@menuPage.ToString()</span>
+                            <span class="dot" aria-hidden="true"></span>
                         </button>
                     }
                     <div class="settings-version" aria-label="FitOSC version @UpdateCheckService.CurrentVersion">
@@ -68,11 +70,14 @@
                 </div>
             </div>
 
-            <footer class="settings-foot @(HasChanges || _closeBlocked ? "attention" : null)">
-                <span class="state" role="status" aria-live="polite">@FooterText</span>
-                <button class="settings-btn quiet" type="button" @onclick="Close" disabled="@_isSaving">Cancel</button>
-                <button class="settings-btn primary" type="button" data-settings-save @onclick="Save" disabled="@(!HasChanges || _isSaving)">@(_isSaving ? "Saving…" : "Save")</button>
-            </footer>
+            @if (HasChanges || _activePage is not (SettingsPage.Diagnostics or SettingsPage.About))
+            {
+                <footer class="settings-foot @(HasChanges || _closeBlocked ? "attention" : null)">
+                    <span class="state" role="status" aria-live="polite">@FooterText</span>
+                    <button class="settings-btn quiet" type="button" @onclick="Close" disabled="@_isSaving">Cancel</button>
+                    <button class="settings-btn primary" type="button" data-settings-save @onclick="Save" disabled="@(!HasChanges || _isSaving)">@(_isSaving ? "Saving…" : "Save")</button>
+                </footer>
+            }
         </div>
     </div>
 }
@@ -93,6 +98,17 @@
 
     private bool HasChanges => Enum.GetValues<SettingsPage>().Any(page => _draft!.IsChanged(page, _baseline!));
 
+    private static string PageIcon(SettingsPage page) => page switch
+    {
+        SettingsPage.General => "fa-user",
+        SettingsPage.Treadmill => "fa-gauge-high",
+        SettingsPage.Walking => "fa-person-walking",
+        SettingsPage.Integrations => "fa-plug",
+        SettingsPage.Diagnostics => "fa-bug",
+        SettingsPage.About => "fa-circle-info",
+        _ => throw new ArgumentOutOfRangeException(nameof(page), page, null)
+    };
+
     private string FooterText
     {
         get
@@ -102,7 +118,7 @@
             if (_saveAttempted && _draft!.ErrorCount(_baseline!) is var errors and > 0)
                 return errors == 1 ? "1 field needs fixing" : $"{errors} fields need fixing";
             if (!HasChanges)
-                return "No unsaved changes";
+                return "";
             if (_closeBlocked)
                 return "Save or cancel your changes first";
             return _draft!.General.UseHardwareAcceleration != _baseline!.General.UseHardwareAcceleration
@@ -151,18 +167,22 @@
 
     private async Task RequestClose()
     {
+        if (CanClose())
+            await Close();
+    }
+
+    private bool CanClose()
+    {
         if (_isSaving)
-            return;
-        if (HasChanges)
-        {
-            _closeBlocked = true;
-            return;
-        }
-        await Close();
+            return false;
+        _closeBlocked = HasChanges;
+        return !_closeBlocked;
     }
 
     private async Task RunSetup()
     {
+        if (!CanClose())
+            return;
         await Close();
         OnboardingService.TriggerOnboarding();
     }
