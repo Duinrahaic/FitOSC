@@ -11,9 +11,10 @@
 @inject IOscService OscService
 @inject OpenVRService VRService
 
-<div class="icon @GetActiveClass() @GetScanningClass() @GetErrorClass()" id="@GetId()" @onclick="HandleClick" title="@GetTitle()" style="cursor: @(IsClickable ? "pointer" : "default")">
-    <i class="@GetIcon()"></i>
-</div>
+<button class="icon @GetActiveClass() @GetScanningClass() @GetErrorClass()" id="@GetId()" type="button"
+        @onclick="HandleClick" title="@GetTitle()" aria-label="@GetActionLabel()" disabled="@(!IsClickable || Status == ConnectionStatus.Connecting)">
+    <i class="@GetIcon()" aria-hidden="true"></i>
+</button>
 @code {
 
     [Parameter] public required AppInterface Interface { get; set; }
@@ -84,8 +85,17 @@
             _ => "fa-solid fa-circle"
         };
     }
-    // The Bluetooth icon explains what the connection is doing or why it failed.
-    private string? GetTitle() => Interface == AppInterface.Bluetooth ? _bluetoothDetail ?? Status.ToString() : null;
+    private string GetActionLabel() => Interface switch
+    {
+        AppInterface.Bluetooth => $"Connect treadmill ({Status})",
+        AppInterface.VR => IsActive ? "Stop VR monitoring" : "Start VR monitoring",
+        AppInterface.OSC => $"Rediscover OSC ({Status})",
+        _ => Interface.ToString()
+    };
+
+    private string GetTitle() => Interface == AppInterface.Bluetooth
+        ? _bluetoothDetail ?? Status.ToString()
+        : $"{Interface}: {Status}";
 
     private string GetActiveClass()
     {
@@ -95,6 +105,9 @@
     protected override void OnInitialized()
     {
         AppState.AppStateUpdated += UpdateAppState;
+        var state = AppState.GetCurrentAppStateInfo();
+        _interfaceStatuses = state.ConnectionStates;
+        _bluetoothDetail = state.BluetoothDetail;
     }
 
     private void UpdateAppState(AppStateInfo info)

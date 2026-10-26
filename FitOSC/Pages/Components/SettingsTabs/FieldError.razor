@@ -1,0 +1,9 @@
+@if (Message is not null)
+{
+    <p class="err" id="@Id" role="alert">@Message</p>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Id { get; set; } = default!;
+    [Parameter] public string? Message { get; set; }
+}
