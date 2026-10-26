@@ -1,4 +1,5 @@
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -7,8 +8,8 @@ namespace FitOSC.Services.Treadmill;
 /// </summary>
 [TreadmillDriver(TreadmillType.Urevo, "UREVO", "UREVO treadmills and SpaceWalk walking pads", Experimental = true,
     AdvertisedServices = ["0000fff0-0000-1000-8000-00805f9b34fb"])]
-public class UrevoTreadmillService(ILogger<UrevoTreadmillService> logger, AppStateService appState)
-    : SerialTreadmillService(logger, appState)
+public class UrevoTreadmillService(ILogger<UrevoTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : SerialTreadmillService(logger, appState, client)
 {
     private const byte FrameStart = 0x02;
     private const byte FrameEnd = 0x03;
