@@ -46,6 +46,11 @@ public class AppConfiguration
     /// MIDI settings
     /// </summary>
     public MidiSettings Midi { get; set; } = new();
+
+    /// <summary>
+    /// App update settings
+    /// </summary>
+    public UpdateSettings Updates { get; set; } = new();
 }
 
 public class TreadmillSettings
@@ -225,4 +230,17 @@ public class MidiSettings
     /// CC number for incline (0-127)
     /// </summary>
     public int InclineCC { get; set; } = 3;
+}
+
+public class UpdateSettings
+{
+    /// <summary>
+    /// Download updates in the background and install them on the next start
+    /// </summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>
+    /// Release channel to follow (null follows the channel the installed build came from)
+    /// </summary>
+    public UpdateChannel? Channel { get; set; }
 }

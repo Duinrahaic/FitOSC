@@ -1,5 +1,8 @@
+@using FitOSC.Models
+@using FitOSC.Services
 @using FitOSC.Services.History
 @inject HistoryService HistoryService
+@inject UpdateService UpdateService
 @implements IDisposable
 
 <section class="page" aria-labelledby="settings-general-heading">
@@ -56,6 +59,37 @@
         </div>
     </div>
 
+    @if (UpdateService.IsInstalled)
+    {
+        <h3>Updates</h3>
+        <div class="group">
+            <div class="row inline">
+                <div class="lab"><label for="settings-auto-update">Automatic updates</label></div>
+                <input class="switch" type="checkbox" role="switch" id="settings-auto-update"
+                       @bind="Draft.AutoUpdate" @bind:after="Notify" />
+            </div>
+            <div class="row inline">
+                <div class="lab"><span class="t" id="settings-channel-label">Channel</span></div>
+                <div class="ctl seg" role="radiogroup" aria-labelledby="settings-channel-label">
+                    <label><input type="radio" name="settings-channel" checked="@(Draft.UpdateChannel == UpdateChannel.Stable)" @onchange="() => SetUpdateChannel(UpdateChannel.Stable)" /><span>Stable</span></label>
+                    <label><input type="radio" name="settings-channel" checked="@(Draft.UpdateChannel == UpdateChannel.Dev)" @onchange="() => SetUpdateChannel(UpdateChannel.Dev)" /><span>Dev</span></label>
+                </div>
+            </div>
+            <div class="row inline">
+                <div class="lab" role="status"><span class="t">@UpdateStatusText</span></div>
+                @if (UpdateService.Status is UpdateStatus.Available or UpdateStatus.Ready)
+                {
+                    <button class="settings-btn primary" type="button" @onclick="UpdateService.InstallAsync">@(UpdateService.IsChannelSwitch ? "Restart to switch" : "Restart to update")</button>
+                }
+                else
+                {
+                    <button class="settings-btn" type="button" @onclick="UpdateService.CheckAsync"
+                            disabled="@(UpdateService.Status is UpdateStatus.Checking or UpdateStatus.Downloading)">Check now</button>
+                }
+            </div>
+        </div>
+    }
+
     <div class="row actions">
         <button class="settings-btn" type="button" @onclick="RunSetup">Run setup</button>
         <button class="settings-btn danger" type="button" @onclick="ClearHistory">@(_confirmClear ? "Delete all history" : "Clear history")</button>
@@ -82,6 +116,26 @@
         Draft.PreferMetric = preferMetric;
         return Notify();
     }
+
+    private Task SetUpdateChannel(UpdateChannel channel)
+    {
+        Draft.UpdateChannel = channel;
+        return Notify();
+    }
+
+    private string UpdateStatusText => UpdateService.Status switch
+    {
+        UpdateStatus.Checking => "Checking…",
+        UpdateStatus.Available => $"{UpdateService.NewVersion} available",
+        UpdateStatus.Downloading => $"Downloading {UpdateService.NewVersion} · {UpdateService.DownloadProgress}%",
+        UpdateStatus.Ready => $"{UpdateService.NewVersion} ready",
+        UpdateStatus.Failed => "Couldn't check for updates",
+        _ => "Up to date"
+    };
+
+    protected override void OnInitialized() => UpdateService.Changed += HandleUpdateChanged;
+
+    private void HandleUpdateChanged() => InvokeAsync(StateHasChanged);
 
     private void ClearHistory()
     {
@@ -112,5 +166,9 @@
         });
     }
 
-    public void Dispose() => _confirmTimeout?.Cancel();
+    public void Dispose()
+    {
+        _confirmTimeout?.Cancel();
+        UpdateService.Changed -= HandleUpdateChanged;
+    }
 }

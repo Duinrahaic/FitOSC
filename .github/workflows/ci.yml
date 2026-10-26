@@ -1,30 +1,36 @@
-name: Build and Deploy FitOSC (Windows) - Runtime and No Runtime
+# Stable release: builds the installer, portable zip and update packages for a version tag and publishes them as a
+# GitHub release on Velopack's default channel, which installed apps on the Stable channel update from.
+name: Release (Windows)
 
 on:
   push:
     tags:
-      - 'v*.*.*' # Trigger on version tag pushes
+      - 'v*.*.*'
+      - '!v*-*' # Dev builds tag themselves v1.2.3-dev.N; those are published by dev-build.yml.
   workflow_dispatch:
     inputs:
       release_tag:
         description: Release tag to publish, for example v2.1.1
         required: true
-        default: v2.1.1
+
+permissions:
+  contents: write
 
 jobs:
-  build:
-    runs-on: windows-latest # Use Windows runner
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '8.0.x' # Adjust based on the .NET version you are using
+          dotnet-version: '8.0.x'
 
-      - name: Set build version from release tag
+      - name: Read version from release tag
         shell: pwsh
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
@@ -32,92 +38,34 @@ jobs:
           } else {
             "${{ github.ref_name }}"
           }
-          if ($tag -notmatch '^[vV]\d+\.\d+\.\d+([\-][0-9A-Za-z.-]+)?$') {
-            throw "Release builds must run from a semantic version tag such as v2.1.0. Received: $tag"
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Stable releases must run from a version tag such as v2.1.0. Received: $tag"
           }
 
           "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
           "RELEASE_VERSION=$($tag.Substring(1))" >> $env:GITHUB_ENV
 
-      # Build without runtime (Framework-dependent)
-      - name: Build FitOSC without runtime (Framework-dependent)
-        working-directory: ./FitOSC
-        run: dotnet publish --configuration Release --output ./output/no-runtime --no-self-contained --runtime win-x64 -p:Version=$env:RELEASE_VERSION
+      - name: Publish FitOSC
+        run: dotnet publish FitOSC/FitOSC.csproj --configuration Release --runtime win-x64 --self-contained --output ./publish -p:Version=$env:RELEASE_VERSION
 
-      # Build with runtime (Self-contained, will create .exe)
-      - name: Build FitOSC with runtime (Self-contained)
-        working-directory: ./FitOSC
-        run: dotnet publish --configuration Release --output ./output/with-runtime --self-contained --runtime win-x64 -p:Version=$env:RELEASE_VERSION
+      - name: Install Velopack CLI
+        run: dotnet tool install --global vpk --version 1.2.161
 
-      - name: Upload release artifact (without runtime)
-        uses: actions/upload-artifact@v4
-        with:
-          name: fitosc-no-runtime # Name the artifact for no-runtime version
-          path: ./FitOSC/output/no-runtime # Path to no-runtime build
+      - name: Stamp version on splash
+        shell: pwsh
+        run: ./installer/New-SplashImage.ps1 -Version $env:RELEASE_VERSION -OutputPath ./splash.png
 
-      - name: Upload release artifact (with runtime)
-        uses: actions/upload-artifact@v4
-        with:
-          name: fitosc-with-runtime # Name the artifact for the runtime version (contains .exe)
-          path: ./FitOSC/output/with-runtime # Path to runtime build (contains .exe)
+      # The previous release lets vpk build a delta package, so installed apps download only what changed.
+      - name: Download previous release
+        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --outputDir ./releases
 
-  deploy:
-    needs: build
-    runs-on: windows-latest # Ensure deploy job also runs on Windows
-    permissions:
-      contents: write
+      - name: Pack installer and update packages
+        run: >-
+          vpk pack --packId FitOSC --packVersion $env:RELEASE_VERSION --packDir ./publish --mainExe FitOSC.exe
+          --packTitle FitOSC --packAuthors Duinrahaic --icon ./FitOSC/Assets/icon.ico
+          --splashImage ./splash.png --splashProgressColor "#4caf50" --outputDir ./releases
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Extract Tag
-      id: extract_tag
-      shell: pwsh
-      run: |
-        $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-          "${{ inputs.release_tag }}"
-        } else {
-          "${{ github.ref_name }}"
-        }
-
-        "TAG=$tag" >> $env:GITHUB_ENV
-
-    - name: Download artifact (without runtime)
-      uses: actions/download-artifact@v4
-      with:
-        name: fitosc-no-runtime
-        path: ./FitOSC/output/no-runtime
-
-    - name: Download artifact (with runtime)
-      uses: actions/download-artifact@v4
-      with:
-        name: fitosc-with-runtime
-        path: ./FitOSC/output/with-runtime
-
-    - name: Zip framework-dependent build (without runtime)
-      shell: pwsh
-      run: |
-        Compress-Archive -Path ./FitOSC/output/no-runtime/* -DestinationPath ../../../fitosc-no-runtime.zip
-    - name: Zip self-contained build (with runtime)
-      shell: pwsh
-      run: |
-        Compress-Archive -Path ./FitOSC/output/with-runtime/* -DestinationPath ../../../fitosc-with-runtime.zip
-    - name: Create GitHub Release
-      uses: ncipollo/release-action@v1.14.0
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub Token or PAT
-        tag: ${{ env.TAG }}  # Use the extracted tag
-        name: Release ${{ env.TAG }}  # Use the extracted tag for release name
-        body: |
-          Release notes for FitOSC version ${{ env.TAG }}
-          
-          - **Without runtime**: Framework-dependent deployment.
-          - **With runtime**: Self-contained deployment (includes .exe).
-        draft: false
-        prerelease: false
-        artifacts: |
-          ./fitosc-no-runtime.zip
-          ./fitosc-with-runtime.zip
-
-
+      - name: Publish GitHub release
+        run: >-
+          vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+          --outputDir ./releases --tag $env:RELEASE_TAG --releaseName "FitOSC $env:RELEASE_VERSION" --publish --merge
