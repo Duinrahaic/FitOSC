@@ -17,13 +17,13 @@
             <InterfaceStatusIndicator Interface="AppInterface.OSC" />
             @if (UpdateCheckService.UpdateAvailable)
             {
-                <div class="icon active" id="update" @onclick="OpenReleaseUrl" style="cursor: pointer;" title="Update available: @UpdateCheckService.LatestVersion">
-                    <i class="fa-solid fa-circle-up"></i>
-                </div>
+                <button class="icon active" id="update" type="button" @onclick="OpenReleaseUrl" aria-label="Download update @UpdateCheckService.LatestVersion" title="Update available: @UpdateCheckService.LatestVersion">
+                    <i class="fa-solid fa-circle-up" aria-hidden="true"></i>
+                </button>
             }
-            <div class="icon" @onclick="OpenSettings" style="cursor: pointer;">
-                <i class="fa-solid fa-cog"></i>
-            </div>
+            <button class="icon" type="button" @onclick="OpenSettings" aria-label="Settings">
+                <i class="fa-solid fa-cog" aria-hidden="true"></i>
+            </button>
         </div>
         <div class="title">
             FITOSC

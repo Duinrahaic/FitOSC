@@ -19,17 +19,17 @@
         </div>
     </div>
     <button class="treadmill-control-adjuster increase"
-            @onclick="Increase"
+            @onclick="Increase" type="button" aria-label="Increase @ControlType"
             disabled="@(!_enabled)">
-        <i class="fa fa-add"></i>
+        <i class="fa fa-add" aria-hidden="true"></i>
     </button>
     <div class="treadmill-control-adjuster-title @(!_enabled ? "disabled" : "")">
         @_title
     </div>
     <button class="treadmill-control-adjuster decrease"
-            @onclick="Decrease"
+            @onclick="Decrease" type="button" aria-label="Decrease @ControlType"
             disabled="@(!_enabled)">
-        <i class="fa fa-minus"></i>
+        <i class="fa fa-minus" aria-hidden="true"></i>
     </button>
 </div>
 

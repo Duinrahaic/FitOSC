@@ -284,6 +284,12 @@ public class VRChatLocomotionService : IHostedService, IDisposable
                 _logger.LogInformation("Enable Override mode via SteamVR action");
             }
 
+            if (action.SwapWalkingModePressed)
+            {
+                var mode = _appState.SwapPreferredWalkingMode();
+                _logger.LogInformation($"Swapped to {mode} mode via SteamVR action");
+            }
+
             // Handle direct preset selection
             if (action.Preset0Pressed) ActivatePreset(0);
             if (action.Preset1Pressed) ActivatePreset(1);
