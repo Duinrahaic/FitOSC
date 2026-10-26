@@ -41,6 +41,9 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
     /// <summary>Channels to try in order; the first one the device exposes is used.</summary>
     protected abstract IReadOnlyList<SerialChannel> Channels { get; }
 
+    /// <summary>The channel this session connected on; set before <see cref="OnConnectedAsync"/> runs.</summary>
+    protected SerialChannel? ConnectedChannel => _channel;
+
     protected abstract TimeSpan PollInterval { get; }
 
     /// <summary>Handles one notification. Never runs at the same time as <see cref="PollAsync"/>.</summary>
