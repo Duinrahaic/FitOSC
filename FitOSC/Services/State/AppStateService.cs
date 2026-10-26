@@ -273,6 +273,17 @@ public class AppStateService
     }
 
     /// <summary>
+    /// Swap the preferred walking mode between Dynamic and Override.
+    /// </summary>
+    public WalkingMode SwapPreferredWalkingMode()
+    {
+        var current = CurrentWalkingMode != WalkingMode.Disabled ? CurrentWalkingMode : _lastActiveWalkingMode;
+        var mode = current == WalkingMode.Override ? WalkingMode.Dynamic : WalkingMode.Override;
+        SetPreferredWalkingMode(mode);
+        return mode;
+    }
+
+    /// <summary>
     /// Update walking mode configuration
     /// </summary>
     public void UpdateWalkingModeConfig(WalkingModeConfiguration config)

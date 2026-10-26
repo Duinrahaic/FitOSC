@@ -34,11 +34,11 @@
 - A treadmill with Bluetooth and [FTMS](https://www.bluetooth.com/specifications/specs/fitness-machine-service-1-0/) support.
 - [VRChat](https://vrchat.com/home/download) with OSC enabled.
 - Windows 10 (v1903) or later operating system.
-- A compatible BLE adapter (if not built-in). [Recommended](https://www.amazon.com/TP-Link-Bluetooth-Receiver-Controller-UB500/dp/B09DMP6T22)
+- Either a compatible BLE adapter on the PC ([recommended adapter](https://www.amazon.com/TP-Link-Bluetooth-Receiver-Controller-UB500/dp/B09DMP6T22)) or an ESPHome Bluetooth proxy on the same local network.
 
 ## Documentation
 
-Full documentation is available at [me.duinrahaic.app/fitosc](https://me.duinrahaic.app/fitosc).
+Full documentation is available at [www.duinrahaic.app/fitosc](https://www.duinrahaic.app/fitosc).
 
 ## Contact & Support
 
