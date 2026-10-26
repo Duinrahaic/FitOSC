@@ -10,8 +10,8 @@
                 <span class="t" id="settings-mode-label">Default mode</span>
             </div>
             <div class="ctl seg" role="radiogroup" aria-labelledby="settings-mode-label">
-                <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Dynamic)" @onchange="() => SetMode(WalkingMode.Dynamic)" /><span>Treadmill</span></label>
-                <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Override)" @onchange="() => SetMode(WalkingMode.Override)" /><span>Presets</span></label>
+                <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Dynamic)" @onchange="() => SetMode(WalkingMode.Dynamic)" /><span>Dynamic</span></label>
+                <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Override)" @onchange="() => SetMode(WalkingMode.Override)" /><span>Override</span></label>
             </div>
         </div>
         @if (Draft.DefaultMode == WalkingMode.Dynamic || Draft.MaxSpeedError is not null || Draft.DefaultTrimError is not null)
