@@ -8,8 +8,8 @@ namespace FitOSC.Services.Treadmill;
 /// </summary>
 [TreadmillDriver(TreadmillType.Rsc, "Running Speed & Cadence", "Treadmills and footpods that report speed and distance (no control)", Experimental = true,
     AdvertisedServices = ["00001814-0000-1000-8000-00805f9b34fb"])]
-public class RscTreadmillService(ILogger<RscTreadmillService> logger, AppStateService appState)
-    : TreadmillService(appState, new WindowsBluetoothClient(logger))
+public class RscTreadmillService(ILogger<RscTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : TreadmillService(appState, client)
 {
     private static readonly Guid RscService = Guid.Parse("00001814-0000-1000-8000-00805f9b34fb");
     private static readonly Guid RscMeasurement = Guid.Parse("00002a53-0000-1000-8000-00805f9b34fb");
