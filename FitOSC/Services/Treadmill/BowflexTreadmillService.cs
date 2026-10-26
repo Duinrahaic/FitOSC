@@ -8,8 +8,8 @@ namespace FitOSC.Services.Treadmill;
 /// </summary>
 [TreadmillDriver(TreadmillType.Bowflex, "Bowflex", "Bowflex treadmills (speed and incline, no control)", Experimental = true,
     AdvertisedServices = ["b5c78780-cad7-11e5-b9f8-0002a5d5c51b", "edff9e80-cad7-11e5-ab63-0002a5d5c51b"])]
-public class BowflexTreadmillService(ILogger<BowflexTreadmillService> logger, AppStateService appState)
-    : TreadmillService(appState, new WindowsBluetoothClient(logger))
+public class BowflexTreadmillService(ILogger<BowflexTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : TreadmillService(appState, client)
 {
     // Zwift writes to the first service on models whose name contains "116" or "226", and the second otherwise.
     private static readonly Guid[] Services =
