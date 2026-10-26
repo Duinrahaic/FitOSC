@@ -223,6 +223,47 @@ namespace FitOSC.Utilities.BLE
             }
         }
 
+        /// <summary>
+        /// Logs every service the device exposes, with each characteristic and its properties, so a device that lacks
+        /// the expected service shows what it offers instead.
+        /// </summary>
+        private async Task LogExposedServicesAsync(BluetoothLEDevice device, CancellationToken cancellationToken)
+        {
+            var services = await device.GetGattServicesAsync(BluetoothCacheMode.Uncached).AsTask(cancellationToken);
+            if (services.Status != GattCommunicationStatus.Success)
+            {
+                logger.LogWarning("Could not list the services on {Name}: {Status}", device.Name, services.Status);
+                return;
+            }
+
+            var description = new System.Text.StringBuilder();
+            try
+            {
+                foreach (var service in services.Services)
+                {
+                    description.Append($"\n  {service.Uuid}");
+                    var characteristics = await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached)
+                        .AsTask(cancellationToken);
+                    if (characteristics.Status != GattCommunicationStatus.Success)
+                    {
+                        description.Append($" (characteristics unavailable: {characteristics.Status})");
+                        continue;
+                    }
+
+                    foreach (var characteristic in characteristics.Characteristics)
+                        description.Append($"\n    {characteristic.Uuid} [{characteristic.CharacteristicProperties}]");
+                }
+            }
+            finally
+            {
+                foreach (var service in services.Services)
+                    service.Dispose();
+            }
+
+            logger.LogInformation("{Name} exposes {Count} services:{Services}", device.Name, services.Services.Count,
+                description.ToString());
+        }
+
         /// <summary>Scans until a matching device advertises and returns its address; throws on timeout or cancellation.</summary>
         private async Task<ulong> ScanForDeviceAsync(Guid serviceUuid, string? deviceName, CancellationToken cancellationToken)
         {
@@ -313,7 +354,9 @@ namespace FitOSC.Utilities.BLE
                     .AsTask(cancellationToken);
             if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
             {
-                logger.LogWarning("Service {ServiceUuid} not found on {Name}", serviceUuid, _device.Name);
+                logger.LogWarning("Service {ServiceUuid} not found on {Name} (status {Status})", serviceUuid, _device.Name,
+                    result.Status);
+                await LogExposedServicesAsync(_device, cancellationToken);
                 await TearDownAsync();
                 return false;
             }
