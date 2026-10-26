@@ -1,4 +1,5 @@
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -7,8 +8,8 @@ namespace FitOSC.Services.Treadmill;
 /// </summary>
 [TreadmillDriver(TreadmillType.Endex, "Endex", "Treadmills with an Endex console", Experimental = true,
     AdvertisedServices = ["0000fff0-0000-1000-8000-00805f9b34fb"])]
-public class EndexTreadmillService(ILogger<EndexTreadmillService> logger, AppStateService appState)
-    : SerialTreadmillService(logger, appState)
+public class EndexTreadmillService(ILogger<EndexTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : SerialTreadmillService(logger, appState, client)
 {
     private const byte Query = 0xA1;
     private const byte Handshake1 = 0xE2;
