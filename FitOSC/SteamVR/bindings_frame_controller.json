@@ -1,0 +1,68 @@
+{
+  "name": "FitOSC Default Bindings for Steam Frame Controllers",
+  "controller_type": "frame_controller",
+  "category": "steamvr_input",
+  "bindings": {
+    "/actions/fitosc": {
+      "sources": [
+        {
+          "path": "/user/hand/right/input/thumbstick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/SpeedModifier"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/thumbstick",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/ToggleWalking"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/y",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/WalkingSpeedUp"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/x",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/fitosc/in/WalkingSpeedDown"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/menu",
+          "mode": "complex_button",
+          "inputs": {
+            "single": {
+              "output": "/actions/fitosc/in/RecenterYaw"
+            },
+            "long": {
+              "output": "/actions/fitosc/in/SwapWalkingMode"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/thumbstick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/fitosc/in/ManualMovement"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

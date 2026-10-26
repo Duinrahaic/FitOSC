@@ -1,8 +1,10 @@
+@using Avalonia.Controls.ApplicationLifetimes
 @using FitOSC.Models
 @using FitOSC.Services
 @using FitOSC.Services.Configuration
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
+@using FitOSC.Utilities.BLE
 @inject ConfigurationService ConfigService
 @inject TreadmillManager TreadmillManager
 @inject AppStateService AppStateService
@@ -12,269 +14,203 @@
 
 @if (IsOpen)
 {
-    <div class="modal-overlay" @onclick="OnOverlayClick">
-        <div class="onboarding-modal" @onclick:stopPropagation="true">
-            <!-- Progress indicator -->
-            <div class="wizard-progress">
-                @for (int i = 0; i < 6; i++)
-                {
-                    var stepIndex = i;
-                    var stepNumber = i + 1;
-                    var isSkipped = _wantsTreadmill == false && (stepIndex == 1 || stepIndex == 2);
-                    var isCompleted = GetCurrentStepIndex() > stepIndex || (isSkipped && GetCurrentStepIndex() > 0);
-                    var isActive = GetCurrentStepIndex() == stepIndex && !isSkipped;
-
-                    // Connector comes before the step (except for first step)
-                    @if (i > 0)
+    <div class="modal-overlay">
+        <div class="onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+            <header class="ob-bar">
+                <div class="ob-icon" aria-hidden="true">
+                    @if (_step == WizardStep.Start)
                     {
-                        var prevSkipped = _wantsTreadmill == false && (stepIndex - 1 == 1 || stepIndex - 1 == 2);
-                        var connectorCompleted = GetCurrentStepIndex() >= stepIndex || (isSkipped && GetCurrentStepIndex() > 0) || (prevSkipped && GetCurrentStepIndex() > 0);
-                        <div class="step-connector @(connectorCompleted ? "completed" : "")"></div>
+                        <img src="images/FitOSC-Bunny.svg" alt="" />
                     }
+                    else
+                    {
+                        <i class="@StepIcon(_step)"></i>
+                    }
+                </div>
+                <h2 id="onboarding-title">@StepTitle(_step)</h2>
+                <ol class="ob-steps" aria-label="Setup progress">
+                    @foreach (var step in Enum.GetValues<WizardStep>())
+                    {
+                        <li class="@StepState(step)" aria-current="@(step == _step ? "step" : null)">
+                            <span class="visually-hidden">@StepTitle(step)@(IsSkipped(step) ? ", skipped" : "")</span>
+                            <span aria-hidden="true">@((int)step + 1)</span>
+                        </li>
+                    }
+                </ol>
+            </header>
 
-                    <div class="wizard-step @(isCompleted ? "completed" : "") @(isActive ? "active" : "") @(isSkipped ? "skipped" : "")">
-                        <div class="step-number">@stepNumber</div>
-                    </div>
-                }
-            </div>
-
-            <!-- Step content -->
-            <div class="wizard-content">
-                @switch (_currentStep)
+            <div class="ob-body">
+                @switch (_step)
                 {
-                    case WizardStep.Welcome:
-                        <div class="wizard-step-content">
-                            <div class="step-icon">
-                                <i class="fa-solid fa-person-walking"></i>
-                            </div>
-                            <h2>Welcome to FitOSC</h2>
-                            <p>Let's get you set up for virtual walking in VRChat.</p>
-                            <p class="step-question">Do you want to connect a treadmill?</p>
-                            <div class="choice-buttons">
-                                <button class="btn-choice @(_wantsTreadmill == true ? "selected" : "")" @onclick="() => SetTreadmillChoice(true)">
-                                    <i class="fa-solid fa-check"></i>
-                                    <span>Yes, I want to connect my treadmill</span>
+                    case WizardStep.Start:
+                        <p class="ob-instruction">Choose how you'll use FitOSC. You can change these later in Settings.</p>
+                        <div class="ob-field" role="radiogroup" aria-labelledby="ob-treadmill">
+                            <span class="ob-label" id="ob-treadmill">Treadmill</span>
+                            <div class="ob-options">
+                                <button type="button" role="radio" class="ob-option large" aria-checked="@Checked(_useTreadmill)" @onclick="() => SetUseTreadmill(true)">
+                                    <i class="fa-brands fa-bluetooth-b" aria-hidden="true"></i>
+                                    <span>Connected<small>FitOSC reads your treadmill</small></span>
                                 </button>
-                                <button class="btn-choice @(_wantsTreadmill == false ? "selected" : "")" @onclick="() => SetTreadmillChoice(false)">
-                                    <i class="fa-solid fa-gamepad"></i>
-                                    <span>No, I don't plan on connecting my treadmill</span>
+                                <button type="button" role="radio" class="ob-option large" aria-checked="@Checked(!_useTreadmill)" @onclick="() => SetUseTreadmill(false)">
+                                    <i class="fa-solid fa-link-slash" aria-hidden="true"></i>
+                                    <span>Not connected<small>You set the speed</small></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="ob-field" role="radiogroup" aria-labelledby="ob-mode">
+                            <span class="ob-label" id="ob-mode">Walking mode</span>
+                            <div class="ob-options">
+                                <button type="button" role="radio" class="ob-option large" aria-checked="@Checked(_walkingMode == WalkingMode.Dynamic)"
+                                        disabled="@(!_useTreadmill)" @onclick="() => _walkingMode = WalkingMode.Dynamic">
+                                    <i class="fa-solid fa-wave-square" aria-hidden="true"></i>
+                                    <span>Dynamic<small>@(_useTreadmill ? "Follows your treadmill speed" : "Needs a connected treadmill")</small></span>
+                                </button>
+                                <button type="button" role="radio" class="ob-option large" aria-checked="@Checked(_walkingMode == WalkingMode.Override)"
+                                        @onclick="() => _walkingMode = WalkingMode.Override">
+                                    <i class="fa-solid fa-arrows-left-right-to-line" aria-hidden="true"></i>
+                                    <span>Override<small>Walks at a preset speed</small></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="ob-field" role="radiogroup" aria-labelledby="ob-units">
+                            <span class="ob-label" id="ob-units">Units</span>
+                            <div class="ob-options">
+                                <button type="button" role="radio" class="ob-option" aria-checked="@Checked(_preferMetric)" @onclick="() => _preferMetric = true">
+                                    <i class="fa-solid fa-ruler" aria-hidden="true"></i>
+                                    <span>km/h<small>Metric</small></span>
+                                </button>
+                                <button type="button" role="radio" class="ob-option" aria-checked="@Checked(!_preferMetric)" @onclick="() => _preferMetric = false">
+                                    <i class="fa-solid fa-ruler" aria-hidden="true"></i>
+                                    <span>mph<small>Imperial</small></span>
                                 </button>
                             </div>
                         </div>
                         break;
 
-                    case WizardStep.SelectDriver:
-                        <div class="wizard-step-content">
-                            <div class="step-icon">
-                                <i class="fa-brands fa-bluetooth"></i>
-                            </div>
-                            <h2>Select Treadmill Type</h2>
-                            <p>Choose the type of treadmill you have:</p>
-                            <div class="driver-options">
-                                @foreach (var driver in TreadmillDrivers.All)
+                    case WizardStep.Driver:
+                        <p class="ob-instruction">Pick the driver that matches your treadmill. Not sure? Start with <b>@TreadmillDrivers.Find(TreadmillType.FTMS)?.Name</b>.</p>
+                        <div class="ob-options" role="radiogroup" aria-label="Treadmill driver">
+                            @foreach (var driver in TreadmillDrivers.All)
+                            {
+                                <button type="button" role="radio" class="ob-option" aria-checked="@Checked(_treadmillType == driver.Type)"
+                                        @onclick="() => _treadmillType = driver.Type">
+                                    @driver.Name
+                                    @if (driver.Experimental)
+                                    {
+                                        <i class="fa-solid fa-flask ob-experimental" title="Experimental" aria-label="Experimental"></i>
+                                    }
+                                </button>
+                            }
+                        </div>
+                        @if (TreadmillDrivers.Find(_treadmillType) is { } selected)
+                        {
+                            <div class="ob-panel" aria-live="polite">
+                                @selected.Description
+                                @if (selected.Experimental)
                                 {
-                                    <label class="driver-option @(_selectedTreadmillType == driver.Type ? "selected" : "")">
-                                        <input type="radio" name="treadmillType" checked="@(_selectedTreadmillType == driver.Type)" @onchange="() => _selectedTreadmillType = driver.Type" />
-                                        <div class="driver-info">
-                                            <span class="driver-name">
-                                                @driver.Name
-                                                @if (driver.Experimental)
-                                                {
-                                                    <span class="experimental-badge">Experimental</span>
-                                                }
-                                            </span>
-                                            <span class="driver-desc">@driver.Description</span>
-                                        </div>
-                                    </label>
+                                    <span class="ob-warning"><i class="fa-solid fa-flask" aria-hidden="true"></i>Experimental. Some readings or controls may not work yet.</span>
                                 }
                             </div>
-                        </div>
+                        }
                         break;
 
-                    case WizardStep.ConnectTreadmill:
-                        <div class="wizard-step-content">
-                            <div class="step-icon @(_isBluetoothConnected ? "connected-icon" : "")">
-                                <i class="fa-solid @(_isBluetoothConnected ? "fa-check" : "fa-plug")"></i>
-                            </div>
-                            <h2>@(_isBluetoothConnected ? "Treadmill Connected" : "Connect Your Treadmill")</h2>
-                            <p>@(_isBluetoothConnected ? $"Connected to {_currentDeviceName}" : "Make sure your treadmill is powered on and in pairing mode.")</p>
-                            <div class="scan-section">
-                                @if (_isBluetoothConnected)
+                    case WizardStep.Connect:
+                        <p class="ob-instruction">Turn on your treadmill, scan for it, then connect to it from the list.</p>
+                        <BluetoothConnectionEditor Settings="_connection" Disabled="@(_isScanning || _isConnecting || IsConnected)" Changed="OnConnectionChanged" />
+                        <div class="ob-field">
+                            <span class="ob-label">
+                                Treadmills found
+                                <button type="button" class="ob-btn small" @onclick="ScanForDevices" disabled="@(_isScanning || _isConnecting || IsConnected)">
+                                    <i class="fa-solid @(_isScanning ? "fa-spinner fa-spin" : "fa-magnifying-glass")" aria-hidden="true"></i>
+                                    @(_isScanning ? "Scanning" : "Scan")
+                                </button>
+                            </span>
+                            <div class="ob-devices" aria-live="polite">
+                                @foreach (var device in Devices())
                                 {
-                                    <button class="btn-disconnect" @onclick="DisconnectTreadmill">
-                                        <i class="fa fa-plug-circle-xmark"></i>
-                                        Disconnect
-                                    </button>
-                                }
-                                else
-                                {
-                                    <button class="btn-scan" @onclick="ScanForDevices" disabled="@_isScanning">
-                                        <i class="fa @(_isScanning ? "fa-spinner fa-spin" : "fa-search")"></i>
-                                        @if (_isScanning)
+                                    var connected = IsConnected && device == ConnectedDevice;
+                                    <div class="ob-device @(connected ? "connected" : "")">
+                                        <i class="fa-brands fa-bluetooth-b" aria-hidden="true"></i>
+                                        <span class="ob-device-name">@BaseBluetoothClient.Label(device)</span>
+                                        @if (connected)
                                         {
-                                            <span>Scanning... (@_discoveredDevices.Count found)</span>
+                                            <span class="ob-connected"><i class="fa-solid fa-check" aria-hidden="true"></i>Connected</span>
+                                            <button type="button" class="ob-btn small" @onclick="DisconnectTreadmill">Disconnect</button>
                                         }
                                         else
                                         {
-                                            <span>Scan for Devices</span>
-                                        }
-                                    </button>
-                                }
-
-                                @if (HasDevicesToShow())
-                                {
-                                    <div class="device-list">
-                                        @foreach (var device in GetSortedDevices())
-                                        {
-                                            <div class="device-item @(_selectedDevice == device ? "selected" : "") @(_isBluetoothConnected && _currentDeviceName == device ? "connected" : "")">
-                                                <i class="fa-brands fa-bluetooth"></i>
-                                                <span @onclick="() => SelectDevice(device)">@device</span>
-                                                @if (_isBluetoothConnected && _currentDeviceName == device)
+                                            <button type="button" class="ob-btn small" @onclick="() => ConnectToDevice(device)" disabled="@(_isScanning || _isConnecting || IsConnected)">
+                                                @if (_isConnecting && _connectingDevice == device)
                                                 {
-                                                    <span class="connection-badge">Connected</span>
+                                                    <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
                                                 }
-                                                else
-                                                {
-                                                    <button class="btn-connect" @onclick="() => ConnectToDevice(device)" disabled="@_isConnecting">
-                                                        @if (_isConnecting && _selectedDevice == device)
-                                                        {
-                                                            <i class="fa fa-spinner fa-spin"></i>
-                                                        }
-                                                        else
-                                                        {
-                                                            <i class="fa fa-plug-circle-plus"></i>
-                                                        }
-                                                    </button>
-                                                }
-                                            </div>
+                                                Connect
+                                            </button>
                                         }
                                     </div>
                                 }
-                                else if (!_isScanning && _hasScanned && !_isBluetoothConnected)
+                                @if (_hasScanned && !_isScanning && !Devices().Any())
                                 {
-                                    <p class="no-devices">No devices found. Make sure your treadmill is powered on and in pairing mode.</p>
+                                    <p class="ob-empty">No treadmills found. Make sure yours is on and not connected to another app.</p>
                                 }
                             </div>
+                            @if (!string.IsNullOrEmpty(TreadmillManager.LastConnectionError))
+                            {
+                                <p class="ob-error" role="alert">@TreadmillManager.LastConnectionError</p>
+                            }
                         </div>
                         break;
 
-                    case WizardStep.SelectWalkingMode:
-                        <div class="wizard-step-content">
-                            <div class="step-icon">
-                                <i class="fa-solid fa-sliders"></i>
+                    case WizardStep.Walkies:
+                        <div class="ob-walkies-heading">
+                            <div>
+                                <p>Looking for a community?</p>
+                                <h3>Come walk with us!</h3>
                             </div>
-                            <h2>Select Walking Mode</h2>
-                            <p>Choose how you want to control your avatar's movement:</p>
-                            <div class="mode-options">
-                                @if (_wantsTreadmill == true)
-                                {
-                                    <label class="mode-option @(_selectedWalkingMode == WalkingMode.Dynamic ? "selected" : "")">
-                                        <input type="radio" name="walkingMode" checked="@(_selectedWalkingMode == WalkingMode.Dynamic)" @onchange="() => _selectedWalkingMode = WalkingMode.Dynamic" />
-                                        <div class="mode-info">
-                                            <span class="mode-name">Dynamic Mode</span>
-                                            <span class="mode-desc">Your avatar's speed matches your treadmill speed</span>
-                                        </div>
-                                    </label>
-                                }
-                                <label class="mode-option @(_selectedWalkingMode == WalkingMode.Override ? "selected" : "")">
-                                    <input type="radio" name="walkingMode" checked="@(_selectedWalkingMode == WalkingMode.Override)" @onchange="() => _selectedWalkingMode = WalkingMode.Override" />
-                                    <div class="mode-info">
-                                        <span class="mode-name">Override Mode</span>
-                                        <span class="mode-desc">Walk at a fixed speed regardless of treadmill input</span>
-                                    </div>
-                                </label>
-                            </div>
+                            <a href="@WalkiesPageUrl" target="_blank">About Walkies <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
                         </div>
-                        break;
-
-                    case WizardStep.Preferences:
-                        <div class="wizard-step-content">
-                            <div class="step-icon">
-                                <i class="fa-solid fa-gear"></i>
+                        <img class="ob-banner" src="images/Walkies-Banner.webp" alt="Members of the Walkies VRChat community walking together" />
+                        <div class="ob-panel ob-group">
+                            <img src="images/VRChat.png" alt="" />
+                            <div>
+                                <small>VRChat group code</small>
+                                <b>@WalkiesGroupCode</b>
                             </div>
-                            <h2>Your Preferences</h2>
-                            <p>Choose your preferred unit of measurement:</p>
-                            <div class="unit-options">
-                                <label class="unit-option @(_preferMetric ? "selected" : "")">
-                                    <input type="radio" name="unitPreference" checked="@_preferMetric" @onchange="() => _preferMetric = true" />
-                                    <div class="unit-info">
-                                        <span class="unit-name">Metric</span>
-                                        <span class="unit-examples">km/h, kilometers, kg</span>
-                                    </div>
-                                </label>
-                                <label class="unit-option @(!_preferMetric ? "selected" : "")">
-                                    <input type="radio" name="unitPreference" checked="@(!_preferMetric)" @onchange="() => _preferMetric = false" />
-                                    <div class="unit-info">
-                                        <span class="unit-name">Imperial</span>
-                                        <span class="unit-examples">mph, miles, lbs</span>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-                        break;
-
-                    case WizardStep.Community:
-                        <div class="wizard-step-content">
-                            <div class="step-icon community-icon">
-                                <i class="fa-solid fa-users"></i>
-                            </div>
-                            <h2>Join the Walkies Community!</h2>
-                            <p>Join our vibrant community of virtual walkers who use FitOSC to stay active and connect with others in VRChat while exercising.</p>
-                            <ul class="community-benefits">
-                                <li><i class="fa-solid fa-heart"></i> Members combine fitness with social VR experiences</li>
-                                <li><i class="fa-solid fa-handshake"></i> Supportive community ready to join you on virtual adventures</li>
-                                <li><i class="fa-solid fa-calendar-check"></i> Scheduled group walks and events</li>
-                            </ul>
-                            <div class="community-links">
-                                <a href="https://vrchat.com/home/group/grp_cefd37c8-5f4b-4933-9346-75ab850329c9" target="_blank" class="btn-community">
-                                    <i class="fa-solid fa-external-link"></i>
-                                    Join on VRChat
-                                </a>
-                                <div class="group-code">
-                                    <span class="code-label">Group Code:</span>
-                                    <span class="code-value">Walkies.0659</span>
-                                </div>
-                            </div>
+                            <button type="button" class="ob-btn small" @onclick="CopyGroupCode">
+                                <i class="fa-solid @(_copied ? "fa-check" : "fa-copy")" aria-hidden="true"></i>
+                                @(_copied ? "Copied" : "Copy")
+                            </button>
+                            <a class="ob-btn small" href="@WalkiesGroupUrl" target="_blank"><img src="images/VRChat.png" alt="" />Join on VRChat</a>
                         </div>
                         break;
                 }
             </div>
 
-            <!-- Navigation -->
-            <div class="wizard-navigation">
-                <div class="nav-left">
-                    @if (_currentStep > WizardStep.Welcome)
-                    {
-                        <button class="btn-secondary" @onclick="PreviousStep">
-                            <i class="fa-solid fa-arrow-left"></i>
-                            Back
-                        </button>
-                    }
-                    else
-                    {
-                        <button class="btn-secondary" @onclick="SkipWizard">
-                            <i class="fa-solid fa-forward"></i>
-                            Skip Wizard
-                        </button>
-                    }
-                </div>
-                <div class="nav-right">
-                    @if (_currentStep < WizardStep.Community)
-                    {
-                        <button class="btn-primary" @onclick="NextStep" disabled="@(!CanProceed())">
-                            Next
-                            <i class="fa-solid fa-arrow-right"></i>
-                        </button>
-                    }
-                    else
-                    {
-                        <button class="btn-primary btn-finish" @onclick="CompleteOnboarding">
-                            <i class="fa-solid fa-check"></i>
-                            Finish Setup
-                        </button>
-                    }
-                </div>
-            </div>
+            <footer class="ob-footer">
+                @if (_step == WizardStep.Start)
+                {
+                    <button type="button" class="ob-btn quiet" @onclick="SkipWizard">Skip setup</button>
+                }
+                else
+                {
+                    <button type="button" class="ob-btn quiet" @onclick="PreviousStep"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back</button>
+                }
+                <span class="ob-spacer"></span>
+                @if (_step == WizardStep.Connect && !IsConnected)
+                {
+                    <button type="button" class="ob-btn quiet" @onclick="NextStep">Connect later</button>
+                }
+                @if (_step == WizardStep.Walkies)
+                {
+                    <button type="button" class="ob-btn primary" @onclick="CompleteOnboarding">Finish setup<i class="fa-solid fa-check" aria-hidden="true"></i></button>
+                }
+                else
+                {
+                    <button type="button" class="ob-btn primary" @onclick="NextStep" disabled="@(_step == WizardStep.Connect && !IsConnected)">
+                        Next<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                    </button>
+                }
+            </footer>
         </div>
     </div>
 }
@@ -283,37 +219,38 @@
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
 
+    private const string WalkiesGroupCode = "Walkies.0659";
+    private const string WalkiesGroupUrl = "https://vrchat.com/home/group/grp_cefd37c8-5f4b-4933-9346-75ab850329c9";
+    private const string WalkiesPageUrl = "https://www.duinrahaic.app/communities/walkies";
+
     private enum WizardStep
     {
-        Welcome,
-        SelectDriver,
-        ConnectTreadmill,
-        SelectWalkingMode,
-        Preferences,
-        Community
+        Start,
+        Driver,
+        Connect,
+        Walkies
     }
 
-    private WizardStep _currentStep = WizardStep.Welcome;
-    private bool? _wantsTreadmill = null;
-    private TreadmillType _selectedTreadmillType = TreadmillType.FTMS;
-    private WalkingMode _selectedWalkingMode = WalkingMode.Dynamic;
+    private WizardStep _step = WizardStep.Start;
+    private bool _useTreadmill = true;
+    private WalkingMode _walkingMode = WalkingMode.Dynamic;
     private bool _preferMetric = true;
+    private TreadmillType _treadmillType = TreadmillType.FTMS;
+    private BluetoothConnectionSettings _connection = new();
 
-    // Scanning state
-    private bool _isScanning = false;
-    private bool _hasScanned = false;
-    private bool _isConnecting = false;
+    private bool _isScanning;
+    private bool _hasScanned;
+    private bool _isConnecting;
+    private string? _connectingDevice;
     private List<string> _discoveredDevices = new();
-    private string? _selectedDevice = null;
+    private bool _copied;
 
-    // Connection state
     private AppStateInfo? _appState;
-    private bool _isBluetoothConnected => _appState?.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var status) == true
-                                          && status == ConnectionStatus.Connected;
-    private string? _currentDeviceName => _appState?.DeviceName;
+    private bool IsConnected => _appState?.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var status) == true
+                                && status == ConnectionStatus.Connected;
+    private string? ConnectedDevice => _appState?.DeviceName;
 
-    // Track previous open state to detect when modal opens
-    private bool _wasOpen = false;
+    private bool _wasOpen;
 
     protected override void OnInitialized()
     {
@@ -330,7 +267,6 @@
 
     protected override void OnParametersSet()
     {
-        // Reset wizard state when modal opens
         if (IsOpen && !_wasOpen)
         {
             ResetWizardState();
@@ -340,19 +276,20 @@
 
     private void ResetWizardState()
     {
-        // Load current config values as defaults
         var config = ConfigService.GetConfiguration();
 
-        _currentStep = WizardStep.Welcome;
-        _wantsTreadmill = null;
-        _selectedTreadmillType = config.Treadmill.TreadmillType;
-        _selectedWalkingMode = config.WalkingMode.DefaultMode;
+        _step = WizardStep.Start;
+        _useTreadmill = true;
+        _walkingMode = config.WalkingMode.DefaultMode == WalkingMode.Override ? WalkingMode.Override : WalkingMode.Dynamic;
         _preferMetric = config.User.PreferMetric;
+        _treadmillType = config.Treadmill.TreadmillType;
+        _connection = config.Treadmill.Connection with { };
         _isScanning = false;
         _hasScanned = false;
         _isConnecting = false;
+        _connectingDevice = null;
         _discoveredDevices.Clear();
-        _selectedDevice = null;
+        _copied = false;
     }
 
     private void UpdateAppState(AppStateInfo info)
@@ -361,98 +298,53 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private int GetCurrentStepIndex()
+    private static string StepTitle(WizardStep step) => step switch
     {
-        // Always return the actual step index (0-4)
-        return (int)_currentStep;
-    }
+        WizardStep.Start => "Welcome to FitOSC",
+        WizardStep.Driver => "Treadmill driver",
+        WizardStep.Connect => "Connect your treadmill",
+        _ => "Walkies"
+    };
 
-    private void SetTreadmillChoice(bool wantsTreadmill)
+    private static string StepIcon(WizardStep step) => step switch
     {
-        _wantsTreadmill = wantsTreadmill;
-        if (!wantsTreadmill)
-        {
-            _selectedWalkingMode = WalkingMode.Override;
-        }
-        else
-        {
-            _selectedWalkingMode = WalkingMode.Dynamic;
-        }
-        StateHasChanged();
-    }
+        WizardStep.Driver => "fa-solid fa-microchip",
+        WizardStep.Connect => "fa-brands fa-bluetooth-b",
+        _ => "fa-solid fa-person-walking"
+    };
 
-    private bool CanProceed()
+    private static string Checked(bool value) => value ? "true" : "false";
+
+    /// <summary>Driver and Connect only apply when FitOSC reads the treadmill.</summary>
+    private bool IsSkipped(WizardStep step) => !_useTreadmill && step is WizardStep.Driver or WizardStep.Connect;
+
+    private string StepState(WizardStep step) =>
+        IsSkipped(step) ? "skipped" : step == _step ? "current" : step < _step ? "done" : "";
+
+    private void SetUseTreadmill(bool useTreadmill)
     {
-        return _currentStep switch
-        {
-            WizardStep.Welcome => _wantsTreadmill.HasValue,
-            WizardStep.SelectDriver => true,
-            WizardStep.ConnectTreadmill => _isBluetoothConnected, // Require treadmill connection
-            WizardStep.SelectWalkingMode => true,
-            WizardStep.Preferences => true,
-            WizardStep.Community => true,
-            _ => true
-        };
+        _useTreadmill = useTreadmill;
+        if (!useTreadmill)
+            _walkingMode = WalkingMode.Override;
     }
 
     private void NextStep()
     {
-        if (!CanProceed()) return;
-
-        if (_wantsTreadmill == false)
-        {
-            // Skip treadmill steps
-            _currentStep = _currentStep switch
-            {
-                WizardStep.Welcome => WizardStep.SelectWalkingMode,
-                WizardStep.SelectWalkingMode => WizardStep.Preferences,
-                WizardStep.Preferences => WizardStep.Community,
-                _ => _currentStep
-            };
-        }
-        else
-        {
-            // Normal progression
-            _currentStep = _currentStep switch
-            {
-                WizardStep.Welcome => WizardStep.SelectDriver,
-                WizardStep.SelectDriver => WizardStep.ConnectTreadmill,
-                WizardStep.ConnectTreadmill => WizardStep.SelectWalkingMode,
-                WizardStep.SelectWalkingMode => WizardStep.Preferences,
-                WizardStep.Preferences => WizardStep.Community,
-                _ => _currentStep
-            };
-        }
-        StateHasChanged();
+        var next = Enum.GetValues<WizardStep>().FirstOrDefault(step => step > _step && !IsSkipped(step), _step);
+        _step = next;
     }
 
     private void PreviousStep()
     {
-        if (_wantsTreadmill == false)
-        {
-            // Skip treadmill steps going back
-            _currentStep = _currentStep switch
-            {
-                WizardStep.Community => WizardStep.Preferences,
-                WizardStep.Preferences => WizardStep.SelectWalkingMode,
-                WizardStep.SelectWalkingMode => WizardStep.Welcome,
-                _ => _currentStep
-            };
-        }
-        else
-        {
-            // Normal regression
-            _currentStep = _currentStep switch
-            {
-                WizardStep.Community => WizardStep.Preferences,
-                WizardStep.Preferences => WizardStep.SelectWalkingMode,
-                WizardStep.SelectWalkingMode => WizardStep.ConnectTreadmill,
-                WizardStep.ConnectTreadmill => WizardStep.SelectDriver,
-                WizardStep.SelectDriver => WizardStep.Welcome,
-                _ => _currentStep
-            };
-        }
-        StateHasChanged();
+        var previous = Enum.GetValues<WizardStep>().LastOrDefault(step => step < _step && !IsSkipped(step), _step);
+        _step = previous;
+    }
+
+    private IEnumerable<string> Devices()
+    {
+        if (IsConnected && !string.IsNullOrEmpty(ConnectedDevice))
+            return _discoveredDevices.Where(device => device != ConnectedDevice).Prepend(ConnectedDevice);
+        return _discoveredDevices;
     }
 
     private async Task ScanForDevices()
@@ -460,20 +352,15 @@
         _isScanning = true;
         _hasScanned = true;
         _discoveredDevices.Clear();
-        StateHasChanged();
 
         try
         {
-            // Do multiple short scans to provide live updates
-            var allDevices = new HashSet<string>();
-            for (int i = 0; i < 5; i++)
+            // Several short scans so devices appear as they are found.
+            var found = new HashSet<string>();
+            for (var i = 0; i < 5; i++)
             {
-                var devices = await TreadmillManager.ScanAsync(TimeSpan.FromSeconds(2));
-                foreach (var device in devices)
-                {
-                    allDevices.Add(device);
-                }
-                _discoveredDevices = allDevices.ToList();
+                found.UnionWith(await TreadmillManager.ScanAsync(TimeSpan.FromSeconds(2), _connection));
+                _discoveredDevices = found.ToList();
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -484,53 +371,23 @@
         finally
         {
             _isScanning = false;
-            await InvokeAsync(StateHasChanged);
         }
     }
 
-    private void SelectDevice(string deviceName)
+    private void OnConnectionChanged()
     {
-        _selectedDevice = deviceName;
-        StateHasChanged();
-    }
-
-    private IEnumerable<string> GetSortedDevices()
-    {
-        var result = new List<string>();
-
-        // Always show connected device first, even if not in discovered list
-        if (_isBluetoothConnected && !string.IsNullOrEmpty(_currentDeviceName))
-        {
-            result.Add(_currentDeviceName);
-            result.AddRange(_discoveredDevices.Where(d => d != _currentDeviceName));
-        }
-        else
-        {
-            result.AddRange(_discoveredDevices);
-        }
-
-        return result;
-    }
-
-    private bool HasDevicesToShow()
-    {
-        return _discoveredDevices.Any() || (_isBluetoothConnected && !string.IsNullOrEmpty(_currentDeviceName));
-    }
-
-    private async Task DisconnectTreadmill()
-    {
-        await TreadmillManager.DisconnectAsync();
+        _discoveredDevices.Clear();
+        _hasScanned = false;
     }
 
     private async Task ConnectToDevice(string deviceName)
     {
         _isConnecting = true;
-        _selectedDevice = deviceName;
-        StateHasChanged();
+        _connectingDevice = deviceName;
 
         try
         {
-            await TreadmillManager.ConnectAsync(deviceName, _selectedTreadmillType);
+            await TreadmillManager.ConnectAsync(deviceName, _treadmillType, _connection);
         }
         catch (Exception ex)
         {
@@ -539,38 +396,44 @@
         finally
         {
             _isConnecting = false;
-            StateHasChanged();
+            _connectingDevice = null;
         }
     }
 
-    private void OnOverlayClick()
+    private Task DisconnectTreadmill() => TreadmillManager.DisconnectAsync();
+
+    // The app window's clipboard, not the web page's: it needs no page focus or browser permission.
+    private async Task CopyGroupCode()
     {
-        // Don't close on overlay click for onboarding - require explicit dismissal
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var window = ((IClassicDesktopStyleApplicationLifetime)Avalonia.Application.Current!.ApplicationLifetime!).MainWindow!;
+            return window.Clipboard!.SetTextAsync(WalkiesGroupCode);
+        });
+        _copied = true;
     }
 
     private async Task CompleteOnboarding()
     {
         var config = ConfigService.GetConfiguration();
 
-        // Save settings
-        config.Treadmill.TreadmillType = _selectedTreadmillType;
-        config.WalkingMode.DefaultMode = _selectedWalkingMode;
+        config.Treadmill.TreadmillType = _treadmillType;
+        config.Treadmill.Connection = _connection with { };
+        config.WalkingMode.DefaultMode = _walkingMode;
         config.User.PreferMetric = _preferMetric;
 
-        if (_isBluetoothConnected && !string.IsNullOrEmpty(_currentDeviceName))
+        if (IsConnected && !string.IsNullOrEmpty(ConnectedDevice))
         {
-            config.Treadmill.LastDeviceName = _currentDeviceName;
+            config.Treadmill.LastDeviceName = ConnectedDevice;
             config.Treadmill.AutoConnect = true;
         }
 
-        // Always mark onboarding as completed when finishing the wizard
         config.User.OnboardingCompleted = true;
 
         ConfigService.SaveConfiguration(config);
-        Logger.LogInformation("Onboarding completed. TreadmillType={TreadmillType}, WalkingMode={WalkingMode}, PreferMetric={PreferMetric}, OnboardingCompleted={OnboardingCompleted}",
-            _selectedTreadmillType, _selectedWalkingMode, _preferMetric, config.User.OnboardingCompleted);
+        Logger.LogInformation("Onboarding completed. TreadmillType={TreadmillType}, WalkingMode={WalkingMode}, PreferMetric={PreferMetric}",
+            _treadmillType, _walkingMode, _preferMetric);
 
-        // Update AppState immediately so UI reflects the preference
         AppStateService.UpdatePreferredUnits(_preferMetric);
 
         IsOpen = false;
@@ -580,8 +443,6 @@
     private async Task SkipWizard()
     {
         var config = ConfigService.GetConfiguration();
-
-        // Mark onboarding as completed so it won't show again
         config.User.OnboardingCompleted = true;
 
         ConfigService.SaveConfiguration(config);
@@ -594,5 +455,6 @@
     public void Dispose()
     {
         AppStateService.AppStateUpdated -= UpdateAppState;
+        OnboardingService.OnShowOnboarding -= ShowOnboarding;
     }
 }
