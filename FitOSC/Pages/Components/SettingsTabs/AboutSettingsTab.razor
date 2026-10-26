@@ -1,39 +1,13 @@
 @using FitOSC.Services
-@inject UpdateCheckService UpdateCheckService
-@implements IDisposable
+@inject UpdateService UpdateService
 
 <section class="page about" aria-label="About">
     <header class="about-id">
         <img src="images/FitOSC-Bunny.svg" alt=""/>
         <div class="about-name">
             <span class="about-title">FitOSC</span>
-            <span class="about-version" aria-live="polite">
-                @if (_isChecking)
-                {
-                    <span class="spin" aria-hidden="true"></span><text>Checking for updates…</text>
-                }
-                else if (UpdateCheckService.UpdateAvailable)
-                {
-                    <text>Version @UpdateCheckService.CurrentVersion. </text><span class="about-new">@UpdateCheckService.LatestVersion is available.</span>
-                }
-                else if (_hasChecked)
-                {
-                    <text>Version @UpdateCheckService.CurrentVersion is up to date.</text>
-                }
-                else
-                {
-                    <text>Version @UpdateCheckService.CurrentVersion</text>
-                }
-            </span>
+            <span class="about-version">Version @UpdateService.CurrentVersion</span>
         </div>
-        @if (UpdateCheckService.UpdateAvailable)
-        {
-            <button class="settings-btn primary" type="button" @onclick="OpenUpdateUrl">Download @UpdateCheckService.LatestVersion</button>
-        }
-        else
-        {
-            <button class="settings-btn" type="button" @onclick="CheckForUpdates" disabled="@_isChecking">Check for updates</button>
-        }
     </header>
 
     <nav class="about-links group" aria-label="FitOSC links">
@@ -64,59 +38,3 @@
     </p>
 </section>
 
-@code {
-    private bool _isChecking;
-    private bool _hasChecked;
-
-    protected override void OnInitialized()
-    {
-        UpdateCheckService.UpdateAvailableChanged += HandleUpdateAvailableChanged;
-    }
-
-    private void HandleUpdateAvailableChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
-
-    private async Task CheckForUpdates()
-    {
-        _isChecking = true;
-        _hasChecked = false;
-        StateHasChanged();
-
-        try
-        {
-            await UpdateCheckService.CheckForUpdatesManuallyAsync();
-            _hasChecked = true;
-        }
-        finally
-        {
-            _isChecking = false;
-            StateHasChanged();
-        }
-    }
-
-    private void OpenUpdateUrl()
-    {
-        if (!string.IsNullOrEmpty(UpdateCheckService.ReleaseUrl))
-        {
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = UpdateCheckService.ReleaseUrl,
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
-                // Silently fail if we can't open the browser
-            }
-        }
-    }
-
-    public void Dispose()
-    {
-        UpdateCheckService.UpdateAvailableChanged -= HandleUpdateAvailableChanged;
-    }
-}

@@ -58,9 +58,9 @@ public static class ServiceExtensions
         services.AddSingleton<MidiService>();
         services.AddHostedService(sp => sp.GetRequiredService<MidiService>());
 
-        // Register UpdateCheckService for GitHub update checking
-        services.AddSingleton<UpdateCheckService>();
-        services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
+        // Checks for, downloads and installs app updates
+        services.AddSingleton<UpdateService>();
+        services.AddHostedService(sp => sp.GetRequiredService<UpdateService>());
 
         return services;
     }

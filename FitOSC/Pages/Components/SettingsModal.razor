@@ -7,7 +7,7 @@
 @using FitOSC.Services.WebSocket
 @using FitOSC.Pages.Components.SettingsTabs
 @inject ConfigurationService ConfigService
-@inject UpdateCheckService UpdateCheckService
+@inject UpdateService UpdateService
 @inject AppStateService AppStateService
 @inject OpenVRService OpenVRService
 @inject WebSocketService WebSocketService
@@ -39,8 +39,8 @@
                             <span class="dot" aria-hidden="true"></span>
                         </button>
                     }
-                    <div class="settings-version" aria-label="FitOSC version @UpdateCheckService.CurrentVersion">
-                        <span>Version</span><span>@UpdateCheckService.CurrentVersion</span>
+                    <div class="settings-version" aria-label="FitOSC version @UpdateService.CurrentVersion">
+                        <span>Version</span><span>@UpdateService.CurrentVersion</span>
                     </div>
                 </nav>
 
@@ -139,7 +139,7 @@
 
         var config = ConfigService.GetConfiguration();
         var autoLaunch = OpenVR.Applications is null ? config.OpenVR.AutoLaunch : OpenVRService.GetAutoLaunch();
-        _baseline = SettingsDraft.From(config, autoLaunch, WebSocketService.IsEnabled);
+        _baseline = SettingsDraft.From(config, autoLaunch, WebSocketService.IsEnabled, UpdateService.Channel);
         _draft = _baseline.Clone();
         _activePage = SettingsPage.General;
         _saveAttempted = false;
@@ -225,6 +225,8 @@
             config.User.MinimumSessionDuration = general.MinimumSessionDuration;
             config.User.UseHardwareAcceleration = general.UseHardwareAcceleration;
             config.OpenVR.AutoLaunch = general.LaunchWithSteamVR;
+            config.Updates.AutoUpdate = general.AutoUpdate;
+            config.Updates.Channel = general.UpdateChannel;
         }
 
         if (draft.IsChanged(SettingsPage.Treadmill, baseline))
@@ -281,6 +283,8 @@
             await PulsoidService.ReconnectAsync();
         if (integrations.MidiChanged(baseline.Integrations))
             MidiService.Reconnect();
+        if (general.AutoUpdate != baseline.General.AutoUpdate || general.UpdateChannel != baseline.General.UpdateChannel)
+            UpdateService.ReloadSettings();
 
         await Close();
     }

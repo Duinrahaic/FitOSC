@@ -36,6 +36,12 @@
 - Windows 10 (v1903) or later operating system.
 - Either a compatible BLE adapter on the PC ([recommended adapter](https://www.amazon.com/TP-Link-Bluetooth-Receiver-Controller-UB500/dp/B09DMP6T22)) or an ESPHome Bluetooth proxy on the same local network.
 
+## Install
+
+Download `FitOSC-win-Setup.exe` from the [latest release](https://github.com/Duinrahaic/FitOSC/releases/latest) and run it. FitOSC keeps itself up to date from then on; the options are in Settings → General → Updates.
+
+The installer isn't code-signed, so Windows may show "Windows protected your PC". Choose **More info → Run anyway**.
+
 ## Documentation
 
 Full documentation is available at [www.duinrahaic.app/fitosc](https://www.duinrahaic.app/fitosc).

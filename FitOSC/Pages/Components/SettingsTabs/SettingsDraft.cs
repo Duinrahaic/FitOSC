@@ -24,7 +24,7 @@ public sealed class SettingsDraft
     public WalkingDraft Walking { get; private set; } = new();
     public IntegrationsDraft Integrations { get; private set; } = new();
 
-    public static SettingsDraft From(AppConfiguration config, bool launchWithSteamVR, bool webSocketEnabled) => new()
+    public static SettingsDraft From(AppConfiguration config, bool launchWithSteamVR, bool webSocketEnabled, UpdateChannel updateChannel) => new()
     {
         General = new GeneralDraft
         {
@@ -32,7 +32,9 @@ public sealed class SettingsDraft
             HistoryEnabled = config.User.HistoryEnabled,
             MinimumSessionDuration = config.User.MinimumSessionDuration,
             UseHardwareAcceleration = config.User.UseHardwareAcceleration,
-            LaunchWithSteamVR = launchWithSteamVR
+            LaunchWithSteamVR = launchWithSteamVR,
+            AutoUpdate = config.Updates.AutoUpdate,
+            UpdateChannel = updateChannel
         },
         Treadmill = new TreadmillDraft
         {
@@ -108,6 +110,8 @@ public sealed class SettingsDraft
         public int MinimumSessionDuration { get; set; } = 5;
         public bool UseHardwareAcceleration { get; set; } = true;
         public bool LaunchWithSteamVR { get; set; }
+        public bool AutoUpdate { get; set; } = true;
+        public UpdateChannel UpdateChannel { get; set; }
 
         public string? MinimumSessionDurationError =>
             HistoryEnabled ? Range(MinimumSessionDuration, 1, 60, "Whole number, 1–60.") : null;
