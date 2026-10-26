@@ -700,8 +700,20 @@
 	box-sizing: border-box; // Ensures padding/border are included in width calculation
 
 	.icon {
+	  appearance: none;
+	  display: inline-flex;
+	  align-items: center;
+	  justify-content: center;
+	  border: 0;
+	  padding: 0;
+	  background: transparent;
+	  font: inherit;
+	  cursor: pointer;
 	  color: $color-text-muted;
 	  transition: all 0.3s ease;
+
+	  &:focus-visible { outline: 2px solid #64b5f6; outline-offset: 3px; border-radius: 2px; }
+	  &:disabled { cursor: default; }
 	  
 	  &.scanning {
 		animation: pulse 1.5s ease-in-out infinite;

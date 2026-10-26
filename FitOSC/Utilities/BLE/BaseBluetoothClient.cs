@@ -17,6 +17,16 @@
         public abstract string? DeviceName { get; }
 
         /// <summary>
+        /// The name to show people for a device name from <see cref="ScanAsync"/> or <see cref="DeviceName"/>.
+        /// Clients that tell same-named devices apart append the address as " [AA:BB:…]"; this leaves it out.
+        /// </summary>
+        public static string Label(string deviceName)
+        {
+            var start = deviceName.LastIndexOf(" [", StringComparison.Ordinal);
+            return start > 0 && deviceName.EndsWith(']') ? deviceName[..start] : deviceName;
+        }
+
+        /// <summary>
         /// Raised when an established connection drops without <see cref="DisconnectAsync"/> being called.
         /// </summary>
         public event Action? ConnectionLost;
@@ -28,6 +38,14 @@
         /// Optionally filters by device name.
         /// </summary>
         public abstract Task<bool> ConnectAsync(Guid serviceUuid, string? deviceName, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Lists the names of nearby devices, for choosing one to pass to <see cref="ConnectAsync"/>.
+        /// </summary>
+        /// <param name="duration">How long to listen for advertisements.</param>
+        /// <param name="serviceUuidFilter">Optional service UUID; devices advertising other services are left out.</param>
+        public abstract Task<IEnumerable<string>> ScanAsync(TimeSpan duration, Guid? serviceUuidFilter = null,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Subscribes to a given characteristic and invokes the callback on notifications.

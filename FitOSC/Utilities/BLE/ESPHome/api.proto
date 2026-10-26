@@ -1,0 +1,292 @@
+// BLE-only subset of ESPHome's native API schema (MIT licensed).
+// Source: https://github.com/esphome/esphome/blob/2026.9.1/esphome/components/api/api.proto
+// Message IDs and retained field numbers/types are unchanged. ESPHome codegen
+// options and unrelated fields/messages are omitted; protoc generates the C# models.
+syntax = "proto3";
+option csharp_namespace = "FitOSC.Utilities.BLE.ESPHome.Protocol";
+package fitosc.esphome;
+
+enum ApiMessageType {
+  UNSPECIFIED = 0;
+  HELLO_REQUEST = 1;
+  HELLO_RESPONSE = 2;
+  DISCONNECT_REQUEST = 5;
+  DISCONNECT_RESPONSE = 6;
+  PING_REQUEST = 7;
+  PING_RESPONSE = 8;
+  DEVICE_INFO_REQUEST = 9;
+  DEVICE_CAPABILITIES_REQUEST = 149;
+  SUBSCRIBE_BLUETOOTH_LE_ADVERTISEMENTS_REQUEST = 66;
+  BLUETOOTH_LE_RAW_ADVERTISEMENTS_RESPONSE = 93;
+  BLUETOOTH_DEVICE_REQUEST = 68;
+  BLUETOOTH_DEVICE_CONNECTION_RESPONSE = 69;
+  BLUETOOTH_GATT_GET_SERVICES_REQUEST = 70;
+  BLUETOOTH_GATT_GET_SERVICES_RESPONSE = 71;
+  BLUETOOTH_GATT_GET_SERVICES_DONE_RESPONSE = 72;
+  BLUETOOTH_GATT_READ_REQUEST = 73;
+  BLUETOOTH_GATT_READ_RESPONSE = 74;
+  BLUETOOTH_GATT_WRITE_REQUEST = 75;
+  BLUETOOTH_GATT_WRITE_DESCRIPTOR_REQUEST = 77;
+  BLUETOOTH_GATT_NOTIFY_REQUEST = 78;
+  BLUETOOTH_GATT_NOTIFY_DATA_RESPONSE = 79;
+  BLUETOOTH_GATT_ERROR_RESPONSE = 82;
+  BLUETOOTH_GATT_WRITE_RESPONSE = 83;
+  BLUETOOTH_GATT_NOTIFY_RESPONSE = 84;
+  DEVICE_INFO_RESPONSE = 10;
+  DEVICE_CAPABILITIES_RESPONSE = 150;
+}
+
+message HelloRequest {
+
+  // Description of client (like User Agent)
+  // For example "Home Assistant"
+  // Not strictly necessary to send but nice for debugging
+  // purposes.
+  string client_info = 1;
+  uint32 api_version_major = 2;
+  uint32 api_version_minor = 3;
+}
+
+message HelloResponse {
+
+  // The version of the API to use. The _client_ (for example Home Assistant) needs to check
+  // for compatibility and if necessary adopt to an older API.
+  // Major is for breaking changes in the base protocol - a mismatch will lead to immediate disconnect_client_
+  // Minor is for breaking changes in individual messages - a mismatch will lead to a warning message
+  uint32 api_version_major = 1;
+  uint32 api_version_minor = 2;
+
+  // A string identifying the server (ESP); like client info this may be empty
+  // and only exists for debugging/logging purposes.
+  // Currently set to ESPHOME_VERSION string literal.
+  string server_info = 3;
+
+  // The name of the server (App.get_name() - device hostname)
+  // max_data_length matches ESPHOME_DEVICE_NAME_MAX_LEN (validated by validate_hostname)
+  string name = 4;
+}
+
+message DisconnectRequest {
+
+  // Do not close the connection before the acknowledgement arrives
+
+  // Optional reason the connection is being closed. Older peers that do not
+  // send this field will report DISCONNECT_REASON_UNSPECIFIED (0).
+  DisconnectReason reason = 1;
+}
+
+message DisconnectResponse {
+
+  // Empty - Both parties are required to close the connection after this
+  // message has been received.
+}
+
+enum DisconnectReason {
+  // No specific reason / not provided (default for older peers).
+  DISCONNECT_REASON_UNSPECIFIED = 0;
+  // The device's provisioning window has expired. The device must be reset
+  // (power-cycled) to reopen the provisioning window before it will accept a
+  // connection again.
+  DISCONNECT_REASON_PROVISIONING_CLOSED = 1;
+}
+
+message PingRequest {
+
+  // Empty
+}
+
+message PingResponse {
+
+  // Empty
+}
+
+message DeviceInfoRequest {
+
+  // Empty
+}
+
+message DeviceCapabilitiesRequest {
+
+  // Empty
+}
+
+message BluetoothProxyCapabilities {
+  // Bitmask of the features this proxy supports
+  uint32 feature_flags = 1;
+  // The Bluetooth mac address of the device. For example "AC:BC:32:89:0E:AA"
+  string mac_address = 2;
+}
+
+message SubscribeBluetoothLEAdvertisementsRequest {
+
+  uint32 flags = 1;
+}
+
+message BluetoothLERawAdvertisement {
+
+  uint64 address = 1;
+  sint32 rssi = 2;
+  uint32 address_type = 3;
+
+  bytes data = 4;
+}
+
+message BluetoothLERawAdvertisementsResponse {
+
+  repeated BluetoothLERawAdvertisement advertisements = 1;
+}
+
+enum BluetoothDeviceRequestType {
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0; // V1 removed, use V3 variants
+  BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE = 4;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6;
+}
+
+message BluetoothDeviceRequest {
+
+  uint64 address = 1;
+  BluetoothDeviceRequestType request_type = 2;
+  bool has_address_type = 3;  // Deprecated, should be removed in 2027.8 - https://github.com/esphome/esphome/pull/10318
+  uint32 address_type = 4;
+}
+
+message BluetoothDeviceConnectionResponse {
+
+  uint64 address = 1;
+  bool connected = 2;
+  uint32 mtu = 3;
+  int32 error = 4;
+}
+
+message BluetoothGATTGetServicesRequest {
+
+  uint64 address = 1;
+}
+
+message BluetoothGATTDescriptor {
+  repeated uint64 uuid = 1;
+  uint32 handle = 2;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 3;  // 16-bit or 32-bit UUID
+}
+
+message BluetoothGATTCharacteristic {
+  repeated uint64 uuid = 1;
+  uint32 handle = 2;
+  uint32 properties = 3;
+  repeated BluetoothGATTDescriptor descriptors = 4;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 5;  // 16-bit or 32-bit UUID
+}
+
+message BluetoothGATTService {
+  repeated uint64 uuid = 1;
+  uint32 handle = 2;
+  repeated BluetoothGATTCharacteristic characteristics = 3;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 4;  // 16-bit or 32-bit UUID
+}
+
+message BluetoothGATTGetServicesResponse {
+
+  uint64 address = 1;
+  repeated BluetoothGATTService services = 2;
+}
+
+message BluetoothGATTGetServicesDoneResponse {
+
+  uint64 address = 1;
+}
+
+message BluetoothGATTReadRequest {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}
+
+message BluetoothGATTReadResponse {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  bytes data = 3;
+
+}
+
+message BluetoothGATTWriteRequest {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+  bool response = 3;
+
+  bytes data = 4;
+}
+
+message BluetoothGATTNotifyRequest {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+  bool enable = 3;
+}
+
+message BluetoothGATTNotifyDataResponse {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  bytes data = 3;
+}
+
+message BluetoothGATTErrorResponse {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+  int32 error = 3;
+}
+
+message BluetoothGATTWriteResponse {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}
+
+message BluetoothGATTNotifyResponse {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}
+
+message DeviceInfoResponse {
+  string name = 2;
+  string mac_address = 3;
+  string esphome_version = 4;
+  string model = 6;
+}
+
+message DeviceCapabilitiesResponse {
+  BluetoothProxyCapabilities bluetooth_proxy = 1;
+}
+
+message BluetoothGATTWriteDescriptorRequest {
+
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  bytes data = 3;
+}

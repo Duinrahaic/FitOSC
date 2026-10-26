@@ -48,6 +48,7 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     private ulong _walkingSpeedUpHandle;
     private ulong _walkingSpeedDownHandle;
     private ulong _enableOverrideHandle;
+    private ulong _swapWalkingModeHandle;
     private ulong _preset1Handle;
     private ulong _preset2Handle;
     private ulong _preset3Handle;
@@ -227,6 +228,10 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
             error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/EnableOverride", ref _enableOverrideHandle);
             if (error != EVRInputError.None)
                 _logger?.LogWarning("Failed to get EnableOverride action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/SwapWalkingMode", ref _swapWalkingModeHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get SwapWalkingMode action handle: {Error}", error);
 
             error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/Preset1", ref _preset1Handle);
             if (error != EVRInputError.None)
@@ -697,6 +702,13 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
                 error = OpenVR.Input.GetDigitalActionData(_enableOverrideHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
                 if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
                     actionEvent.EnableOverridePressed = true;
+            }
+
+            if (_swapWalkingModeHandle != 0)
+            {
+                error = OpenVR.Input.GetDigitalActionData(_swapWalkingModeHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
+                    actionEvent.SwapWalkingModePressed = true;
             }
 
             foreach (var (handle, index) in new[] {
