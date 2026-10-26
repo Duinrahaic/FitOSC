@@ -1,4 +1,5 @@
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -8,8 +9,8 @@ namespace FitOSC.Services.Treadmill;
 /// </summary>
 [TreadmillDriver(TreadmillType.EsLinker, "EQiSports / CitySports", "CitySports, GearStone, Esang and Superfit treadmills with an ES Linker module",
     AdvertisedServices = ["0000fff0-0000-1000-8000-00805f9b34fb", "ffeeddcc-bbaa-9988-7766-554433221100"])]
-public partial class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, AppStateService appState)
-    : SerialTreadmillService(logger, appState)
+public partial class EsLinkerTreadmillService(ILogger<EsLinkerTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : SerialTreadmillService(logger, appState, client)
 {
     // The EQiSports app speaks ES over fff0 and EFC over this vendor service, choosing by which one the treadmill has.
     private static readonly SerialChannel EsChannel = new(

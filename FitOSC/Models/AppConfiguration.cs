@@ -50,6 +50,8 @@ public class AppConfiguration
 
 public class TreadmillSettings
 {
+    public BluetoothConnectionSettings Connection { get; set; } = new();
+
     /// <summary>
     /// Auto-connect to last known device on startup
     /// </summary>
