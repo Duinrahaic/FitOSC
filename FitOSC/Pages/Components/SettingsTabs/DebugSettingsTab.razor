@@ -2,253 +2,125 @@
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
 @using FitOSC.Services.Configuration
-@using FitOSC.Services.VRChat
 @using FitOSC.Services.OpenVR
 @using Valve.VR
 @inject AppStateService AppStateService
 @inject ConfigurationService ConfigService
-@inject VRChatLocomotionService LocomotionService
 @inject OpenVRService OpenVRService
 @implements IDisposable
 
-<div class="settings-section">
-    <div class="settings-header">
-        <h3>App State</h3>
-        <SettingInfoButton Href="https://me.duinrahaic.app/fitosc/hardware/treadmills"/>
+<section class="page" aria-labelledby="settings-diagnostics-heading">
+    <div class="diagnostics-head">
+        <h2 id="settings-diagnostics-heading">Diagnostics</h2>
+        <p class="note console"><span>Developer console:</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>I</kbd></span></p>
     </div>
 
-    <div class="settings-item">
-        <p class="settings-hint">Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> to access the developer console for logs and debugging.</p>
+    <h3>Status</h3>
+    <div class="group">
+        <dl>
+            <dt>Treadmill</dt><dd class="@StatusClass(AppInterface.Bluetooth)">@TreadmillStatus</dd>
+            <dt>Connection</dt><dd>@ConnectionDescription</dd>
+            <dt>Driver</dt><dd>@ConfigService.GetConfiguration().Treadmill.TreadmillType</dd>
+            <dt>VR</dt><dd class="@StatusClass(AppInterface.VR)">@(FitOSC.App.DisableVR ? "Off (started with --no-vr)" : GetStatus(AppInterface.VR).ToString())</dd>
+            <dt>OSC</dt><dd class="@StatusClass(AppInterface.OSC)">@GetStatus(AppInterface.OSC)</dd>
+        </dl>
     </div>
 
-    <div class="debug-section">
-        <div class="debug-group">
-            <h4>Connection Status</h4>
-            <div class="debug-item">
-                <span class="debug-label">Bluetooth:</span>
-                <span class="debug-value @GetConnectionClass(AppInterface.Bluetooth)">
-                    @GetConnectionStatus(AppInterface.Bluetooth)
-                </span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">VR:</span>
-                <span class="debug-value @GetConnectionClass(AppInterface.VR)">
-                    @GetConnectionStatus(AppInterface.VR)
-                </span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">OSC:</span>
-                <span class="debug-value @GetConnectionClass(AppInterface.OSC)">
-                    @GetConnectionStatus(AppInterface.OSC)
-                </span>
-            </div>
-        </div>
+    <h3>Walking</h3>
+    <div class="group">
+        <dl>
+            <dt>Mode</dt><dd>@(_appState?.Walking.Mode.ToString() ?? "Unknown")</dd>
+            <dt>Max speed</dt><dd>@($"{_appState?.Walking.Config.MaxSpeed:F2} km/h")</dd>
+            <dt>Trim</dt><dd>@($"{_appState?.Walking.Config.WalkingTrim:F2}")</dd>
+            <dt>Manual override</dt><dd>@(_appState?.Walking.IsManualOverride == true ? "Active" : "Inactive")</dd>
+        </dl>
+    </div>
 
-        <div class="debug-group">
-            <h4>Device Info</h4>
-            <div class="debug-item">
-                <span class="debug-label">Device Name:</span>
-                <span class="debug-value">@(_appState?.DeviceName ?? "None")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Selected Driver:</span>
-                <span class="debug-value">@GetSelectedDriver()</span>
-            </div>
-        </div>
-        @if (_appState?.TreadmillTelemetry != null)
+    <h3>Telemetry</h3>
+    <div class="group">
+        <dl>
+            <dt>State</dt><dd>@(_appState?.TreadmillState.ToString() ?? "Unknown")</dd>
+            <dt>Speed</dt><dd>@GetTelemetryData(TreadmillTelemetryProperty.InstantaneousSpeed)</dd>
+            <dt>Distance</dt><dd>@GetTelemetryData(TreadmillTelemetryProperty.TotalDistance)</dd>
+            <dt>Pace</dt><dd>@GetTelemetryData(TreadmillTelemetryProperty.InstantaneousPace)</dd>
+            <dt>Calories</dt><dd>@GetTelemetryData(TreadmillTelemetryProperty.Calories)</dd>
+            <dt>Heart rate</dt><dd>@GetTelemetryData(TreadmillTelemetryProperty.HeartRate)</dd>
+            <dt>Incline</dt><dd>@GetTelemetryData(TreadmillTelemetryProperty.Incline)</dd>
+        </dl>
+    </div>
+
+    <h3>VR</h3>
+    <div class="group">
+        @if (_vrData is null)
         {
-            <div class="debug-group">
-                <div class="debug-group-header">
-                    <h4>Telemetry Data</h4>
-                    <div class="unit-toggle">
-                        <button class="unit-button @(_isMetric ? "active" : "")" @onclick="() => SetMetric(true)">Metric</button>
-                        <button class="unit-button @(!_isMetric ? "active" : "")" @onclick="() => SetMetric(false)">Imperial</button>
-                    </div>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">State:</span>
-                    <span class="debug-value">@(_appState?.TreadmillState.ToString() ?? "Unknown")</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Speed:</span>
-                    <span class="debug-value">@(GetTelemetryData(TreadmillTelemetryProperty.InstantaneousSpeed))</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Distance:</span>
-                    <span class="debug-value">@(GetTelemetryData(TreadmillTelemetryProperty.TotalDistance))</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Calories:</span>
-                    <span class="debug-value">@(GetTelemetryData(TreadmillTelemetryProperty.Calories))</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Heart Rate:</span>
-                    <span class="debug-value">@(GetTelemetryData(TreadmillTelemetryProperty.HeartRate))</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Incline:</span>
-                    <span class="debug-value">@(GetTelemetryData(TreadmillTelemetryProperty.Incline))</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Pace:</span>
-                    <span class="debug-value">@(GetTelemetryData(TreadmillTelemetryProperty.InstantaneousPace))</span>
-                </div>
-            </div>
+            <p class="note">Tracking and locomotion values appear when SteamVR is running.</p>
         }
-
-        <div class="debug-group">
-            <h4>Walking System</h4>
-            <div class="debug-item">
-                <span class="debug-label">Walking Mode:</span>
-                <span class="debug-value">@(_appState?.Walking.Mode.ToString() ?? "Unknown")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Max Speed:</span>
-                <span class="debug-value">@($"{_appState?.Walking.Config.MaxSpeed:F2} km/h")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Walking Trim:</span>
-                <span class="debug-value">@($"{_appState?.Walking.Config.WalkingTrim:F2}")</span>
-            </div>
-        </div>
-
-        <div class="debug-group">
-            <h4>VR Headset Tracking</h4>
-            <div class="debug-item">
-                <span class="debug-label">Yaw (Y):</span>
-                <span class="debug-value">@(_vrData != null ? $"{_vrData.Yaw:F3} rad ({_vrData.Yaw * 180 / Math.PI:F1}°)" : "N/A")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Pitch (X):</span>
-                <span class="debug-value">@(_vrData != null ? $"{_vrData.Pitch:F3} rad ({_vrData.Pitch * 180 / Math.PI:F1}°)" : "N/A")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Roll (Z):</span>
-                <span class="debug-value">@(_vrData != null ? $"{_vrData.Roll:F3} rad ({_vrData.Roll * 180 / Math.PI:F1}°)" : "N/A")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Position:</span>
-                <span class="debug-value">@(_vrData != null ? $"X={_vrData.PositionX:F2}, Y={_vrData.PositionY:F2}, Z={_vrData.PositionZ:F2}" : "N/A")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Turn Command:</span>
-                <span class="debug-value">@(_vrData?.Turn.ToString() ?? "None")</span>
-            </div>
-        </div>
-
-        <div class="debug-group">
-            <h4>Locomotion Outputs</h4>
-            <div class="debug-item">
-                <span class="debug-label">Vertical (Forward):</span>
-                <span class="debug-value">@($"{_verticalOutput:F3}")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Horizontal (Strafe):</span>
-                <span class="debug-value">@($"{_horizontalOutput:F3}")</span>
-            </div>
-            <div class="debug-item">
-                <span class="debug-label">Counter-Steer:</span>
-                <span class="debug-value">@(_vrData != null ? $"{-_vrData.HorizontalAdjustment:F3}" : "0.000")</span>
-            </div>
-        </div>
-
-        <div class="debug-group">
-            <h4>Controller Inputs</h4>
-            <div class="debug-item">
-                <span class="debug-label">Controller Type:</span>
-                <span class="debug-value">@(_controllerInfo?.GetControllerDisplayName() ?? "Not Connected")</span>
-            </div>
-            @if (_controllerInfo != null && (_controllerInfo.LeftConnected || _controllerInfo.RightConnected))
-            {
-                <div class="debug-subgroup">
-                    <h5>Left Controller @(_controllerInfo.HasThumbsticks() ? "(Thumbstick)" : "(Trackpad)")</h5>
-                    <div class="debug-item">
-                        <span class="debug-label">Connected:</span>
-                        <span class="debug-value @(_controllerInfo.LeftConnected ? "status-connected" : "status-disconnected")">
-                            @(_controllerInfo.LeftConnected ? "Yes" : "No")
-                        </span>
-                    </div>
-                    <div class="debug-item">
-                        <span class="debug-label">X Axis:</span>
-                        <span class="debug-value">@($"{_vrData?.LeftThumbstickX ?? 0:F3}")</span>
-                        <div class="debug-bar">
-                            <div class="debug-bar-fill" style="@GetBarStyle(_vrData?.LeftThumbstickX ?? 0, true)"></div>
-                            <div class="debug-bar-center"></div>
-                        </div>
-                    </div>
-                    <div class="debug-item">
-                        <span class="debug-label">Y Axis:</span>
-                        <span class="debug-value">@($"{_vrData?.LeftThumbstickY ?? 0:F3}")</span>
-                        <div class="debug-bar">
-                            <div class="debug-bar-fill" style="@GetBarStyle(_vrData?.LeftThumbstickY ?? 0, true)"></div>
-                            <div class="debug-bar-center"></div>
-                        </div>
-                    </div>
-                    <div class="debug-item">
-                        <span class="debug-label">Manual Override:</span>
-                        <span class="debug-value @(_appState?.Walking.IsManualOverride == true ? "status-error" : "")">
-                            @(_appState?.Walking.IsManualOverride == true ? "ACTIVE" : "Inactive")
-                        </span>
-                    </div>
-                </div>
-
-                <div class="debug-subgroup">
-                    <h5>Right Controller @(_controllerInfo.HasThumbsticks() ? "(Thumbstick)" : "(Trackpad)")</h5>
-                    <div class="debug-item">
-                        <span class="debug-label">Connected:</span>
-                        <span class="debug-value @(_controllerInfo.RightConnected ? "status-connected" : "status-disconnected")">
-                            @(_controllerInfo.RightConnected ? "Yes" : "No")
-                        </span>
-                    </div>
-                    <div class="debug-item">
-                        <span class="debug-label">Y Axis (Speed):</span>
-                        <span class="debug-value">@($"{_vrData?.RightThumbstickY ?? 0:F3}")</span>
-                        <div class="debug-bar">
-                            <div class="debug-bar-fill" style="@GetBarStyle(_vrData?.RightThumbstickY ?? 0, true)"></div>
-                            <div class="debug-bar-center"></div>
-                        </div>
-                    </div>
-                    <div class="debug-item">
-                        <span class="debug-label">Speed Modifier:</span>
-                        <span class="debug-value">@($"{1f + (_vrData?.RightThumbstickY ?? 0):F2}x")</span>
-                    </div>
-                </div>
-            }
-            else
-            {
-                <div class="debug-item">
-                    <span class="debug-hint">No controllers detected. Make sure SteamVR is running and controllers are connected.</span>
-                </div>
-            }
-        </div>
+        else
+        {
+            <dl>
+                <dt>Yaw</dt><dd>@($"{_vrData.Yaw:F3} rad ({_vrData.Yaw * 180 / Math.PI:F1}°)")</dd>
+                <dt>Pitch</dt><dd>@($"{_vrData.Pitch:F3} rad ({_vrData.Pitch * 180 / Math.PI:F1}°)")</dd>
+                <dt>Roll</dt><dd>@($"{_vrData.Roll:F3} rad ({_vrData.Roll * 180 / Math.PI:F1}°)")</dd>
+                <dt>Position</dt><dd>@($"X={_vrData.PositionX:F2}, Y={_vrData.PositionY:F2}, Z={_vrData.PositionZ:F2}")</dd>
+                <dt>Turn command</dt><dd>@_vrData.Turn</dd>
+                <dt>Forward output</dt><dd>@($"{_verticalOutput:F3}")</dd>
+                <dt>Strafe output</dt><dd>@($"{_horizontalOutput:F3}")</dd>
+                <dt>Counter-steer</dt><dd>@($"{-_vrData.HorizontalAdjustment:F3}")</dd>
+            </dl>
+        }
     </div>
-</div>
+
+    <h3>Controllers</h3>
+    <div class="group">
+        @if (_controllerInfo != null && (_controllerInfo.LeftConnected || _controllerInfo.RightConnected))
+        {
+            <dl>
+                <dt>Type</dt><dd>@_controllerInfo.GetControllerDisplayName() (@(_controllerInfo.HasThumbsticks() ? "thumbstick" : "trackpad"))</dd>
+                <dt>Left</dt><dd>@(_controllerInfo.LeftConnected ? $"X {_vrData?.LeftThumbstickX ?? 0:F3} · Y {_vrData?.LeftThumbstickY ?? 0:F3}" : "Not connected")</dd>
+                <dt>Right</dt><dd>@(_controllerInfo.RightConnected ? $"Y {_vrData?.RightThumbstickY ?? 0:F3}" : "Not connected")</dd>
+                <dt>Speed modifier</dt><dd>@($"{1f + (_vrData?.RightThumbstickY ?? 0):F2}x")</dd>
+            </dl>
+        }
+        else
+        {
+            <p class="note">No controllers detected.</p>
+        }
+    </div>
+</section>
 
 @code {
     private AppStateInfo? _appState;
-    private bool _isMetric = true;
     private OpenVRDataEvent? _vrData;
     private float _verticalOutput;
     private float _horizontalOutput;
     private System.Threading.Timer? _updateTimer;
     private ControllerInfo? _controllerInfo;
 
+    private bool IsMetric => ConfigService.GetConfiguration().User.PreferMetric;
+
+    private string TreadmillStatus => GetStatus(AppInterface.Bluetooth) == ConnectionStatus.Connected && _appState?.DeviceName is { } name
+        ? $"Connected · {name}"
+        : GetStatus(AppInterface.Bluetooth).ToString();
+
+    private string ConnectionDescription
+    {
+        get
+        {
+            var connection = ConfigService.GetConfiguration().Treadmill.Connection;
+            return connection.Type == BluetoothConnectionType.ESPHome
+                ? $"ESPHome relay · {connection.Host}:{connection.Port}"
+                : "This PC";
+        }
+    }
+
     protected override void OnInitialized()
     {
         AppStateService.AppStateUpdated += UpdateAppState;
         _appState = AppStateService.GetCurrentAppStateInfo();
-
-        // Subscribe to OpenVR updates
         OpenVRService.OnDataUpdateReceived += UpdateVRData;
-
-        // Load preferred units from configuration
-        var config = ConfigService.GetConfiguration();
-        _isMetric = config.User.PreferMetric;
-
-        // Get initial controller info
         _controllerInfo = OpenVRService.GetControllerInfo();
 
-        // Start update timer for locomotion outputs (refresh every 100ms)
+        // Refresh locomotion outputs and controller info every 100ms.
         _updateTimer = new System.Threading.Timer(_ => UpdateLocomotionOutputs(), null, 0, 100);
     }
 
@@ -266,17 +138,12 @@
 
     private void UpdateLocomotionOutputs()
     {
-        // Refresh controller info periodically
         _controllerInfo = OpenVRService.GetControllerInfo();
 
-        // This will be updated by reflection or we can add public properties to LocomotionService
-        // For now, calculate from available data
         if (_appState != null && _vrData != null)
         {
-            // Calculate vertical based on walking mode
             _verticalOutput = _appState.Walking.Mode switch
             {
-                WalkingMode.Disabled => 0f,
                 WalkingMode.Dynamic => CalculateDynamicVelocity(),
                 WalkingMode.Override => CalculateOverrideVelocity(),
                 _ => 0f
@@ -296,11 +163,9 @@
         var speedValue = _appState.TreadmillTelemetry.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed);
         if (speedValue == null) return 0f;
 
-        decimal currentSpeed = speedValue.Value;
-        float normalizedSpeed = (float)(currentSpeed / _appState.Walking.Config.MaxSpeed);
+        float normalizedSpeed = (float)(speedValue.Value / _appState.Walking.Config.MaxSpeed);
         normalizedSpeed = Math.Clamp(normalizedSpeed, 0f, 1f);
-        float adjustedSpeed = normalizedSpeed * _appState.Walking.Config.WalkingTrim;
-        return adjustedSpeed;
+        return normalizedSpeed * _appState.Walking.Config.WalkingTrim;
     }
 
     private float CalculateOverrideVelocity()
@@ -313,77 +178,22 @@
         return 0f;
     }
 
-    private void SetMetric(bool isMetric)
-    {
-        _isMetric = isMetric;
-        StateHasChanged();
-    }
+    private ConnectionStatus GetStatus(AppInterface interfaceType) =>
+        _appState?.ConnectionStates.TryGetValue(interfaceType, out var status) == true ? status : ConnectionStatus.Disconnected;
 
-    private string GetConnectionStatus(AppInterface interfaceType)
+    private string? StatusClass(AppInterface interfaceType) => GetStatus(interfaceType) switch
     {
-        if (_appState?.ConnectionStates.TryGetValue(interfaceType, out var status) == true)
-        {
-            return status.ToString();
-        }
-        return "Disconnected";
-    }
-
-    private string GetConnectionClass(AppInterface interfaceType)
-    {
-        if (_appState?.ConnectionStates.TryGetValue(interfaceType, out var status) == true)
-        {
-            return status switch
-            {
-                ConnectionStatus.Connected => "status-connected",
-                ConnectionStatus.Connecting => "status-connecting",
-                ConnectionStatus.Error => "status-error",
-                _ => "status-disconnected"
-            };
-        }
-        return "status-disconnected";
-    }
-
-    private string GetSelectedDriver()
-    {
-        var config = ConfigService.GetConfiguration();
-        return config.Treadmill.TreadmillType.ToString();
-    }
+        ConnectionStatus.Connected => "ok",
+        ConnectionStatus.Connecting => "busy",
+        ConnectionStatus.Error => "error",
+        _ => null
+    };
 
     private string GetTelemetryData(TreadmillTelemetryProperty property)
     {
-        if (_appState?.TreadmillTelemetry == null) return "N/A";
-
-        var telemetryValue = _appState.TreadmillTelemetry.GetTelemetryValue(property);
-        if (telemetryValue == null) return "N/A";
-
-        if (_isMetric)
-        {
-            return telemetryValue.AsMetric().ToString();
-        }
-        else
-        {
-            return telemetryValue.AsImperial().ToString();
-        }
-    }
-
-    private string GetBarStyle(float value, bool centered)
-    {
-        // Clamp value to -1 to 1 range
-        value = Math.Clamp(value, -1f, 1f);
-
-        if (centered)
-        {
-            // For centered bars: 0 is center, negative goes left, positive goes right
-            var percentage = Math.Abs(value) * 50f;
-            var left = value >= 0 ? 50f : 50f - percentage;
-            return $"left: {left:F1}%; width: {percentage:F1}%;";
-        }
-        else
-        {
-            // For non-centered bars: 0-1 range from left
-            var percentage = (value + 1f) / 2f * 100f;
-            return $"width: {percentage:F1}%;";
-        }
+        var telemetryValue = _appState?.TreadmillTelemetry?.GetTelemetryValue(property);
+        if (telemetryValue == null) return "—";
+        return (IsMetric ? telemetryValue.AsMetric() : telemetryValue.AsImperial()).ToString();
     }
 
     public void Dispose()
