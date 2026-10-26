@@ -1,4 +1,5 @@
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -6,8 +7,8 @@ namespace FitOSC.Services.Treadmill;
 /// Experimental: Evaluating driver
 /// </summary>
 [TreadmillDriver(TreadmillType.WahooKickrRun, "Wahoo KICKR RUN", "FTMS with Wahoo incline control", Experimental = true)]
-public class WahooKickrRunTreadmillService(ILogger<WahooKickrRunTreadmillService> logger, AppStateService appState)
-    : FTMSTreadmillService(logger, appState)
+public class WahooKickrRunTreadmillService(ILogger<WahooKickrRunTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : FTMSTreadmillService(logger, appState, client)
 {
     private static readonly Guid WahooControlPoint = Guid.Parse("a026e03e-0a7d-4ab3-97fa-f1500f9feb8b");
 
