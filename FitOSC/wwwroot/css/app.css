@@ -29,17 +29,17 @@
 }
 
 .btn-primary, .btn-connect, .btn-scan {
-  background: #2196f3;
-  border-color: #2196f3;
+  background: #4caf50;
+  border-color: #4caf50;
   color: #121212;
 }
 .btn-primary:hover:not(:disabled), .btn-connect:hover:not(:disabled), .btn-scan:hover:not(:disabled) {
-  background: #48a8f5;
-  border-color: #48a8f5;
+  background: #67bd6a;
+  border-color: #67bd6a;
 }
 .btn-primary:active:not(:disabled), .btn-connect:active:not(:disabled), .btn-scan:active:not(:disabled) {
-  background: #0c82df;
-  border-color: #0c82df;
+  background: #409343;
+  border-color: #409343;
 }
 
 .btn-secondary {
@@ -70,14 +70,14 @@
 
 .btn-outline {
   background: transparent;
-  border-color: #2196f3;
-  color: #2196f3;
+  border-color: #4caf50;
+  color: #4caf50;
 }
 .btn-outline:hover:not(:disabled) {
-  background: rgba(33, 150, 243, 0.1);
+  background: rgba(76, 175, 80, 0.1);
 }
 .btn-outline:active:not(:disabled) {
-  background: rgba(33, 150, 243, 0.2);
+  background: rgba(76, 175, 80, 0.2);
 }
 
 .btn-danger, .btn-delete,
@@ -146,8 +146,8 @@
 }
 .btn-icon:hover:not(:disabled) {
   background: #1e1e1e;
-  border-color: #2196f3;
-  color: #2196f3;
+  border-color: #4caf50;
+  color: #4caf50;
 }
 .btn-icon:active:not(:disabled) {
   background: #252525;
@@ -233,10 +233,10 @@
 }
 .btn-toggle-group .btn-toggle:hover:not(.active) {
   color: #e0e0e0;
-  background: rgba(33, 150, 243, 0.1);
+  background: rgba(76, 175, 80, 0.1);
 }
 .btn-toggle-group .btn-toggle.active {
-  background: #2196f3;
+  background: #4caf50;
   color: #121212;
 }
 
@@ -900,7 +900,7 @@ html .app main {
   transition: all 0.3s ease;
 }
 .treadmill-interaction .treadmill-utility-bar .icon:focus-visible {
-  outline: 2px solid #64b5f6;
+  outline: 2px solid #81c784;
   outline-offset: 3px;
   border-radius: 2px;
 }
@@ -967,18 +967,18 @@ html .app main {
 .onboarding-modal {
   --ob-bg: #161616;
   --ob-card: #1d1d1d;
-  --ob-selected: #1b2733;
+  --ob-selected: #1b251c;
   --ob-line: #2a2a2a;
   --ob-line-strong: #3a3a3a;
   --ob-text: #e8e8e8;
   --ob-soft: #c8c8c8;
   --ob-muted: #9e9e9e;
-  --ob-accent: #2196f3;
-  --ob-accent-hover: #42a5f5;
+  --ob-accent: #4caf50;
+  --ob-accent-hover: #67bd6a;
   --ob-ok: #81c784;
   --ob-warn: #ffb74d;
   --ob-error: #ff8a80;
-  --ob-focus: 0 0 0 2px #161616, 0 0 0 4px #64b5f6;
+  --ob-focus: 0 0 0 2px #161616, 0 0 0 4px #81c784;
   box-sizing: border-box;
   width: min(500px, 100vw - 16px);
   height: min(560px, 100vh - 16px);
@@ -1036,7 +1036,7 @@ html .app main {
   height: 34px;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(33, 150, 243, 0.14);
+  background: rgba(76, 175, 80, 0.14);
   color: var(--ob-accent);
   font-size: 14px;
 }
@@ -1074,11 +1074,11 @@ html .app main {
   background: #2a2a2a;
 }
 .ob-steps li.done, .ob-steps li.current {
-  color: #fff;
+  color: #121212;
   background: var(--ob-accent);
 }
 .ob-steps li.current {
-  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.25);
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
 }
 .ob-steps li.done + li::before {
   background: var(--ob-accent);
@@ -1202,7 +1202,7 @@ html .app main {
   font-size: 13px;
   color: var(--ob-soft);
   background: var(--ob-selected);
-  border: 1px solid rgba(33, 150, 243, 0.35);
+  border: 1px solid rgba(76, 175, 80, 0.35);
   border-radius: 8px;
 }
 
@@ -1437,7 +1437,7 @@ html .app main {
   font-size: 12.5px;
 }
 .ob-btn.primary {
-  color: #fff;
+  color: #121212;
   background: var(--ob-accent);
   border-color: var(--ob-accent);
 }
@@ -1465,13 +1465,13 @@ html .app main {
   --settings-text: #e8e8e8;
   --settings-muted: #9e9e9e;
   --settings-faint: #767676;
-  --settings-accent: #2196f3;
-  --settings-accent-hover: #42a5f5;
-  --settings-accent-soft: rgba(33, 150, 243, 0.12);
+  --settings-accent: #4caf50;
+  --settings-accent-hover: #67bd6a;
+  --settings-accent-soft: rgba(76, 175, 80, 0.12);
   --settings-ok: #81c784;
   --settings-warn: #ffb74d;
   --settings-error: #ff8a80;
-  --settings-focus: 0 0 0 2px #161616, 0 0 0 4px #64b5f6;
+  --settings-focus: 0 0 0 2px #161616, 0 0 0 4px #81c784;
   box-sizing: border-box;
   width: min(700px, 100vw - 16px);
   height: min(760px, 100vh - 16px);
@@ -1740,7 +1740,7 @@ html .app main {
   white-space: nowrap;
 }
 .settings-window .note a {
-  color: #90caf9;
+  color: #81c784;
   text-decoration: none;
   border-radius: 3px;
 }
@@ -1775,7 +1775,7 @@ html .app main {
 .settings-window input[type=text]:focus-visible, .settings-window input[type=number]:focus-visible, .settings-window input[type=password]:focus-visible {
   outline: none;
   border-color: var(--settings-accent);
-  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.25);
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
 }
 .settings-window input[type=text]:disabled, .settings-window input[type=number]:disabled, .settings-window input[type=password]:disabled {
   opacity: 0.6;
@@ -1835,7 +1835,7 @@ html .app main {
   cursor: not-allowed;
 }
 .settings-window .settings-btn.primary {
-  color: #fff;
+  color: #121212;
   background: var(--settings-accent);
   border-color: var(--settings-accent);
 }
@@ -2027,7 +2027,7 @@ html .app main {
   border-top: 1px solid var(--settings-line);
 }
 .settings-window .device-card.connected {
-  box-shadow: inset 0 0 0 1px rgba(33, 150, 243, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(76, 175, 80, 0.35);
 }
 .settings-window .device-card.connected .device-icon {
   color: var(--settings-accent);
@@ -2097,7 +2097,7 @@ html .app main {
   color: var(--settings-ok);
 }
 .settings-window dd.busy {
-  color: #90caf9;
+  color: #81c784;
 }
 .settings-window dd.error {
   color: var(--settings-error);
@@ -2156,7 +2156,7 @@ html .app main {
   color: #f48fb1;
 }
 .settings-window .about-links a:hover, .settings-window .about-links a:hover i:not(.kofi) {
-  color: #90caf9;
+  color: #81c784;
 }
 .settings-window .about-links a:focus-visible {
   outline: none;
@@ -2202,7 +2202,7 @@ html .app main {
   border-radius: 3px;
 }
 .settings-window .about-credits a:hover {
-  color: #90caf9;
+  color: #81c784;
   text-decoration: underline;
 }
 .settings-window .about-credits a:focus-visible {
@@ -2212,7 +2212,7 @@ html .app main {
 .settings-window .link {
   justify-self: start;
   font-size: 13px;
-  color: #90caf9;
+  color: #81c784;
   text-decoration: none;
   border-radius: 3px;
 }
@@ -2376,7 +2376,7 @@ html .app main {
   opacity: 0.6;
 }
 .bt-connection-choice input:focus-visible + span {
-  box-shadow: 0 0 0 2px #64b5f6;
+  box-shadow: 0 0 0 2px #81c784;
 }
 
 .bt-connection-proxy {
@@ -2420,8 +2420,8 @@ html .app main {
 }
 .bt-connection-field input:focus-visible {
   outline: none;
-  border-color: #2196f3;
-  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.25);
+  border-color: #4caf50;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
 }
 .bt-connection-field input:disabled {
   opacity: 0.6;
@@ -2450,7 +2450,7 @@ html .app main {
 }
 .bt-connection-reveal:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px #64b5f6;
+  box-shadow: 0 0 0 2px #81c784;
 }
 
 .bt-connection-result {
@@ -2488,7 +2488,7 @@ html .app main {
   background: #81c784;
 }
 .bt-connection-status.busy::before {
-  background: #2196f3;
+  background: #4caf50;
 }
 .bt-connection-status.error::before {
   background: #ff8a80;
@@ -2533,10 +2533,10 @@ html .app main {
   cursor: pointer;
 }
 .app-dropdown .app-dropdown-trigger:hover:not(:disabled), .app-dropdown .app-dropdown-trigger[aria-expanded=true] {
-  border-color: #2196f3;
+  border-color: #4caf50;
 }
 .app-dropdown .app-dropdown-trigger:focus-visible {
-  outline: 2px solid #2196f3;
+  outline: 2px solid #4caf50;
   outline-offset: 2px;
 }
 .app-dropdown .app-dropdown-trigger:disabled {
@@ -2593,21 +2593,21 @@ html .app main {
 }
 .app-dropdown .app-dropdown-option > i {
   flex: none;
-  color: #2196f3;
+  color: #4caf50;
   font-size: 12px;
 }
 .app-dropdown .app-dropdown-option[aria-selected=true] {
-  background: rgba(33, 150, 243, 0.12);
+  background: rgba(76, 175, 80, 0.12);
 }
 .app-dropdown .app-dropdown-option.is-active, .app-dropdown .app-dropdown-option:hover:not(:disabled) {
-  background: rgba(33, 150, 243, 0.24);
+  background: rgba(76, 175, 80, 0.24);
 }
 .app-dropdown .app-dropdown-option:disabled {
   color: #a0a0a0;
   cursor: not-allowed;
 }
 .app-dropdown .app-dropdown-option:focus-visible {
-  outline: 2px solid #2196f3;
+  outline: 2px solid #4caf50;
   outline-offset: -2px;
 }
 

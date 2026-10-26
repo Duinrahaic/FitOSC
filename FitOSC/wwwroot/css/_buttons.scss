@@ -30,7 +30,7 @@
   @extend .btn;
   background: $color-accent;
   border-color: $color-accent;
-  color: $color-background;
+  color: $color-on-accent;
 
   &:hover:not(:disabled) {
     background: $color-accent-hover;
@@ -127,7 +127,7 @@
   @extend .btn;
   background: $color-success;
   border-color: $color-success;
-  color: $color-background;
+  color: $color-on-accent;
 
   &:hover:not(:disabled) {
     background: lighten($color-success, 8%);
@@ -260,7 +260,7 @@
 
     &.active {
       background: $color-accent;
-      color: $color-background;
+      color: $color-on-accent;
     }
   }
 }
@@ -314,7 +314,7 @@
   }
 
   &.btn-primary::after {
-    border-top-color: $color-background;
+    border-top-color: $color-on-accent;
   }
 
   &.btn-secondary::after,

@@ -35,7 +35,7 @@
   span { display: block; padding: 5px 12px; border-radius: 4px; font-size: 13px; color: $color-text-muted; text-align: center; white-space: nowrap; }
   input:checked + span { background: #2c2c2c; color: #fff; }
   input:disabled + span { opacity: 0.6; }
-  input:focus-visible + span { box-shadow: 0 0 0 2px #64b5f6; }
+  input:focus-visible + span { box-shadow: 0 0 0 2px $color-accent-light; }
 }
 
 .bt-connection-proxy {
@@ -94,7 +94,7 @@
   cursor: pointer;
 
   &:hover { color: $color-text; background: #303030; }
-  &:focus-visible { outline: none; box-shadow: 0 0 0 2px #64b5f6; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 2px $color-accent-light; }
 }
 
 // Relay status: its own status, separate from the treadmill's device status.

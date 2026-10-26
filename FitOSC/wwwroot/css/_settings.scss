@@ -12,12 +12,12 @@
   --settings-muted: #9e9e9e;
   --settings-faint: #767676;
   --settings-accent: #{$color-accent};
-  --settings-accent-hover: #42a5f5;
-  --settings-accent-soft: rgba(33, 150, 243, 0.12);
+  --settings-accent-hover: #{$color-accent-hover};
+  --settings-accent-soft: #{rgba($color-accent, 0.12)};
   --settings-ok: #81c784;
   --settings-warn: #ffb74d;
   --settings-error: #ff8a80;
-  --settings-focus: 0 0 0 2px #161616, 0 0 0 4px #64b5f6;
+  --settings-focus: 0 0 0 2px #161616, 0 0 0 4px #{$color-accent-light};
 
   box-sizing: border-box;
   width: min(700px, calc(100vw - 16px));
@@ -204,7 +204,7 @@
   .note.spaced { padding-top: 8px; }
   .note.console { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin-left: auto; }
   .note.console > span { white-space: nowrap; }
-  .note a { color: #90caf9; text-decoration: none; border-radius: 3px; }
+  .note a { color: $color-accent-light; text-decoration: none; border-radius: 3px; }
   .note a:hover { text-decoration: underline; }
   .note a:focus-visible { outline: none; box-shadow: var(--settings-focus); }
 
@@ -229,7 +229,7 @@
     border-radius: 6px;
 
     &::placeholder { color: #606060; }
-    &:focus-visible { outline: none; border-color: var(--settings-accent); box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.25); }
+    &:focus-visible { outline: none; border-color: var(--settings-accent); box-shadow: 0 0 0 3px rgba($color-accent, 0.25); }
     &:disabled { opacity: 0.6; cursor: not-allowed; }
     &[aria-invalid="true"] { border-color: var(--settings-error); }
     &[readonly] { color: var(--settings-muted); }
@@ -265,7 +265,7 @@
     &:focus-visible { outline: none; box-shadow: var(--settings-focus); }
     &:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    &.primary { color: #fff; background: var(--settings-accent); border-color: var(--settings-accent); }
+    &.primary { color: $color-on-accent; background: var(--settings-accent); border-color: var(--settings-accent); }
     &.primary:hover:not(:disabled) { background: var(--settings-accent-hover); }
     &.quiet { color: var(--settings-muted); background: transparent; border-color: transparent; }
     &.quiet:hover:not(:disabled) { color: var(--settings-text); background: #222; }
@@ -379,7 +379,7 @@
     .device-err { margin: 0; padding-bottom: 12px; }
     .devices, > .results { padding: 6px 0 8px; border-top: 1px solid var(--settings-line); }
 
-    &.connected { box-shadow: inset 0 0 0 1px rgba(33, 150, 243, 0.35); }
+    &.connected { box-shadow: inset 0 0 0 1px rgba($color-accent, 0.35); }
     &.connected .device-icon { color: var(--settings-accent); background: var(--settings-accent-soft); }
   }
 
@@ -414,7 +414,7 @@
   dt { color: var(--settings-muted); }
   dd { text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   dd.ok { color: var(--settings-ok); }
-  dd.busy { color: #90caf9; }
+  dd.busy { color: $color-accent-light; }
   dd.error { color: var(--settings-error); }
 
   // About
@@ -451,7 +451,7 @@
 
       i { flex: none; width: 18px; text-align: center; color: var(--settings-faint); }
       i.kofi { color: #f48fb1; }
-      &:hover, &:hover i:not(.kofi) { color: #90caf9; }
+      &:hover, &:hover i:not(.kofi) { color: $color-accent-light; }
       &:focus-visible { outline: none; box-shadow: var(--settings-focus); border-radius: 3px; }
     }
   }
@@ -486,14 +486,14 @@
     line-height: 1.7;
 
     a { color: var(--settings-muted); text-decoration: none; white-space: nowrap; border-radius: 3px; }
-    a:hover { color: #90caf9; text-decoration: underline; }
+    a:hover { color: $color-accent-light; text-decoration: underline; }
     a:focus-visible { outline: none; box-shadow: var(--settings-focus); }
   }
 
   .link {
     justify-self: start;
     font-size: 13px;
-    color: #90caf9;
+    color: $color-accent-light;
     text-decoration: none;
     border-radius: 3px;
 

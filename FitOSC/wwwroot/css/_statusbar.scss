@@ -1,7 +1,7 @@
 // Update indicator styling
 #update {
   &.active {
-    @include iconGlow($color-accent, 0, 6px);
+    @include iconGlow($color-info, 0, 6px);
     animation: updatePulse 2s ease-in-out infinite;
   }
 }

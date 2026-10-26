@@ -4,18 +4,18 @@
 .onboarding-modal {
   --ob-bg: #161616;
   --ob-card: #1d1d1d;
-  --ob-selected: #1b2733;
+  --ob-selected: #{mix($color-accent, #161616, 10%)};
   --ob-line: #2a2a2a;
   --ob-line-strong: #3a3a3a;
   --ob-text: #e8e8e8;
   --ob-soft: #c8c8c8;
   --ob-muted: #9e9e9e;
   --ob-accent: #{$color-accent};
-  --ob-accent-hover: #42a5f5;
+  --ob-accent-hover: #{$color-accent-hover};
   --ob-ok: #81c784;
   --ob-warn: #ffb74d;
   --ob-error: #ff8a80;
-  --ob-focus: 0 0 0 2px #161616, 0 0 0 4px #64b5f6;
+  --ob-focus: 0 0 0 2px #161616, 0 0 0 4px #{$color-accent-light};
 
   box-sizing: border-box;
   width: min(500px, calc(100vw - 16px));
@@ -101,7 +101,7 @@
       background: #2a2a2a;
     }
 
-    &.done, &.current { color: #fff; background: var(--ob-accent); }
+    &.done, &.current { color: $color-on-accent; background: var(--ob-accent); }
     &.current { box-shadow: 0 0 0 3px rgba($color-accent, 0.25); }
     &.done + li::before { background: var(--ob-accent); }
 
@@ -377,7 +377,7 @@
   &.small { height: 28px; padding: 0 10px; font-size: 12.5px; }
 
   &.primary {
-    color: #fff;
+    color: $color-on-accent;
     background: var(--ob-accent);
     border-color: var(--ob-accent);
 

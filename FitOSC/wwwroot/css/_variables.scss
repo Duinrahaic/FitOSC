@@ -13,10 +13,12 @@ $color-text-muted: #a0a0a0;
 $color-text-inverted: #ffffff;
 
 // Accent
-$color-accent: #2196f3; // Main blue
+$color-accent: #4caf50; // Main green
 $color-accent-hover: lighten($color-accent, 8%);
 $color-accent-active: darken($color-accent, 8%);
 $color-accent-muted: rgba($color-accent, 0.5);
+$color-accent-light: #81c784; // Links and focus rings on dark surfaces
+$color-on-accent: $color-background; // Text on accent fills; white is too faint on green
 
 // Indicators
 $bluetooth-color: #007bff;
@@ -25,10 +27,10 @@ $vr-color: #fff;
 
 
 // Status
-$color-success: #4caf50;
+$color-success: $color-accent;
 $color-warning: #ff9800;
 $color-error: #f44336;
-$color-info: $color-accent;
+$color-info: #2196f3;
 
 // Shadows
 $shadow-elevation-1: 0 2px 4px rgba(0, 0, 0, 0.25);
