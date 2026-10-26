@@ -17,8 +17,8 @@ public record SerialChannel(Guid Service, Guid Notify, Guid Write);
 /// may run alongside either, so state they share with notifications must be thread-safe, e.g. a
 /// <see cref="CommandedValue"/>.
 /// </remarks>
-public abstract class SerialTreadmillService(ILogger logger, AppStateService appState)
-    : TreadmillService(appState, new WindowsBluetoothClient(logger))
+public abstract class SerialTreadmillService(ILogger logger, AppStateService appState, BaseBluetoothClient client)
+    : TreadmillService(appState, client)
 {
     protected readonly ILogger Logger = logger;
 
@@ -40,6 +40,9 @@ public abstract class SerialTreadmillService(ILogger logger, AppStateService app
 
     /// <summary>Channels to try in order; the first one the device exposes is used.</summary>
     protected abstract IReadOnlyList<SerialChannel> Channels { get; }
+
+    /// <summary>The channel this session connected on; set before <see cref="OnConnectedAsync"/> runs.</summary>
+    protected SerialChannel? ConnectedChannel => _channel;
 
     protected abstract TimeSpan PollInterval { get; }
 
