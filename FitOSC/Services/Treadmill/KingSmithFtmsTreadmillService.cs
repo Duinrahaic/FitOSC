@@ -1,4 +1,5 @@
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -6,8 +7,8 @@ namespace FitOSC.Services.Treadmill;
 /// Experimental: Evaluating driver
 /// </summary>
 [TreadmillDriver(TreadmillType.KingSmithFtms, "KingSmith FTMS", "Newer KingSmith treadmills that require an unlock before control", Experimental = true)]
-public class KingSmithFtmsTreadmillService(ILogger<KingSmithFtmsTreadmillService> logger, AppStateService appState)
-    : FTMSTreadmillService(logger, appState)
+public class KingSmithFtmsTreadmillService(ILogger<KingSmithFtmsTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : FTMSTreadmillService(logger, appState, client)
 {
     private static readonly Guid UnlockCharacteristic = Guid.Parse("d18d2c10-c44c-11e8-a355-529269fb1459");
 
