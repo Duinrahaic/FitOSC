@@ -1,4 +1,5 @@
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -7,8 +8,8 @@ namespace FitOSC.Services.Treadmill;
 /// </summary>
 [TreadmillDriver(TreadmillType.IConsole, "iConsole iRunning+", "Treadmills that work with the iConsole+ app", Experimental = true,
     AdvertisedServices = ["0000fff0-0000-1000-8000-00805f9b34fb", "49535343-fe7d-4ae5-8fa9-9fafd205e455"])]
-public class IConsoleTreadmillService(ILogger<IConsoleTreadmillService> logger, AppStateService appState)
-    : SerialTreadmillService(logger, appState)
+public class IConsoleTreadmillService(ILogger<IConsoleTreadmillService> logger, AppStateService appState,
+    BaseBluetoothClient client) : SerialTreadmillService(logger, appState, client)
 {
     private const byte Header = 0xF0;
 
