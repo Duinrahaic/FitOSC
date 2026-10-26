@@ -1,5 +1,6 @@
 using System.Reflection;
 using FitOSC.Services.State;
+using FitOSC.Utilities.BLE;
 
 namespace FitOSC.Services.Treadmill;
 
@@ -55,15 +56,18 @@ public static class TreadmillDrivers
     }
 
     /// <summary>
-    /// Creates the driver's service. Driver constructors take a logger (<see cref="ILogger"/> or
-    /// <see cref="ILogger{TCategoryName}"/>) and the <see cref="AppStateService"/>.
+    /// Creates the driver's service over <paramref name="client"/>, which the service then owns. Driver constructors
+    /// take a logger (<see cref="ILogger"/> or <see cref="ILogger{TCategoryName}"/>), the <see cref="AppStateService"/>
+    /// and the <see cref="BaseBluetoothClient"/>.
     /// </summary>
-    public static ITreadmillService Create(TreadmillDriver driver, ILoggerFactory loggerFactory, AppStateService appState)
+    public static ITreadmillService Create(TreadmillDriver driver, ILoggerFactory loggerFactory, AppStateService appState,
+        BaseBluetoothClient client)
     {
         var constructor = driver.ServiceType.GetConstructors().Single();
         var arguments = constructor.GetParameters().Select(parameter => parameter.ParameterType switch
         {
             var type when type == typeof(AppStateService) => appState,
+            var type when type == typeof(BaseBluetoothClient) => client,
             var type when type == typeof(ILogger) => loggerFactory.CreateLogger(driver.ServiceType),
             var type when type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ILogger<>) =>
                 Activator.CreateInstance(typeof(Logger<>).MakeGenericType(type.GenericTypeArguments), loggerFactory)!,
