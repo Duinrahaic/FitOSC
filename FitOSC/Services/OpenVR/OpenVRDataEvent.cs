@@ -1,4 +1,6 @@
-﻿namespace FitOSC.Services.OpenVR;
+﻿using System.Numerics;
+
+namespace FitOSC.Services.OpenVR;
 
 public class OpenVRDataEvent
 {
@@ -13,6 +15,9 @@ public class OpenVRDataEvent
     public float PositionX { get; set; } = 0;
     public float PositionY { get; set; } = 0;
     public float PositionZ { get; set; } = 0;
+
+    // Waist tracker rotation, null when no waist tracker has a valid pose
+    public Quaternion? HipRotation { get; set; }
 
     // Right controller thumbstick Y axis (-1 = down, +1 = up)
     public float RightThumbstickY { get; set; } = 0;

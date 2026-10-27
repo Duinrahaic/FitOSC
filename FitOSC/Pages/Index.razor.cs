@@ -25,6 +25,7 @@ public partial class Index
             {
                 MaxSpeed = config.WalkingMode.MaxSpeed,
                 WalkingTrim = config.WalkingMode.DefaultTrim,
+                Steering = config.WalkingMode.Steering,
                 SmoothingFactor = config.WalkingMode.SmoothingFactor,
                 MaxTurnAngle = config.WalkingMode.MaxTurnAngle,
                 UpdateIntervalMs = config.WalkingMode.UpdateIntervalMs,
