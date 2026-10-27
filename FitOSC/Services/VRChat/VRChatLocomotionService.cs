@@ -493,7 +493,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 // Calculate angle difference: how much head has turned from the walking direction
                 float currentYaw = _latestOpenVRData.Yaw;
-                float yawDiff = currentYaw - ReferenceYaw.Value;
+                float yawDiff = currentYaw - (ReferenceYaw ?? _initialYaw.Value);
 
                 // Normalize angle to [-π, π] range
                 while (yawDiff > MathF.PI) yawDiff -= 2 * MathF.PI;
