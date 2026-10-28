@@ -424,7 +424,7 @@ html .app main {
   max-width: 100%;
   overflow: hidden;
 }
-.treadmill-interaction .treadmill-display-metrics {
+.treadmill-interaction .treadmill-display-metrics, .treadmill-interaction .treadmill-display-history {
   display: flex;
   flex-direction: row;
   gap: 16px;
@@ -442,23 +442,89 @@ html .app main {
   pointer-events: none;
   transition: opacity 0.3s ease-in-out;
 }
-.treadmill-interaction .treadmill-display-metrics.visible {
+.treadmill-interaction .treadmill-display-metrics.visible, .treadmill-interaction .treadmill-display-history.visible {
   opacity: 1;
   pointer-events: auto;
 }
-.treadmill-interaction .treadmill-display-metrics .treadmill-info-box-item {
+.treadmill-interaction .treadmill-display-metrics .treadmill-info-box-item, .treadmill-interaction .treadmill-display-history .treadmill-info-box-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 200px;
 }
-.treadmill-interaction .treadmill-display-metrics .treadmill-info-box-item .treadmill-info-box-value {
+.treadmill-interaction .treadmill-display-metrics .treadmill-info-box-item .treadmill-info-box-value, .treadmill-interaction .treadmill-display-history .treadmill-info-box-item .treadmill-info-box-value {
   font-size: 24px;
 }
-.treadmill-interaction .treadmill-display-metrics .treadmill-info-box-item .treadmill-info-box-title {
+.treadmill-interaction .treadmill-display-metrics .treadmill-info-box-item .treadmill-info-box-title, .treadmill-interaction .treadmill-display-history .treadmill-info-box-item .treadmill-info-box-title {
   font-size: 14px;
   color: #a0a0a0;
+}
+.treadmill-interaction .treadmill-display-history .treadmill-info-box-item {
+  padding: 0;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font: inherit;
+  cursor: pointer;
+}
+.treadmill-interaction .treadmill-display-history .treadmill-info-box-item .treadmill-info-box-title {
+  transition: color 0.35s ease;
+}
+.treadmill-interaction .treadmill-display-history .treadmill-info-box-item:hover:not(:disabled) .treadmill-info-box-title, .treadmill-interaction .treadmill-display-history .treadmill-info-box-item.active .treadmill-info-box-title {
+  color: #e0e0e0;
+}
+.treadmill-interaction .treadmill-display-history .treadmill-info-box-item:disabled {
+  cursor: default;
+}
+.treadmill-interaction .treadmill-display-history-underline {
+  --item-width: min(200px, calc((100% - 104px) / 5));
+  position: absolute;
+  bottom: 0;
+  left: calc(20px + var(--slot) * (100% - 40px - var(--item-width)) / 4);
+  width: var(--item-width);
+  height: 2px;
+  background: #00d4aa;
+  box-shadow: 0 0 6px #00d4aa;
+  transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.treadmill-interaction .treadmill-display-history.visible ~ .treadmill-display-metrics {
+  opacity: 0;
+  pointer-events: none;
+}
+.treadmill-interaction .treadmill-display-history-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+}
+.treadmill-interaction .treadmill-display-history-labels .value,
+.treadmill-interaction .treadmill-display-history-labels .date {
+  position: absolute;
+  color: #a0a0a0;
+  text-align: center;
+  white-space: pre;
+}
+.treadmill-interaction .treadmill-display-history-labels .value.hot,
+.treadmill-interaction .treadmill-display-history-labels .date.hot {
+  color: #e0e0e0;
+}
+.treadmill-interaction .treadmill-display-history-labels .value {
+  transform: translate(-50%, -100%);
+  font-size: 15px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+.treadmill-interaction .treadmill-display-history-labels .value.hot {
+  font-size: 24px;
+}
+.treadmill-interaction .treadmill-display-history-labels .date {
+  transform: translate(-50%, 6px);
+  font-size: 11px;
+  line-height: 1.35;
 }
 .treadmill-interaction .treadmill-display-visual-container {
   width: 100%;

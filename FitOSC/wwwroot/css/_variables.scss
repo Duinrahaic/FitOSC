@@ -18,6 +18,9 @@ $color-accent-hover: lighten($color-accent, 8%);
 $color-accent-active: darken($color-accent, 8%);
 $color-accent-muted: rgba($color-accent, 0.5);
 
+// 3D scene (treadmillDisplay.js)
+$color-scene-accent: #00d4aa;
+
 // Indicators
 $bluetooth-color: #007bff;
 $wifi-color: #28a745;

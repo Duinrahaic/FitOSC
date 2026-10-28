@@ -16,6 +16,24 @@
                 <label><input type="radio" name="settings-units" checked="@(!Draft.PreferMetric)" @onchange="() => SetPreferMetric(false)" /><span>Imperial</span></label>
             </div>
         </div>
+        <div class="row inline">
+            <div class="lab"><span class="t" id="settings-date-label">Date</span></div>
+            <div class="ctl seg" role="radiogroup" aria-labelledby="settings-date-label">
+                @foreach (var format in Enum.GetValues<DateFormat>())
+                {
+                    <label><input type="radio" name="settings-date" checked="@(Draft.DateFormat == format)" @onchange="() => SetDateFormat(format)" /><span>@(format == DateFormat.DayMonth ? "DD/MM" : "MM/DD")</span></label>
+                }
+            </div>
+        </div>
+        <div class="row inline">
+            <div class="lab"><span class="t" id="settings-time-label">Time</span></div>
+            <div class="ctl seg" role="radiogroup" aria-labelledby="settings-time-label">
+                @foreach (var format in Enum.GetValues<TimeFormat>())
+                {
+                    <label><input type="radio" name="settings-time" checked="@(Draft.TimeFormat == format)" @onchange="() => SetTimeFormat(format)" /><span>@(format == TimeFormat.TwentyFourHour ? "24-hour" : "12-hour")</span></label>
+                }
+            </div>
+        </div>
     </div>
 
     <h3>History</h3>
@@ -114,6 +132,18 @@
     private Task SetPreferMetric(bool preferMetric)
     {
         Draft.PreferMetric = preferMetric;
+        return Notify();
+    }
+
+    private Task SetDateFormat(DateFormat format)
+    {
+        Draft.DateFormat = format;
+        return Notify();
+    }
+
+    private Task SetTimeFormat(TimeFormat format)
+    {
+        Draft.TimeFormat = format;
         return Notify();
     }
 
