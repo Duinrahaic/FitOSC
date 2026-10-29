@@ -1,69 +1,84 @@
+@using FitOSC.Services
 @using FitOSC.Services.Configuration
+@using FitOSC.Services.Midi
+@using Valve.VR
+@using FitOSC.Services.Pulsoid
+@using FitOSC.Services.State
+@using FitOSC.Services.WebSocket
 @using FitOSC.Pages.Components.SettingsTabs
 @inject ConfigurationService ConfigService
-@implements IDisposable
+@inject UpdateService UpdateService
+@inject DateTimeFormatService DateTimeFormatService
+@inject AppStateService AppStateService
+@inject OpenVRService OpenVRService
+@inject WebSocketService WebSocketService
+@inject PulsoidService PulsoidService
+@inject MidiService MidiService
+@inject OnboardingService OnboardingService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
-@if (IsOpen)
+@if (IsOpen && _draft is not null && _baseline is not null)
 {
-    <div class="modal-overlay" @onclick="Close">
-        <div class="modal-content" @onclick:stopPropagation="true">
-            <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="modal-close" @onclick="Close">
-                    <i class="fa-solid fa-times"></i>
+    <div class="modal-overlay" @onclick="RequestClose">
+        <div class="settings-window" @ref="_window" role="dialog" aria-modal="true" aria-labelledby="settings-title" @onclick:stopPropagation="true">
+            <header class="settings-head">
+                <h1 id="settings-title">Settings</h1>
+                <button class="settings-btn quiet icon" type="button" aria-label="Close settings" @onclick="RequestClose" disabled="@_isSaving">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                 </button>
-            </div>
-            <div class="modal-body">
-                <div class="settings-tabs">
-                    <button class="tab-button @(_activeTab == "user" ? "active" : "")" @onclick='() => SetActiveTab("user")'>
-                        <i class="fa-solid fa-user"></i>
-                        <span>User</span>
-                    </button>
-                    <button class="tab-button @(_activeTab == "walking" ? "active" : "")" @onclick='() => SetActiveTab("walking")'>
-                        <i class="fa-solid fa-walking"></i>
-                        <span>Walking</span>
-                    </button>
-                    <button class="tab-button @(_activeTab == "integrations" ? "active" : "")" @onclick='() => SetActiveTab("integrations")'>
-                        <i class="fa-solid fa-plug"></i>
-                        <span>Integrations</span>
-                    </button>
-                    <button class="tab-button @(_activeTab == "debug" ? "active" : "")" @onclick='() => SetActiveTab("debug")'>
-                        <i class="fa-solid fa-bug"></i>
-                        <span>Debug</span>
-                    </button>
-                    <button class="tab-button @(_activeTab == "about" ? "active" : "")" @onclick='() => SetActiveTab("about")'>
-                        <i class="fa-solid fa-circle-info"></i>
-                        <span>About</span>
-                    </button>
-                </div>
+            </header>
 
-                <div class="tab-content">
-                    @if (_activeTab == "user")
+            <div class="settings-body" inert="@(_isSaving ? "" : null)">
+                <nav class="settings-menu" aria-label="Settings sections">
+                    @foreach (var menuPage in Enum.GetValues<SettingsPage>())
                     {
-                        <UserSettingsTab @ref="_userTab" OnPreferMetricChanged="NotifyPreferMetricChanged" ShouldCloseSettings="Close" />
+                        <button type="button" class="@(_draft.IsChanged(menuPage, _baseline) ? "dirty" : null)"
+                                aria-current="@(menuPage == _activePage ? "page" : null)" @onclick="() => _activePage = menuPage">
+                            <i class="fa-solid @PageIcon(menuPage)" aria-hidden="true"></i>
+                            <span class="settings-menu-label">@menuPage.ToString()</span>
+                            <span class="dot" aria-hidden="true"></span>
+                        </button>
                     }
-                    else if (_activeTab == "walking")
+                    <div class="settings-version" aria-label="FitOSC version @UpdateService.CurrentVersion">
+                        <span>Version</span><span>@UpdateService.CurrentVersion</span>
+                    </div>
+                </nav>
+
+                <div class="settings-pane" @key="_activePage">
+                    @switch (_activePage)
                     {
-                        <WalkingSettingsTab @ref="_walkingTab" />
-                    }
-                    else if (_activeTab == "integrations")
-                    {
-                        <IntegrationsSettingsTab @ref="_integrationsTab" />
-                    }
-                    else if (_activeTab == "debug")
-                    {
-                        <DebugSettingsTab />
-                    }
-                    else if (_activeTab == "about")
-                    {
-                        <AboutSettingsTab />
+                        case SettingsPage.General:
+                            <UserSettingsTab Draft="_draft.General" Changed="DraftChanged" RunSetup="RunSetup" />
+                            break;
+                        case SettingsPage.Treadmill:
+                            <TreadmillSettingsTab Draft="_draft.Treadmill" Baseline="_baseline.Treadmill" ShowValidation="_saveAttempted"
+                                                  Changed="DraftChanged" Connected="AcceptConnectedTreadmill" />
+                            break;
+                        case SettingsPage.Walking:
+                            <WalkingSettingsTab Draft="_draft.Walking" Metric="_draft.General.PreferMetric" Changed="DraftChanged" />
+                            break;
+                        case SettingsPage.Integrations:
+                            <IntegrationsSettingsTab Draft="_draft.Integrations" Changed="DraftChanged" />
+                            break;
+                        case SettingsPage.Diagnostics:
+                            <DebugSettingsTab />
+                            break;
+                        case SettingsPage.About:
+                            <AboutSettingsTab />
+                            break;
                     }
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" @onclick="Close">Cancel</button>
-                <button class="btn-primary" @onclick="SaveSettings">Save</button>
-            </div>
+
+            @if (HasChanges || _activePage is not (SettingsPage.Diagnostics or SettingsPage.About))
+            {
+                <footer class="settings-foot @(HasChanges || _closeBlocked ? "attention" : null)">
+                    <span class="state" role="status" aria-live="polite">@FooterText</span>
+                    <button class="settings-btn quiet" type="button" @onclick="Close" disabled="@_isSaving">Cancel</button>
+                    <button class="settings-btn primary" type="button" data-settings-save @onclick="Save" disabled="@(!HasChanges || _isSaving)">@(_isSaving ? "Saving…" : "Save")</button>
+                </footer>
+            }
         </div>
     </div>
 }
@@ -72,77 +87,224 @@
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
 
-    private string _activeTab = "user";
-    private IntegrationsSettingsTab? _integrationsTab;
-    private UserSettingsTab? _userTab;
-    private WalkingSettingsTab? _walkingTab;
+    private SettingsDraft? _draft;
+    private SettingsDraft? _baseline;
+    private SettingsPage _activePage = SettingsPage.General;
+    private bool _saveAttempted;
+    private bool _closeBlocked;
+    private bool _isSaving;
+    private bool _keyboardInitialized;
+    private ElementReference _window;
+    private IJSObjectReference? _keyboardModule;
 
-    // Event for unit preference changes
-    public event Action<bool>? PreferMetricChanged;
+    private bool HasChanges => Enum.GetValues<SettingsPage>().Any(page => _draft!.IsChanged(page, _baseline!));
 
-    protected override void OnInitialized()
+    private static string PageIcon(SettingsPage page) => page switch
     {
-        // Subscribe walking tab to preference changes
-        PreferMetricChanged += OnPreferMetricChangedHandler;
+        SettingsPage.General => "fa-user",
+        SettingsPage.Treadmill => "fa-gauge-high",
+        SettingsPage.Walking => "fa-person-walking",
+        SettingsPage.Integrations => "fa-plug",
+        SettingsPage.Diagnostics => "fa-bug",
+        SettingsPage.About => "fa-circle-info",
+        _ => throw new ArgumentOutOfRangeException(nameof(page), page, null)
+    };
+
+    private string FooterText
+    {
+        get
+        {
+            if (_isSaving)
+                return "Saving…";
+            if (_saveAttempted && _draft!.ErrorCount(_baseline!) is var errors and > 0)
+                return errors == 1 ? "1 field needs fixing" : $"{errors} fields need fixing";
+            if (!HasChanges)
+                return "";
+            if (_closeBlocked)
+                return "Save or cancel your changes first";
+            return _draft!.General.UseHardwareAcceleration != _baseline!.General.UseHardwareAcceleration
+                ? "Unsaved changes · restart required"
+                : "Unsaved changes";
+        }
     }
 
-    private void OnPreferMetricChangedHandler(bool preferMetric)
+    protected override void OnParametersSet()
     {
-        _walkingTab?.UpdatePreferMetric(preferMetric);
+        if (!IsOpen)
+        {
+            _draft = _baseline = null;
+            return;
+        }
+        if (_draft is not null)
+            return;
+
+        var config = ConfigService.GetConfiguration();
+        var autoLaunch = OpenVR.Applications is null ? config.OpenVR.AutoLaunch : OpenVRService.GetAutoLaunch();
+        _baseline = SettingsDraft.From(config, autoLaunch, WebSocketService.IsEnabled, UpdateService.Channel,
+            DateTimeFormatService.DateFormat, DateTimeFormatService.TimeFormat);
+        _draft = _baseline.Clone();
+        _activePage = SettingsPage.General;
+        _saveAttempted = false;
+        _closeBlocked = false;
+        _keyboardInitialized = false;
     }
 
-    private void NotifyPreferMetricChanged(bool preferMetric)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        PreferMetricChanged?.Invoke(preferMetric);
+        if (!IsOpen || _keyboardInitialized)
+            return;
+
+        _keyboardModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/settings.js");
+        await _keyboardModule.InvokeVoidAsync("initialize", _window);
+        _keyboardInitialized = true;
     }
 
-    private void SetActiveTab(string tab)
+    private void DraftChanged() => _closeBlocked = false;
+
+    private void AcceptConnectedTreadmill()
     {
-        _activeTab = tab;
-        StateHasChanged();
+        var saved = ConfigService.GetConfiguration().Treadmill;
+        _baseline!.AcceptConnectedTreadmill(saved);
+    }
+
+    private async Task RequestClose()
+    {
+        if (CanClose())
+            await Close();
+    }
+
+    private bool CanClose()
+    {
+        if (_isSaving)
+            return false;
+        _closeBlocked = HasChanges;
+        return !_closeBlocked;
+    }
+
+    private async Task RunSetup()
+    {
+        if (!CanClose())
+            return;
+        await Close();
+        OnboardingService.TriggerOnboarding();
     }
 
     public async Task Close()
     {
         IsOpen = false;
+        _draft = _baseline = null;
         await IsOpenChanged.InvokeAsync(IsOpen);
     }
 
-    private async Task SaveSettings()
+    private async Task Save()
     {
+        if (_isSaving || !HasChanges)
+            return;
+
+        _isSaving = true;
+        try { await SaveDraft(); }
+        finally { _isSaving = false; }
+    }
+
+    private async Task SaveDraft()
+    {
+        var draft = _draft!;
+        var baseline = _baseline!;
+        if (draft.FirstPageWithErrors(baseline) is { } invalidPage)
+        {
+            _saveAttempted = true;
+            _activePage = invalidPage;
+            return;
+        }
+
         var config = ConfigService.GetConfiguration();
-
-        // Merge settings from all tabs
-        if (_integrationsTab != null)
+        var general = draft.General;
+        var generalChanged = draft.IsChanged(SettingsPage.General, baseline);
+        if (generalChanged)
         {
-            var integrationsConfig = _integrationsTab.GetConfiguration();
-            config.Treadmill = integrationsConfig.Treadmill;
-            config.OpenVR = integrationsConfig.OpenVR;
-            config.WebSocket = integrationsConfig.WebSocket;
-            config.Pulsoid = integrationsConfig.Pulsoid;
-            config.Midi = integrationsConfig.Midi;
+            config.User.PreferMetric = general.PreferMetric;
+            // Formats follow the system region until the user picks one.
+            if (general.DateFormat != baseline.General.DateFormat)
+                config.User.DateFormat = general.DateFormat;
+            if (general.TimeFormat != baseline.General.TimeFormat)
+                config.User.TimeFormat = general.TimeFormat;
+            config.User.HistoryEnabled = general.HistoryEnabled;
+            config.User.MinimumSessionDuration = general.MinimumSessionDuration;
+            config.User.UseHardwareAcceleration = general.UseHardwareAcceleration;
+            config.OpenVR.AutoLaunch = general.LaunchWithSteamVR;
+            config.Updates.AutoUpdate = general.AutoUpdate;
+            config.Updates.Channel = general.UpdateChannel;
         }
 
-        if (_userTab != null)
+        if (draft.IsChanged(SettingsPage.Treadmill, baseline))
         {
-            var userConfig = _userTab.GetConfiguration();
-            config.User = userConfig.User;
+            var connection = draft.Treadmill.TrimmedConnection;
+            if (config.Treadmill.Connection != connection)
+                config.Treadmill.LastDeviceName = null;
+            config.Treadmill.Connection = connection;
+            config.Treadmill.TreadmillType = draft.Treadmill.TreadmillType;
+            config.Treadmill.AutoConnect = draft.Treadmill.AutoConnect;
         }
 
-        if (_walkingTab != null)
+        if (draft.IsChanged(SettingsPage.Walking, baseline))
         {
-            var walkingConfig = _walkingTab.GetConfiguration();
-            config.WalkingMode = walkingConfig.WalkingMode;
+            var walking = draft.Walking;
+            config.WalkingMode.MaxSpeed = walking.MaxSpeedKph;
+            config.WalkingMode.DefaultMode = walking.DefaultMode;
+            config.WalkingMode.Steering = walking.Steering;
+            config.WalkingMode.Output = walking.Output;
+            config.WalkingMode.DefaultTrim = walking.DefaultTrim;
+            config.WalkingMode.SmoothingFactor = walking.SmoothingFactor;
+            config.WalkingMode.MaxTurnAngle = walking.MaxTurnAngle;
+            config.WalkingMode.UpdateIntervalMs = walking.UpdateIntervalMs;
+            config.WalkingMode.ThumbstickRampSpeed = walking.ThumbstickRampSpeed;
+        }
+
+        var integrations = draft.Integrations;
+        if (draft.IsChanged(SettingsPage.Integrations, baseline))
+        {
+            config.WebSocket.Enabled = integrations.WebSocketEnabled;
+            config.Pulsoid.Enabled = integrations.PulsoidEnabled;
+            config.Pulsoid.ApiKey = integrations.PulsoidApiKey;
+            config.Midi.Enabled = integrations.MidiEnabled;
+            config.Midi.OutputDeviceName = integrations.MidiOutputDevice;
+            config.Midi.Channel = integrations.MidiChannel;
+            config.Midi.SpeedCC = integrations.MidiSpeedCC;
+            config.Midi.HeartRateCC = integrations.MidiHeartRateCC;
+            config.Midi.InclineCC = integrations.MidiInclineCC;
         }
 
         ConfigService.SaveConfiguration(config);
+
+        // Apply saved changes to the running services.
+        if (general.PreferMetric != baseline.General.PreferMetric)
+            AppStateService.UpdatePreferredUnits(general.PreferMetric);
+        if (general.LaunchWithSteamVR != baseline.General.LaunchWithSteamVR)
+            OpenVRService.SetAutoLaunch(general.LaunchWithSteamVR);
+        if (draft.Walking.Steering != baseline.Walking.Steering)
+            AppStateService.SetWalkingSteering(draft.Walking.Steering);
+        if (draft.Walking.Output != baseline.Walking.Output)
+            AppStateService.SetLocomotionOutput(draft.Walking.Output);
+        if (integrations.WebSocketEnabled != baseline.Integrations.WebSocketEnabled)
+        {
+            if (integrations.WebSocketEnabled)
+                WebSocketService.Enable();
+            else
+                await WebSocketService.DisableAsync();
+        }
+        if (integrations.PulsoidChanged(baseline.Integrations))
+            await PulsoidService.ReconnectAsync();
+        if (integrations.MidiChanged(baseline.Integrations))
+            MidiService.Reconnect();
+        if (general.AutoUpdate != baseline.General.AutoUpdate || general.UpdateChannel != baseline.General.UpdateChannel)
+            UpdateService.ReloadSettings();
+
         await Close();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _integrationsTab?.Dispose();
-        _userTab?.Dispose();
+        if (_keyboardModule is not null)
+            await _keyboardModule.DisposeAsync();
     }
-
 }

@@ -2,6 +2,7 @@ using FitOSC.Models;
 using FitOSC.Services.OpenVR;
 using FitOSC.Services.OSC;
 using FitOSC.Services.State;
+using FitOSC.Services.SteamVRDriver;
 using FitOSC.Services.Treadmill;
 using FitOSC.Utilities;
 using Valve.VR;
@@ -19,6 +20,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
     private readonly IOscService _oscService;
     private readonly OpenVRService _openVRService;
     private readonly TreadmillManager _treadmillManager;
+    private readonly SteamVRDriverService _steamVRDriver;
 
     // Latest data from treadmill and OpenVR
     private TreadmillTelemetry? _latestTelemetry;
@@ -26,8 +28,15 @@ public class VRChatLocomotionService : IHostedService, IDisposable
     private WalkingMode _currentMode = WalkingMode.Disabled;
     private WalkingModeConfiguration _modeConfig = new();
 
+    // Output the last tick was sent to, so switching away can release the previous one
+    private LocomotionOutput _activeOutput = LocomotionOutput.Osc;
+
     // Initial direction when walking is enabled
     private float? _initialYaw = null;
+
+    // Hip direction, used instead of the initial direction when steering by hips
+    private WalkingSteering _steering = WalkingSteering.Locked;
+    private readonly HipHeading _hipHeading = new();
 
     // Smoothed values for reducing jitter
     private float _smoothedVelocity = 0f;
@@ -53,13 +62,15 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         AppStateService appState,
         IOscService oscService,
         OpenVRService openVRService,
-        TreadmillManager treadmillManager)
+        TreadmillManager treadmillManager,
+        SteamVRDriverService steamVRDriver)
     {
         _logger = logger;
         _appState = appState;
         _oscService = oscService;
         _openVRService = openVRService;
         _treadmillManager = treadmillManager;
+        _steamVRDriver = steamVRDriver;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -109,9 +120,11 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         // Detect walking mode changes
         var previousMode = _currentMode;
         var previousUpdateInterval = _modeConfig.UpdateIntervalMs;
+        var previousSteering = _steering;
 
         _currentMode = state.Walking.Mode;
         _modeConfig = state.Walking.Config;
+        _steering = _modeConfig.Steering;
 
         // Restart timer if update interval changed
         if (previousUpdateInterval != _modeConfig.UpdateIntervalMs && _updateTimer != null)
@@ -125,12 +138,14 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         {
             // Walking just enabled - lock in current direction
             _initialYaw = _latestOpenVRData?.Yaw;
+            CalibrateHips();
             _logger.LogInformation($"Walking enabled - initial yaw locked at {_initialYaw?.ToString("F3") ?? "null"}");
         }
         else if (_currentMode == WalkingMode.Disabled)
         {
             // Walking disabled - clear initial direction and reset smoothed values
             _initialYaw = null;
+            _hipHeading.Clear();
             _smoothedVelocity = 0f;
             _smoothedStrafe = 0f;
             _smoothedVertical = 0f;
@@ -138,7 +153,34 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             _stickBoostTarget = 1f;
 
         }
+        else if (_steering != previousSteering)
+        {
+            // Steering switched mid-walk - calibrate the hips against the current head direction
+            CalibrateHips();
+        }
     }
+
+    /// <summary>
+    /// Takes the head's current facing as forward for the hips. Clears hip steering when it is off or no waist tracker is tracked.
+    /// </summary>
+    private void CalibrateHips()
+    {
+        if (_steering == WalkingSteering.Hips && _latestOpenVRData is { HipRotation: { } hipRotation } data)
+        {
+            _hipHeading.Calibrate(data.Yaw, hipRotation);
+            _logger.LogInformation($"Hip steering calibrated at {data.Yaw:F3}");
+        }
+        else
+        {
+            _hipHeading.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Direction to walk in: the hips when steering by hips, otherwise the direction locked when walking started.
+    /// </summary>
+    private float? ReferenceYaw =>
+        _steering == WalkingSteering.Hips && _hipHeading.Yaw is { } hipYaw ? hipYaw : _initialYaw;
 
     private void OnOpenVRDataReceived(OpenVRDataEvent data)
     {
@@ -157,6 +199,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         if (_latestOpenVRData != null)
         {
             _initialYaw = _latestOpenVRData.Yaw;
+            CalibrateHips();
             _logger.LogInformation($"Yaw recentered (new yaw: {_initialYaw:F3})");
         }
     }
@@ -241,7 +284,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
-                if (config != null)
+                if (config is { SupportsIncline: true })
                 {
                     _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline + config.InclineIncrement, config.MinIncline, config.MaxIncline));
                     _logger.LogInformation("Treadmill incline up via SteamVR action");
@@ -252,7 +295,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
-                if (config != null)
+                if (config is { SupportsIncline: true })
                 {
                     _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline - config.InclineIncrement, config.MinIncline, config.MaxIncline));
                     _logger.LogInformation("Treadmill incline down via SteamVR action");
@@ -282,6 +325,12 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 _appState.SetPreferredWalkingMode(WalkingMode.Override);
                 _logger.LogInformation("Enable Override mode via SteamVR action");
+            }
+
+            if (action.SwapWalkingModePressed)
+            {
+                var mode = _appState.SwapPreferredWalkingMode();
+                _logger.LogInformation($"Swapped to {mode} mode via SteamVR action");
             }
 
             // Handle direct preset selection
@@ -315,8 +364,12 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         try
         {
             // Check for manual override (left thumbstick active)
-            _isManualOverride = _latestOpenVRData != null &&
-                (MathF.Abs(_latestOpenVRData.LeftThumbstickX) > 0.1f || MathF.Abs(_latestOpenVRData.LeftThumbstickY) > 0.1f);
+            // With joystick output the left thumbstick carries FitOSC's own movement, so the driver,
+            // which sees the real stick, reports when the user takes over.
+            _isManualOverride = _modeConfig.Output == LocomotionOutput.Joystick
+                ? _steamVRDriver.UserOverride
+                : _latestOpenVRData != null &&
+                  (MathF.Abs(_latestOpenVRData.LeftThumbstickX) > 0.1f || MathF.Abs(_latestOpenVRData.LeftThumbstickY) > 0.1f);
 
             // Calculate target velocity based on walking mode
             float targetSpeed = CalculateVelocity();
@@ -382,7 +435,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         decimal currentSpeed = speedValue.IsMetric ? speedValue.Value : speedValue.Value.ConvertMphToKph();
 
         // Normalize speed to 0.0-1.0 range based on max speed
-        float normalizedSpeed = (float)(Math.Clamp(currentSpeed,0,_modeConfig.MaxSpeed) / _modeConfig.MaxSpeed);
+        float normalizedSpeed = (float)(Math.Clamp(currentSpeed, 0, _modeConfig.MaxSpeed) / _modeConfig.MaxSpeed);
 
         // Clamp to 0.0-1.0 range
         normalizedSpeed = Math.Clamp(normalizedSpeed, 0f, 1f);
@@ -427,7 +480,9 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         float vertical = 0f;
         float horizontal = 0f;
 
-        // Vector decomposition: maintain constant speed in initial direction
+        _hipHeading.Update(_latestOpenVRData?.HipRotation);
+
+        // Vector decomposition: maintain constant speed in the walking direction
         // Skip if manual override is active (left thumbstick) to let user control movement
         if (!_isManualOverride && _currentMode != WalkingMode.Disabled && speed > 0.01f)
         {
@@ -441,20 +496,21 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 // First frame with OpenVR data — lock initial direction and move forward
                 _initialYaw = _latestOpenVRData.Yaw;
+                CalibrateHips();
                 vertical = speed;
                 horizontal = 0f;
             }
             else
             {
-                // Calculate angle difference: how much head has turned from initial direction
+                // Calculate angle difference: how much head has turned from the walking direction
                 float currentYaw = _latestOpenVRData.Yaw;
-                float yawDiff = currentYaw - _initialYaw.Value;
+                float yawDiff = currentYaw - (ReferenceYaw ?? _initialYaw.Value);
 
                 // Normalize angle to [-π, π] range
                 while (yawDiff > MathF.PI) yawDiff -= 2 * MathF.PI;
                 while (yawDiff < -MathF.PI) yawDiff += 2 * MathF.PI;
 
-                // Vector decomposition to maintain movement in initial direction
+                // Vector decomposition to maintain movement in the walking direction
                 vertical = speed * MathF.Cos(yawDiff);
                 horizontal = speed * MathF.Sin(yawDiff);
             }
@@ -465,9 +521,31 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         _smoothedVertical = Lerp(_smoothedVertical, vertical, _modeConfig.SmoothingFactor);
         _smoothedStrafe = Lerp(_smoothedStrafe, horizontal, _modeConfig.SmoothingFactor);
 
-        // Locomotion inputs must be sent every tick — VRChat resets them to 0 if they stop arriving
-        _oscService.SendMessage("/input/Vertical", _smoothedVertical);
-        _oscService.SendMessage("/input/Horizontal", _smoothedStrafe);
+        SendMovement(_smoothedVertical, _smoothedStrafe);
+    }
+
+    private void SendMovement(float vertical, float horizontal)
+    {
+        var output = _modeConfig.Output;
+        if (output != _activeOutput)
+        {
+            if (_activeOutput == LocomotionOutput.Joystick)
+                _steamVRDriver.Release();
+            _activeOutput = output;
+            _logger.LogInformation($"Walking output switched to {output}");
+        }
+
+        switch (output)
+        {
+            case LocomotionOutput.Joystick:
+                _steamVRDriver.Send(vertical, horizontal, active: _currentMode != WalkingMode.Disabled);
+                break;
+            default:
+                // Locomotion inputs must be sent every tick — VRChat resets them to 0 if they stop arriving
+                _oscService.SendMessage("/input/Vertical", vertical);
+                _oscService.SendMessage("/input/Horizontal", horizontal);
+                break;
+        }
     }
 
     private static float Lerp(float a, float b, float t)
@@ -483,8 +561,10 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
         // Walking Mode
         output.AppendLine($"\n📋 Walking Mode: {_currentMode}");
+        output.AppendLine($"   Output: {_activeOutput}");
         output.AppendLine($"   Max Speed: {_modeConfig.MaxSpeed:F2} km/h");
         output.AppendLine($"   Walking Trim: {_modeConfig.WalkingTrim:F2}");
+        output.AppendLine($"   Steering: {_steering}");
 
         if (_currentMode == WalkingMode.Override)
         {
@@ -498,10 +578,10 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         float horizontal = 0f;
 
         // Calculate vector components same as SendVRChatInputs does
-        if (_currentMode != WalkingMode.Disabled && baseSpeed > 0.01f && _latestOpenVRData != null && _initialYaw.HasValue)
+        if (_currentMode != WalkingMode.Disabled && baseSpeed > 0.01f && _latestOpenVRData != null && ReferenceYaw is { } referenceYaw)
         {
             float currentYaw = _latestOpenVRData.Yaw;
-            float yawDiff = currentYaw - _initialYaw.Value;
+            float yawDiff = currentYaw - referenceYaw;
             while (yawDiff > MathF.PI) yawDiff -= 2 * MathF.PI;
             while (yawDiff < -MathF.PI) yawDiff += 2 * MathF.PI;
 
@@ -525,10 +605,12 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             output.AppendLine($"\n🥽 VR Headset Tracking:");
             output.AppendLine($"   Current Yaw:   {_latestOpenVRData.Yaw:F3} rad ({_latestOpenVRData.Yaw * 180 / Math.PI:F1}°)");
             output.AppendLine($"   Initial Yaw:   {(_initialYaw.HasValue ? $"{_initialYaw.Value:F3} rad ({_initialYaw.Value * 180 / Math.PI:F1}°)" : "Not set")}");
+            output.AppendLine($"   Hip Yaw:       {(_hipHeading.Yaw is { } hipYaw ? $"{hipYaw:F3} rad ({hipYaw * 180 / Math.PI:F1}°)" : "Not set")}");
+            output.AppendLine($"   Waist Tracker: {(_latestOpenVRData.HipRotation.HasValue ? "Tracking" : "Not tracking")}");
 
-            if (_initialYaw.HasValue)
+            if (ReferenceYaw is { } walkingYaw)
             {
-                float yawDiff = _latestOpenVRData.Yaw - _initialYaw.Value;
+                float yawDiff = _latestOpenVRData.Yaw - walkingYaw;
                 while (yawDiff > MathF.PI) yawDiff -= 2 * MathF.PI;
                 while (yawDiff < -MathF.PI) yawDiff += 2 * MathF.PI;
                 output.AppendLine($"   Yaw Difference: {yawDiff:F3} rad ({yawDiff * 180 / Math.PI:F1}°)");

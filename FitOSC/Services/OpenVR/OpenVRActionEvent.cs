@@ -75,6 +75,11 @@ public class OpenVRActionEvent
     public bool EnableOverridePressed { get; set; } = false;
 
     /// <summary>
+    /// True on the frame when the swap walking mode button was pressed (Dynamic ↔ Override).
+    /// </summary>
+    public bool SwapWalkingModePressed { get; set; } = false;
+
+    /// <summary>
     /// True on the frame when a direct override preset button was pressed.
     /// </summary>
     public bool Preset0Pressed { get; set; } = false;

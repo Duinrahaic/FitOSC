@@ -1,0 +1,195 @@
+@using FitOSC.Models
+@using FitOSC.Services.Treadmill
+@inject TreadmillManager TreadmillManager
+@implements IDisposable
+
+<div class="bt-connection" aria-description="@(Disabled ? "Disconnect the treadmill and finish any scan before changing the connection." : null)">
+    <div class="bt-connection-type">
+        <span class="bt-connection-label" id="@(_id + "-type")">Connect via</span>
+        <div class="bt-connection-choice" role="radiogroup" aria-labelledby="@(_id + "-type")">
+            <label>
+                <input type="radio" name="@(_id + "-type")" disabled="@Disabled"
+                       checked="@(Settings.Type == BluetoothConnectionType.Local)"
+                       @onchange="() => SetType(BluetoothConnectionType.Local)" /><span>This PC</span>
+            </label>
+            <label>
+                <input type="radio" name="@(_id + "-type")" disabled="@Disabled"
+                       checked="@(Settings.Type == BluetoothConnectionType.ESPHome)"
+                       @onchange="() => SetType(BluetoothConnectionType.ESPHome)" /><span>ESPHome relay</span>
+            </label>
+        </div>
+    </div>
+    @if (Settings.Type == BluetoothConnectionType.ESPHome)
+    {
+        <div class="bt-connection-proxy">
+            <div class="bt-connection-result" role="status" aria-live="polite" aria-atomic="true"
+                 aria-busy="@(RelayStatus == RelayState.Checking ? "true" : "false")">
+                <div class="bt-connection-summary">
+                    <span class="bt-connection-label">Relay</span>
+                    <span class="bt-connection-status @RelayStatusClass">@RelayStatusText</span>
+                </div>
+                @if (Relay?.Detail is { } detail)
+                {
+                    <span class="bt-connection-detail">@detail</span>
+                }
+            </div>
+            <div class="bt-connection-pair">
+                <div class="bt-connection-field">
+                    <label for="@(_id + "-host")">Host or IP</label>
+                    <input id="@(_id + "-host")" type="text" placeholder="fitosc-relay.local" autocomplete="off" spellcheck="false"
+                           @bind="Settings.Host" @bind:event="oninput" @bind:after="NotifyChanged" disabled="@Disabled" />
+                </div>
+                <div class="bt-connection-field">
+                    <label for="@(_id + "-port")">Port</label>
+                    <input id="@(_id + "-port")" type="number" min="1" max="65535" step="1"
+                           @bind="Settings.Port" @bind:after="NotifyChanged" disabled="@Disabled" />
+                </div>
+            </div>
+            <div class="bt-connection-field">
+                <label for="@(_id + "-key")">API encryption key</label>
+                <div class="bt-connection-secret">
+                    <input id="@(_id + "-key")" type="@(_showKey ? "text" : "password")"
+                           autocomplete="off" spellcheck="false"
+                           @bind="Settings.EncryptionKey" @bind:event="oninput" @bind:after="NotifyChanged" disabled="@Disabled" />
+                    <button type="button" class="bt-connection-reveal" aria-label="@(_showKey ? "Hide key" : "Show key")"
+                            aria-pressed="@(_showKey ? "true" : "false")" @onclick="() => _showKey = !_showKey">
+                        <i class="fa-solid @(_showKey ? "fa-eye-slash" : "fa-eye")" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BluetoothConnectionSettings Settings { get; set; } = default!;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback Changed { get; set; }
+    private readonly string _id = "bluetooth-" + Guid.NewGuid().ToString("N");
+    private bool _showKey;
+
+    private static readonly TimeSpan EditDelay = TimeSpan.FromMilliseconds(700);
+    private static readonly TimeSpan RecheckInterval = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan BusyRetryInterval = TimeSpan.FromSeconds(2);
+
+    private enum RelayState { Incomplete, Checking, Success, Failed }
+    private sealed record RelayResult(BluetoothConnectionSettings Settings, bool Success, string? Detail = null);
+
+    // The settings being monitored and the latest result for them. Both are cleared when
+    // monitoring stops, so the key is held only while this editor shows an ESPHome relay.
+    private BluetoothConnectionSettings? _monitored;
+    private CancellationTokenSource? _monitor;
+    private RelayResult? _relay;
+
+    private BluetoothConnectionSettings CurrentSettings =>
+        Settings with { Host = Settings.Host.Trim(), EncryptionKey = Settings.EncryptionKey.Trim() };
+
+    // A result only describes the exact settings it checked.
+    private RelayResult? Relay => _relay != null && _relay.Settings == _monitored ? _relay : null;
+
+    private RelayState RelayStatus => _monitored == null ? RelayState.Incomplete
+        : Relay == null ? RelayState.Checking
+        : Relay.Success ? RelayState.Success : RelayState.Failed;
+
+    private string RelayStatusText => RelayStatus switch
+    {
+        RelayState.Checking => "Checking…",
+        RelayState.Success => "Success",
+        RelayState.Failed => "Connection failed",
+        _ => "Not configured"
+    };
+
+    private string? RelayStatusClass => RelayStatus switch
+    {
+        RelayState.Checking => "busy",
+        RelayState.Success => "ok",
+        RelayState.Failed => "error",
+        _ => null
+    };
+
+    protected override void OnParametersSet() => UpdateMonitor(TimeSpan.Zero);
+
+    private Task NotifyChanged()
+    {
+        UpdateMonitor(EditDelay);
+        return Changed.InvokeAsync();
+    }
+
+    /// <summary>Restarts relay monitoring when the effective relay settings change.</summary>
+    private void UpdateMonitor(TimeSpan delay)
+    {
+        var settings = Settings.Type == BluetoothConnectionType.ESPHome && IsComplete(CurrentSettings) ? CurrentSettings : null;
+        if (settings == _monitored)
+            return;
+        StopMonitor();
+        if (settings == null)
+            return;
+        _monitored = settings;
+        _monitor = new CancellationTokenSource();
+        _ = MonitorRelayAsync(settings, delay, _monitor);
+    }
+
+    private static bool IsComplete(BluetoothConnectionSettings settings)
+    {
+        try { settings.Validate(); return true; }
+        catch (ArgumentException) { return false; }
+    }
+
+    // Runs on the renderer's synchronization context, so state changes and
+    // cancellation from UpdateMonitor or Dispose never interleave with it.
+    private async Task MonitorRelayAsync(BluetoothConnectionSettings settings, TimeSpan delay, CancellationTokenSource monitor)
+    {
+        var token = monitor.Token;
+        try
+        {
+            await Task.Delay(delay, token);
+            while (true)
+            {
+                var next = RecheckInterval;
+                RelayResult? result = null;
+                try
+                {
+                    if (await TreadmillManager.CheckRelayAsync(settings, token) == RelayCheckResult.Busy)
+                        next = BusyRetryInterval;
+                    else
+                        result = new RelayResult(settings, true);
+                }
+                catch (Exception ex) when (!token.IsCancellationRequested)
+                {
+                    result = new RelayResult(settings, false, ex.Message);
+                }
+                token.ThrowIfCancellationRequested();
+                if (result != null && result != _relay)
+                {
+                    _relay = result;
+                    StateHasChanged();
+                }
+                await Task.Delay(next, token);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        finally
+        {
+            if (_monitor == monitor)
+                StopMonitor();
+            monitor.Dispose();
+        }
+    }
+
+    private void StopMonitor()
+    {
+        var monitor = _monitor;
+        _monitor = null;
+        _monitored = null;
+        _relay = null;
+        monitor?.Cancel();
+    }
+
+    public void Dispose() => StopMonitor();
+
+    private Task SetType(BluetoothConnectionType type)
+    {
+        Settings.Type = type;
+        return NotifyChanged();
+    }
+}

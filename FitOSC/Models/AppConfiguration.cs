@@ -46,10 +46,17 @@ public class AppConfiguration
     /// MIDI settings
     /// </summary>
     public MidiSettings Midi { get; set; } = new();
+
+    /// <summary>
+    /// App update settings
+    /// </summary>
+    public UpdateSettings Updates { get; set; } = new();
 }
 
 public class TreadmillSettings
 {
+    public BluetoothConnectionSettings Connection { get; set; } = new();
+
     /// <summary>
     /// Auto-connect to last known device on startup
     /// </summary>
@@ -90,6 +97,16 @@ public class WalkingModeSettings
     /// Default walking mode when enabled (Dynamic or Override)
     /// </summary>
     public WalkingMode DefaultMode { get; set; } = WalkingMode.Dynamic;
+
+    /// <summary>
+    /// What sets the walking direction
+    /// </summary>
+    public WalkingSteering Steering { get; set; } = WalkingSteering.Locked;
+
+    /// <summary>
+    /// Where walking movement is sent (VRChat OSC or the left controller thumbstick)
+    /// </summary>
+    public LocomotionOutput Output { get; set; } = LocomotionOutput.Osc;
 
     /// <summary>
     /// Default walking trim (multiplier: 0.0 to 2.0)
@@ -134,6 +151,16 @@ public class UserSettings
     /// Preferred unit system (true = metric, false = imperial)
     /// </summary>
     public bool PreferMetric { get; set; } = true;
+
+    /// <summary>
+    /// Day and month order for dates (null follows the system region)
+    /// </summary>
+    public DateFormat? DateFormat { get; set; }
+
+    /// <summary>
+    /// 12- or 24-hour clock for times (null follows the system region)
+    /// </summary>
+    public TimeFormat? TimeFormat { get; set; }
 
     /// <summary>
     /// Enable session history tracking
@@ -223,4 +250,17 @@ public class MidiSettings
     /// CC number for incline (0-127)
     /// </summary>
     public int InclineCC { get; set; } = 3;
+}
+
+public class UpdateSettings
+{
+    /// <summary>
+    /// Download updates in the background and install them on the next start
+    /// </summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>
+    /// Release channel to follow (null follows the channel the installed build came from)
+    /// </summary>
+    public UpdateChannel? Channel { get; set; }
 }

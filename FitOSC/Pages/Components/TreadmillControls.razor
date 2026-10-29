@@ -4,7 +4,7 @@
 @using FitOSC.Services
 @inject TreadmillManager Treadmill
 @inject AppStateService AppState
-@inject UpdateCheckService UpdateCheckService
+@inject UpdateService UpdateService
 @implements IDisposable
 
 <div class="treadmill-controls">
@@ -15,15 +15,15 @@
             <InterfaceStatusIndicator Interface="AppInterface.Bluetooth" />
             <InterfaceStatusIndicator Interface="AppInterface.VR" />
             <InterfaceStatusIndicator Interface="AppInterface.OSC" />
-            @if (UpdateCheckService.UpdateAvailable)
+            @if (UpdateService.Status is UpdateStatus.Available or UpdateStatus.Downloading or UpdateStatus.Ready)
             {
-                <div class="icon active" id="update" @onclick="OpenReleaseUrl" style="cursor: pointer;" title="Update available: @UpdateCheckService.LatestVersion">
-                    <i class="fa-solid fa-circle-up"></i>
-                </div>
+                <button class="icon active" id="update" type="button" @onclick="UpdateService.InstallAsync" aria-label="@UpdateTitle" title="@UpdateTitle">
+                    <i class="fa-solid fa-circle-up" aria-hidden="true"></i>
+                </button>
             }
-            <div class="icon" @onclick="OpenSettings" style="cursor: pointer;">
-                <i class="fa-solid fa-cog"></i>
-            </div>
+            <button class="icon" type="button" @onclick="OpenSettings" aria-label="Settings">
+                <i class="fa-solid fa-cog" aria-hidden="true"></i>
+            </button>
         </div>
         <div class="title">
             FITOSC
@@ -31,9 +31,9 @@
         <img src="images/FitOSC-Bunny.svg" alt="fitosc-logo"/>
 
         <div class="treadmill-control-row">
-            <StateButton OnClick="Treadmill.StartAsync" Enabled="@IsBluetoothConnected" Icon="fa fa-play" Title="START"/>
-            <StateButton OnClick="Treadmill.PauseAsync" Enabled="@IsBluetoothConnected" Icon="fa fa-pause" Title="PAUSE"/>
-            <StateButton OnClick="Treadmill.StopAsync" Enabled="@IsBluetoothConnected" Icon="fa fa-square" Title="STOP"/>
+            <StateButton OnClick="Treadmill.StartAsync" Enabled="@Accepts(TreadmillCommands.Start)" Icon="fa fa-play" Title="START"/>
+            <StateButton OnClick="Treadmill.PauseAsync" Enabled="@Accepts(TreadmillCommands.Pause)" Icon="fa fa-pause" Title="PAUSE"/>
+            <StateButton OnClick="Treadmill.StopAsync" Enabled="@Accepts(TreadmillCommands.Stop)" Icon="fa fa-square" Title="STOP"/>
         </div>
     </div>
 
@@ -46,50 +46,42 @@
 @code {
     private bool _isSettingsOpen = false;
     private AppStateInfo? _treadmillData;
-    private bool _previousBluetoothConnected = false;
+    private TreadmillCommands _renderedCommands = TreadmillCommands.None;
+    private UpdateStatus _renderedUpdateStatus;
 
     private bool IsBluetoothConnected =>
         _treadmillData?.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var status) == true
         && status == ConnectionStatus.Connected; // Only enable when fully connected, not while scanning
 
+    // The buttons the connected treadmill takes; its configuration can change after it connects.
+    private TreadmillCommands AvailableCommands =>
+        IsBluetoothConnected ? _treadmillData!.TreadmillConfiguration.Commands : TreadmillCommands.None;
+
+    private bool Accepts(TreadmillCommands command) => AvailableCommands.HasFlag(command);
+
     protected override void OnInitialized()
     {
         AppState.AppStateUpdated += UpdateTreadmillData;
-        UpdateCheckService.UpdateAvailableChanged += HandleUpdateAvailableChanged;
+        UpdateService.Changed += HandleUpdateChanged;
     }
 
-    private void HandleUpdateAvailableChanged()
+    private string UpdateTitle =>
+        UpdateService.Status == UpdateStatus.Downloading ? $"Downloading {UpdateService.NewVersion}"
+        : UpdateService.IsChannelSwitch ? $"Restart to switch to {UpdateService.NewVersion}"
+        : $"Restart to update to {UpdateService.NewVersion}";
+
+    private void HandleUpdateChanged()
     {
         InvokeAsync(StateHasChanged);
     }
 
-    private void OpenReleaseUrl()
-    {
-        if (!string.IsNullOrEmpty(UpdateCheckService.ReleaseUrl))
-        {
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = UpdateCheckService.ReleaseUrl,
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
-                // Silently fail if we can't open the browser
-            }
-        }
-    }
-
     private void UpdateTreadmillData(AppStateInfo? obj)
     {
-        var wasConnected = IsBluetoothConnected;
         _treadmillData = obj;
-        var isNowConnected = IsBluetoothConnected;
 
-        // Only re-render if Bluetooth connection status changed (affects button enabled states)
-        if (wasConnected != isNowConnected)
+        // Only re-render if the available commands changed (affects button enabled states). App state is one instance
+        // updated in place, so compare with what was last rendered rather than with the previous update.
+        if (AvailableCommands != _renderedCommands)
         {
             InvokeAsync(StateHasChanged);
         }
@@ -98,9 +90,11 @@
     // Prevent unnecessary re-renders - child components handle their own updates
     protected override bool ShouldRender()
     {
-        var currentConnected = IsBluetoothConnected;
-        var shouldRender = currentConnected != _previousBluetoothConnected || _isSettingsOpen;
-        _previousBluetoothConnected = currentConnected;
+        var currentCommands = AvailableCommands;
+        var updateStatus = UpdateService.Status;
+        var shouldRender = currentCommands != _renderedCommands || updateStatus != _renderedUpdateStatus || _isSettingsOpen;
+        _renderedCommands = currentCommands;
+        _renderedUpdateStatus = updateStatus;
         return shouldRender;
     }
 
@@ -112,6 +106,6 @@
     public void Dispose()
     {
         AppState.AppStateUpdated -= UpdateTreadmillData;
-        UpdateCheckService.UpdateAvailableChanged -= HandleUpdateAvailableChanged;
+        UpdateService.Changed -= HandleUpdateChanged;
     }
 }

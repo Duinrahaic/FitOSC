@@ -5,5 +5,6 @@ public enum AppInterface
     Bluetooth,
     VR,
     Pulsoid,
-    OSC
+    OSC,
+    SteamVRDriver
 }

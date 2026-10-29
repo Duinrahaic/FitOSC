@@ -22,6 +22,9 @@ public class AppStateInfo
 
     public string? DeviceName { get; set; }
 
+    /// <summary>What the treadmill connection is doing or why it failed, for the user.</summary>
+    public string? BluetoothDetail { get; set; }
+
     // OpenVR tracking data
     public OpenVRData OpenVR { get; set; } = new OpenVRData();
 

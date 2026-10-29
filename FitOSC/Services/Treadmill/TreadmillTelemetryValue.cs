@@ -5,9 +5,9 @@ namespace FitOSC.Services.Treadmill;
 
 public class TreadmillTelemetryValue
 {
-    
+
     public bool Enabled { get; set; } = false;
-    
+
     /// <summary>
     /// The type of treadmill measurement (e.g. Speed, Distance).
     /// </summary>
@@ -47,7 +47,10 @@ public class TreadmillTelemetryValue
     /// </summary>
     public TreadmillTelemetryValue AsMetric()
     {
-        return new TreadmillTelemetryValue(TelemetryProperty, Value, MetricUnit, ImperialUnit, isMetric: true);
+        var converted = TelemetryProperty == TreadmillTelemetryProperty.TotalDistance
+            ? Value / 1000m // meters → kilometers
+            : Value;
+        return new TreadmillTelemetryValue(TelemetryProperty, converted, MetricUnit, ImperialUnit, isMetric: true);
     }
 
     /// <summary>
@@ -64,16 +67,17 @@ public class TreadmillTelemetryValue
                 converted = Value.ConvertKphToMph(); // km/h → mi/h
                 break;
             case TreadmillTelemetryProperty.InstantaneousPace: // sec/km → sec/mile
+            case TreadmillTelemetryProperty.AveragePace:
                 converted = Value.ConvertMphToKph();
                 break;
             case TreadmillTelemetryProperty.TotalDistance:
-                converted = Value * 0.000621371m; // kilometers → miles
+                converted = Value * 0.000621371m; // meters → miles
                 break;
             case TreadmillTelemetryProperty.ElevationGain:
                 converted = Value * 3.28084m;  // meters → feet
                 break;
 
-            // Incline (%), RampAngle (%), Calories, HR, MET, Time, Force, Power, Steps don't change
+            // Incline (%), RampAngle (degrees), Calories, HR, MET, Time, Force, Power, Steps don't change
             default:
                 break;
         }

@@ -19,6 +19,8 @@
             <i class="fa-solid fa-cog"></i>
         </div>
     </div>*@
+    @* History first: while it shows, the live readout after it steps aside *@
+    <SessionHistory />
     <TreadmillMetrics />
     <div id="display" class="treadmill-display-visual-container">
         <div class="treadmill-display-visual-container-overlay @(_isManualOverride ? "visible" : "")">

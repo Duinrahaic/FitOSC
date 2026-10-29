@@ -94,6 +94,7 @@ public class AppStateService
         _cachedAppState.ConnectionStates = InterfaceStatus;
         _cachedAppState.TreadmillConfiguration = LatestConfiguration ?? _cachedAppState.TreadmillConfiguration;
         _cachedAppState.DeviceName = ConnectedDeviceName;
+        _cachedAppState.BluetoothDetail = BluetoothDetail;
 
         // Update nested OpenVR data in-place
         _cachedAppState.OpenVR.Yaw = LatestHeadYaw;
@@ -115,14 +116,14 @@ public class AppStateService
         UpdateCachedAppState();
         return _cachedAppState;
     }
-    
-    
+
+
     // ---- Settings ----
     /// <summary>
     /// Current unit system (Metric/Imperial).
     /// </summary>
     public MeasurementType Units { get; private set; } = MeasurementType.Imperial;
-    
+
     /// <summary>
     /// Latest treadmill telemetry (raw values as parsed from BLE).
     /// </summary>
@@ -136,12 +137,12 @@ public class AppStateService
         LatestData = telemetry;
         NotifyAppStateUpdated();
     }
-    
+
     /// <summary>
     ///  Latest treadmill configuration (e.g., max speed, incline).
     /// </summary>
-    public TreadmillConfiguration? LatestConfiguration { get; private set; } = new TreadmillConfiguration(); 
-    
+    public TreadmillConfiguration? LatestConfiguration { get; private set; } = new TreadmillConfiguration();
+
     /// <summary>
     /// Push new treadmill configuration into app state.
     /// </summary>
@@ -151,17 +152,17 @@ public class AppStateService
         LatestConfiguration = config;
         NotifyAppStateUpdated();
     }
-    
-    
-    
-    
+
+
+
+
     /// <summary>
     /// Latest treadmill state (e.g., Running, Paused, Stopped).
     /// </summary>
     public TreadmillState LatestState { get; private set; } = TreadmillState.Stopped;
 
- 
-    
+
+
     /// <summary>
     /// Push new treadmill state into app state.
     /// </summary>
@@ -178,13 +179,28 @@ public class AppStateService
         { AppInterface.Bluetooth, ConnectionStatus.Disconnected },
         { AppInterface.VR, ConnectionStatus.Disconnected },
         { AppInterface.Pulsoid, ConnectionStatus.Disconnected },
-        { AppInterface.OSC, ConnectionStatus.Disconnected }
+        { AppInterface.OSC, ConnectionStatus.Disconnected },
+        { AppInterface.SteamVRDriver, ConnectionStatus.Disconnected }
     };
 
     public void PublishInterfaceConnectionStatuses(AppInterface appInterface, ConnectionStatus status)
     {
         InterfaceStatus[appInterface] = status;
         NotifyAppStateUpdated(forceImmediate: true); // Connection changes should be immediate
+    }
+
+    /// <summary>
+    /// What the treadmill connection is doing or why it failed, for the user; null when there is nothing to say.
+    /// </summary>
+    public string? BluetoothDetail { get; private set; }
+
+    /// <summary>
+    /// Publishes the treadmill connection status together with its detail.
+    /// </summary>
+    public void PublishBluetoothStatus(ConnectionStatus status, string? detail)
+    {
+        BluetoothDetail = detail;
+        PublishInterfaceConnectionStatuses(AppInterface.Bluetooth, status);
     }
 
     /// <summary>
@@ -258,11 +274,40 @@ public class AppStateService
     }
 
     /// <summary>
+    /// Swap the preferred walking mode between Dynamic and Override.
+    /// </summary>
+    public WalkingMode SwapPreferredWalkingMode()
+    {
+        var current = CurrentWalkingMode != WalkingMode.Disabled ? CurrentWalkingMode : _lastActiveWalkingMode;
+        var mode = current == WalkingMode.Override ? WalkingMode.Dynamic : WalkingMode.Override;
+        SetPreferredWalkingMode(mode);
+        return mode;
+    }
+
+    /// <summary>
     /// Update walking mode configuration
     /// </summary>
     public void UpdateWalkingModeConfig(WalkingModeConfiguration config)
     {
         WalkingModeConfig = config;
+        NotifyAppStateUpdated();
+    }
+
+    /// <summary>
+    /// Set what steers the walking direction
+    /// </summary>
+    public void SetWalkingSteering(WalkingSteering steering)
+    {
+        WalkingModeConfig.Steering = steering;
+        NotifyAppStateUpdated();
+    }
+
+    /// <summary>
+    /// Switch where walking movement is sent
+    /// </summary>
+    public void SetLocomotionOutput(LocomotionOutput output)
+    {
+        WalkingModeConfig.Output = output;
         NotifyAppStateUpdated();
     }
 

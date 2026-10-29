@@ -1,4 +1,5 @@
 ﻿@using FitOSC.Models
+@using FitOSC.Services.Configuration
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
 @using FitOSC.Services.OSC
@@ -6,17 +7,20 @@
 @implements IDisposable
 @inject AppStateService AppState
 @inject TreadmillManager Treadmill
+@inject ConfigurationService ConfigService
 @inject IOscService OscService
 @inject OpenVRService VRService
 
-<div class="icon @GetActiveClass() @GetScanningClass() @GetErrorClass()" id="@GetId()" @onclick="HandleClick" style="cursor: @(IsClickable ? "pointer" : "default")">
-    <i class="@GetIcon()"></i>
-</div>
+<button class="icon @GetActiveClass() @GetScanningClass() @GetErrorClass()" id="@GetId()" type="button"
+        @onclick="HandleClick" title="@GetTitle()" aria-label="@GetActionLabel()" disabled="@(!IsClickable || Status == ConnectionStatus.Connecting)">
+    <i class="@GetIcon()" aria-hidden="true"></i>
+</button>
 @code {
 
     [Parameter] public required AppInterface Interface { get; set; }
     
     private Dictionary<AppInterface, ConnectionStatus> _interfaceStatuses = new();
+    private string? _bluetoothDetail;
     private ConnectionStatus Status => _interfaceStatuses.GetValueOrDefault(Interface, ConnectionStatus.Disconnected);
     
     private bool IsActive => Status == ConnectionStatus.Connected;
@@ -38,9 +42,8 @@
     {
         if (Interface == AppInterface.Bluetooth && Status != ConnectionStatus.Connecting)
         {
-            // TODO: Get the last connected device name from settings/storage
-            // For now, we'll just try to reconnect to any FTMS device
-            await Treadmill.ConnectAsync("", TreadmillType.FTMS);
+            var treadmillSettings = ConfigService.GetConfiguration().Treadmill;
+            await Treadmill.ConnectAsync(treadmillSettings.LastDeviceName ?? "", treadmillSettings.TreadmillType);
         }
         else if (Interface == AppInterface.OSC && Status != ConnectionStatus.Connecting)
         {
@@ -82,6 +85,18 @@
             _ => "fa-solid fa-circle"
         };
     }
+    private string GetActionLabel() => Interface switch
+    {
+        AppInterface.Bluetooth => $"Connect treadmill ({Status})",
+        AppInterface.VR => IsActive ? "Stop VR monitoring" : "Start VR monitoring",
+        AppInterface.OSC => $"Rediscover OSC ({Status})",
+        _ => Interface.ToString()
+    };
+
+    private string GetTitle() => Interface == AppInterface.Bluetooth
+        ? _bluetoothDetail ?? Status.ToString()
+        : $"{Interface}: {Status}";
+
     private string GetActiveClass()
     {
         return IsActive ? "active" : string.Empty;
@@ -90,11 +105,15 @@
     protected override void OnInitialized()
     {
         AppState.AppStateUpdated += UpdateAppState;
+        var state = AppState.GetCurrentAppStateInfo();
+        _interfaceStatuses = state.ConnectionStates;
+        _bluetoothDetail = state.BluetoothDetail;
     }
 
     private void UpdateAppState(AppStateInfo info)
     {
-        _interfaceStatuses = info.ConnectionStates; 
+        _interfaceStatuses = info.ConnectionStates;
+        _bluetoothDetail = info.BluetoothDetail;
         InvokeAsync(StateHasChanged);
     }
 

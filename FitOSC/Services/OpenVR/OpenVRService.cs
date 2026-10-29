@@ -26,8 +26,14 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     private bool _actionsInitialized = false;
 
     // Polling rate constants (in milliseconds)
-    private const int ActivePollingRateMs = 100;  // 10Hz when walking mode is active
+    private const int ActivePollingRateMs = 20;   // 50Hz when walking mode is active
     private const int IdlePollingRateMs = 100;    // 10Hz when walking mode is disabled
+
+    // SteamVR stores tracker roles under this settings section, keyed by "/devices/<registered device type>"
+    private const string WaistTrackerRole = "TrackerRole_Waist";
+    private static readonly TimeSpan WaistScanInterval = TimeSpan.FromSeconds(2);
+    private uint _waistIndex = OpenVR.k_unTrackedDeviceIndexInvalid;
+    private DateTime _nextWaistScan = DateTime.MinValue;
 
     // SteamVR Action Handles
     private ulong _actionSetHandle;
@@ -48,6 +54,7 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     private ulong _walkingSpeedUpHandle;
     private ulong _walkingSpeedDownHandle;
     private ulong _enableOverrideHandle;
+    private ulong _swapWalkingModeHandle;
     private ulong _preset1Handle;
     private ulong _preset2Handle;
     private ulong _preset3Handle;
@@ -55,6 +62,7 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
 
     public bool IsMonitoring { get; private set; }
     public bool ActionsAvailable => _actionsInitialized;
+    public bool HasWaistTracker => _waistIndex != OpenVR.k_unTrackedDeviceIndexInvalid;
 
     public void Dispose()
     {
@@ -228,6 +236,10 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
             if (error != EVRInputError.None)
                 _logger?.LogWarning("Failed to get EnableOverride action handle: {Error}", error);
 
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/SwapWalkingMode", ref _swapWalkingModeHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get SwapWalkingMode action handle: {Error}", error);
+
             error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/Preset1", ref _preset1Handle);
             if (error != EVRInputError.None)
                 _logger?.LogWarning("Failed to get Preset1 action handle: {Error}", error);
@@ -260,6 +272,8 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     {
         OpenVR.Shutdown();
         _actionsInitialized = false;
+        _waistIndex = OpenVR.k_unTrackedDeviceIndexInvalid;
+        _nextWaistScan = DateTime.MinValue;
 
         OpenVR.Init(ref _initError, EVRApplicationType.VRApplication_Overlay);
         if (_initError != EVRInitError.None)
@@ -295,7 +309,7 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
 
         return true;
     }
-    
+
     public void StartMonitoring()
     {
         bool success = TryInitialize();
@@ -453,6 +467,13 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
 
             vrSystem.GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin.TrackingUniverseStanding, 0, poses);
 
+            // Trackers can be connected or reassigned at any time, so re-check the waist role periodically
+            if (DateTime.UtcNow >= _nextWaistScan)
+            {
+                _waistIndex = FindWaistTracker(vrSystem);
+                _nextWaistScan = DateTime.UtcNow + WaistScanInterval;
+            }
+
             // Poll SteamVR actions if initialized
             OpenVRActionEvent? actionEvent = null;
             if (_actionsInitialized)
@@ -484,6 +505,10 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
                     var verticalInput = 1f;
                     var horizontalInput = Math.Clamp(yawDifference, -1f, 1f);
 
+                    Quaternion? hipRotation = HasWaistTracker && poses[_waistIndex].bPoseIsValid
+                        ? GetRotationFromMatrix(poses[_waistIndex].mDeviceToAbsoluteTracking)
+                        : null;
+
                     var turnCmd = euler.roll switch
                     {
                         > 0.6f => OpenVRTurn.Left,
@@ -510,6 +535,7 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
                         PositionX = position.X,
                         PositionY = position.Y,
                         PositionZ = position.Z,
+                        HipRotation = hipRotation,
                         RightThumbstickY = rightThumbstickY,
                         LeftThumbstickX = leftThumbstickX,
                         LeftThumbstickY = leftThumbstickY
@@ -699,6 +725,13 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
                     actionEvent.EnableOverridePressed = true;
             }
 
+            if (_swapWalkingModeHandle != 0)
+            {
+                error = OpenVR.Input.GetDigitalActionData(_swapWalkingModeHandle, ref digitalData, digitalDataSize, OpenVR.k_ulInvalidInputValueHandle);
+                if (error == EVRInputError.None && digitalData.bActive && digitalData.bChanged && digitalData.bState)
+                    actionEvent.SwapWalkingModePressed = true;
+            }
+
             foreach (var (handle, index) in new[] {
                 (_preset1Handle, 1), (_preset2Handle, 2), (_preset3Handle, 3), (_preset4Handle, 4) })
             {
@@ -811,6 +844,34 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
         }
 
         return info;
+    }
+
+    /// <summary>
+    /// Finds the tracker assigned the Waist role in SteamVR's Manage Trackers (also set by SlimeVR's driver).
+    /// </summary>
+    private uint FindWaistTracker(CVRSystem vrSystem)
+    {
+        if (OpenVR.Settings == null)
+            return OpenVR.k_unTrackedDeviceIndexInvalid;
+
+        var role = new System.Text.StringBuilder(64);
+        for (uint i = 0; i < OpenVR.k_unMaxTrackedDeviceCount; i++)
+        {
+            if (vrSystem.GetTrackedDeviceClass(i) != ETrackedDeviceClass.GenericTracker || !vrSystem.IsTrackedDeviceConnected(i))
+                continue;
+
+            var deviceType = GetStringProperty(i, ETrackedDeviceProperty.Prop_RegisteredDeviceType_String);
+            if (string.IsNullOrEmpty(deviceType))
+                continue;
+
+            var error = EVRSettingsError.None;
+            role.Clear();
+            OpenVR.Settings.GetString(OpenVR.k_pch_Trackers_Section, "/devices/" + deviceType, role, (uint)role.Capacity, ref error);
+            if (error == EVRSettingsError.None && role.ToString() == WaistTrackerRole)
+                return i;
+        }
+
+        return OpenVR.k_unTrackedDeviceIndexInvalid;
     }
 
     private string GetStringProperty(uint deviceIndex, ETrackedDeviceProperty prop)

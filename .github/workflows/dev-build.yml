@@ -1,0 +1,88 @@
+# Dev build: every push to development is published as a GitHub pre-release on Velopack's "dev" channel, which
+# installed apps on the Dev channel update from. Versions are the next patch after the latest stable tag plus the
+# run number (v2.1.1 -> 2.1.2-dev.38), so each build is newer than the last. Only the newest dev releases are kept.
+name: Dev build (Windows)
+
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One at a time, in push order, so releases and pruning never race.
+concurrency:
+  group: dev-build
+  cancel-in-progress: false
+
+env:
+  KEEP_DEV_RELEASES: 5
+
+jobs:
+  dev:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # Tags are needed to find the latest stable version.
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Pick dev version
+        shell: pwsh
+        run: |
+          $stable = git tag --list 'v*' |
+            Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
+            ForEach-Object { [version]$_.Substring(1) } |
+            Sort-Object -Descending |
+            Select-Object -First 1
+          if (-not $stable) { throw "No stable version tag (such as v2.1.0) found." }
+
+          $version = "$($stable.Major).$($stable.Minor).$($stable.Build + 1)-dev.${{ github.run_number }}"
+          "DEV_VERSION=$version" >> $env:GITHUB_ENV
+          "### FitOSC $version" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Publish FitOSC
+        run: dotnet publish FitOSC/FitOSC.csproj --configuration Release --runtime win-x64 --self-contained --output ./publish -p:Version=$env:DEV_VERSION
+
+      - name: Install Velopack CLI
+        run: dotnet tool install --global vpk --version 1.2.161
+
+      - name: Stamp version on splash
+        shell: pwsh
+        run: ./installer/New-SplashImage.ps1 -Version $env:DEV_VERSION -OutputPath ./splash.png
+
+      # The previous dev build lets vpk build a delta package, so installed apps download only what changed.
+      - name: Download previous dev build
+        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --channel dev --pre --outputDir ./releases
+
+      - name: Pack installer and update packages
+        run: >-
+          vpk pack --packId FitOSC --packVersion $env:DEV_VERSION --packDir ./publish --mainExe FitOSC.exe
+          --packTitle FitOSC --packAuthors Duinrahaic --icon ./FitOSC/Assets/icon.ico
+          --splashImage ./splash.png --splashProgressColor "#4caf50" --channel dev --outputDir ./releases
+
+      - name: Publish GitHub pre-release
+        run: >-
+          vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+          --outputDir ./releases --channel dev --pre --publish --tag "v$env:DEV_VERSION"
+          --targetCommitish ${{ github.sha }} --releaseName "FitOSC $env:DEV_VERSION"
+
+      - name: Remove old dev builds
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo ${{ github.repository }} --limit 100 --json tagName,isPrerelease,createdAt |
+            ConvertFrom-Json |
+            Where-Object { $_.isPrerelease -and $_.tagName -match '-dev\.\d+$' } |
+            Sort-Object createdAt -Descending |
+            Select-Object -Skip $env:KEEP_DEV_RELEASES |
+            ForEach-Object { gh release delete $_.tagName --repo ${{ github.repository }} --yes --cleanup-tag }

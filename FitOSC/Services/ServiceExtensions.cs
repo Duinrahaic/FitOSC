@@ -6,6 +6,7 @@ using FitOSC.Services.History;
 using FitOSC.Services.Logger;
 using FitOSC.Services.OSC;
 using FitOSC.Services.State;
+using FitOSC.Services.SteamVRDriver;
 using FitOSC.Services.Treadmill;
 using FitOSC.Services.Midi;
 using FitOSC.Services.Pulsoid;
@@ -25,13 +26,15 @@ public static class ServiceExtensions
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
         services.AddSingleton<ConfigurationService>();
-        services.AddSingleton<WindowsBluetoothClient>(sp =>
-            new WindowsBluetoothClient(sp.GetRequiredService<ILogger<WindowsBluetoothClient>>()));
+        services.AddSingleton<DateTimeFormatService>();
+        services.AddSingleton<BluetoothClientFactory>();
         services.AddSingleton<TreadmillManager>();
-        services.AddSingleton<IOscService,OscService>();
+        services.AddSingleton<IOscService, OscService>();
         services.AddSingleton<AppStateService>();
 
         // Register OpenVRService as both singleton (for injection) and hosted service (for auto-start)
+        services.AddSingleton<SteamVRDriverService>();
+        services.AddHostedService(sp => sp.GetRequiredService<SteamVRDriverService>());
         services.AddSingleton<OpenVRService>();
         services.AddHostedService(sp => sp.GetRequiredService<OpenVRService>());
 
@@ -44,8 +47,11 @@ public static class ServiceExtensions
         services.AddHostedService(sp => sp.GetRequiredService<VRChatParameterHandlerService>());
 
         services.AddSingleton<DebugConsoleService>();
-        services.AddSingleton<HistoryService>();
         services.AddSingleton<OnboardingService>();
+
+        // Register HistoryService as both singleton (for injection) and hosted service (for auto-start)
+        services.AddSingleton<HistoryService>();
+        services.AddHostedService(sp => sp.GetRequiredService<HistoryService>());
 
         // Register WebSocketService for telemetry broadcasting
         services.AddSingleton<WebSocketService>();
@@ -59,27 +65,33 @@ public static class ServiceExtensions
         services.AddSingleton<MidiService>();
         services.AddHostedService(sp => sp.GetRequiredService<MidiService>());
 
-        // Register UpdateCheckService for GitHub update checking
-        services.AddSingleton<UpdateCheckService>();
-        services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
+        // Checks for, downloads and installs app updates
+        services.AddSingleton<UpdateService>();
+        services.AddHostedService(sp => sp.GetRequiredService<UpdateService>());
 
         return services;
     }
-    
+
     public static ILoggingBuilder RegisterLogger(this ILoggingBuilder builder)
     {
         builder
             .ClearProviders()
-            .AddSerilog( new LoggerConfiguration()
+            .AddSerilog(new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
                 .WriteTo.Sink(SinkInstance)
-                .CreateLogger());   
-        return builder; 
+                // A daily file a user can send when reporting a problem; the last week is kept.
+                .WriteTo.File(
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FitOSC", "logs", "fitosc-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 7,
+                    outputTemplate: "{Timestamp:HH:mm:ss.fff} {Level:u3} [{SourceContext}] {Message:lj}{NewLine}{Exception}")
+                .CreateLogger());
+        return builder;
     }
- 
+
     public static void AttachWebViewConsole(this CoreWebView2 core)
     {
         // Thread-safe check-then-act using Interlocked
