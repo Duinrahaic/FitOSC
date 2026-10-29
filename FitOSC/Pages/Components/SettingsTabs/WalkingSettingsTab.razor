@@ -2,11 +2,29 @@
 @using FitOSC.Models
 @using Valve.VR
 @inject OpenVRService OpenVRService
+@using FitOSC.Services.State
+@using FitOSC.Services.SteamVRDriver
+@implements IDisposable
+@inject SteamVRDriverService SteamVRDriver
+@inject AppStateService AppState
 
 <section class="page" aria-labelledby="settings-walking-heading">
     <h2 id="settings-walking-heading">Walking</h2>
 
     <div class="group">
+        <div class="row">
+            <div class="lab">
+                <span class="t" id="settings-output-label">Output</span>
+            </div>
+            <div class="ctl seg" role="radiogroup" aria-labelledby="settings-output-label">
+                <label><input type="radio" name="settings-output" checked="@(Draft.Output == LocomotionOutput.Osc)" @onchange="() => SetOutput(LocomotionOutput.Osc)" /><span>OSC</span></label>
+                <label><input type="radio" name="settings-output" checked="@(Draft.Output == LocomotionOutput.Joystick)" @onchange="() => SetOutput(LocomotionOutput.Joystick)" /><span>Joystick</span></label>
+            </div>
+        </div>
+        @if (Draft.Output == LocomotionOutput.Joystick && DriverProblem is { } problem)
+        {
+            <p class="note" role="status">@problem</p>
+        }
         <div class="row">
             <div class="lab">
                 <span class="t" id="settings-mode-label">Default mode</span>
@@ -81,7 +99,7 @@
             </div>
             <div class="row">
                 <div class="lab">
-                    <label for="settings-interval">OSC update interval</label>
+                    <label for="settings-interval">Update interval</label>
                 </div>
                 <div class="ctl w-sm">
                     <div class="unit">
@@ -112,6 +130,21 @@
 
     private bool _advancedOpen;
 
+    protected override void OnInitialized() => AppState.AppStateUpdated += OnAppStateUpdated;
+
+    private void OnAppStateUpdated(AppStateInfo _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => AppState.AppStateUpdated -= OnAppStateUpdated;
+
+    private string? DriverProblem => SteamVRDriver.Status switch
+    {
+        SteamVRDriverStatus.NotBundled => "This build doesn't include the SteamVR driver.",
+        SteamVRDriverStatus.SteamVRNotFound => "SteamVR isn't installed.",
+        SteamVRDriverStatus.RestartSteamVR => "Restart SteamVR to load the FitOSC driver.",
+        SteamVRDriverStatus.NoLeftController => "No left controller thumbstick found.",
+        _ => null
+    };
+
     protected override void OnParametersSet()
     {
         // Keep invalid advanced values visible, e.g. after Save sends the user here.
@@ -135,6 +168,12 @@
     private Task SetSteering(WalkingSteering steering)
     {
         Draft.Steering = steering;
+        return Notify();
+    }
+
+    private Task SetOutput(LocomotionOutput output)
+    {
+        Draft.Output = output;
         return Notify();
     }
 

@@ -24,6 +24,7 @@ public partial class Index
             var walkingModeConfig = new WalkingModeConfiguration
             {
                 MaxSpeed = config.WalkingMode.MaxSpeed,
+                Output = config.WalkingMode.Output,
                 WalkingTrim = config.WalkingMode.DefaultTrim,
                 Steering = config.WalkingMode.Steering,
                 SmoothingFactor = config.WalkingMode.SmoothingFactor,
