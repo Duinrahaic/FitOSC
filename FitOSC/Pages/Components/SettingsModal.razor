@@ -251,6 +251,7 @@
             var walking = draft.Walking;
             config.WalkingMode.MaxSpeed = walking.MaxSpeedKph;
             config.WalkingMode.DefaultMode = walking.DefaultMode;
+            config.WalkingMode.Steering = walking.Steering;
             config.WalkingMode.DefaultTrim = walking.DefaultTrim;
             config.WalkingMode.SmoothingFactor = walking.SmoothingFactor;
             config.WalkingMode.MaxTurnAngle = walking.MaxTurnAngle;
@@ -279,6 +280,8 @@
             AppStateService.UpdatePreferredUnits(general.PreferMetric);
         if (general.LaunchWithSteamVR != baseline.General.LaunchWithSteamVR)
             OpenVRService.SetAutoLaunch(general.LaunchWithSteamVR);
+        if (draft.Walking.Steering != baseline.Walking.Steering)
+            AppStateService.SetWalkingSteering(draft.Walking.Steering);
         if (integrations.WebSocketEnabled != baseline.Integrations.WebSocketEnabled)
         {
             if (integrations.WebSocketEnabled)

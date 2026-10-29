@@ -18,6 +18,11 @@ public class WalkingModeConfiguration
     public float WalkingTrim { get; set; } = 0.80f;
 
     /// <summary>
+    /// What sets the walking direction
+    /// </summary>
+    public WalkingSteering Steering { get; set; } = WalkingSteering.Locked;
+
+    /// <summary>
     /// Predefined speed states for Override mode (0.0 - 1.0)
     /// </summary>
     public List<float> OverrideSpeeds { get; set; } = new()

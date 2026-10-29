@@ -1,5 +1,7 @@
 @using System.Globalization
 @using FitOSC.Models
+@using Valve.VR
+@inject OpenVRService OpenVRService
 
 <section class="page" aria-labelledby="settings-walking-heading">
     <h2 id="settings-walking-heading">Walking</h2>
@@ -12,6 +14,15 @@
             <div class="ctl seg" role="radiogroup" aria-labelledby="settings-mode-label">
                 <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Dynamic)" @onchange="() => SetMode(WalkingMode.Dynamic)" /><span>Dynamic</span></label>
                 <label><input type="radio" name="settings-mode" checked="@(Draft.DefaultMode == WalkingMode.Override)" @onchange="() => SetMode(WalkingMode.Override)" /><span>Override</span></label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="lab">
+                <span class="t" id="settings-steering-label">Steering</span>
+            </div>
+            <div class="ctl seg" role="radiogroup" aria-labelledby="settings-steering-label">
+                <label><input type="radio" name="settings-steering" checked="@(Draft.Steering == WalkingSteering.Locked)" @onchange="() => SetSteering(WalkingSteering.Locked)" /><span>Locked</span></label>
+                <label><input type="radio" name="settings-steering" checked="@(Draft.Steering == WalkingSteering.Hips)" disabled="@(!OpenVRService.HasWaistTracker && Draft.Steering != WalkingSteering.Hips)" @onchange="() => SetSteering(WalkingSteering.Hips)" /><span>Hips</span></label>
             </div>
         </div>
         @if (Draft.DefaultMode == WalkingMode.Dynamic || Draft.MaxSpeedError is not null || Draft.DefaultTrimError is not null)
@@ -118,6 +129,12 @@
     private Task SetMode(WalkingMode mode)
     {
         Draft.DefaultMode = mode;
+        return Notify();
+    }
+
+    private Task SetSteering(WalkingSteering steering)
+    {
+        Draft.Steering = steering;
         return Notify();
     }
 

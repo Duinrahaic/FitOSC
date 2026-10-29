@@ -99,6 +99,11 @@ public class WalkingModeSettings
     public WalkingMode DefaultMode { get; set; } = WalkingMode.Dynamic;
 
     /// <summary>
+    /// What sets the walking direction
+    /// </summary>
+    public WalkingSteering Steering { get; set; } = WalkingSteering.Locked;
+
+    /// <summary>
     /// Default walking trim (multiplier: 0.0 to 2.0)
     /// Values above 1.0 allow reaching full VRChat speed at lower treadmill speeds
     /// </summary>

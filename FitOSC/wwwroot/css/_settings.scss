@@ -320,6 +320,8 @@
     span { display: block; padding: 5px 12px; border-radius: 4px; font-size: 13px; color: var(--settings-muted); text-align: center; white-space: nowrap; }
     input:checked + span { background: #2c2c2c; color: #fff; }
     input:focus-visible + span { box-shadow: var(--settings-focus); }
+    input:disabled { cursor: default; }
+    input:disabled + span { opacity: 0.4; }
   }
 
   // Conditional fields indented under the switch or choice that reveals them

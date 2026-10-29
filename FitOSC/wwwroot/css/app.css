@@ -1999,6 +1999,12 @@ html .app main {
 .settings-window .seg input:focus-visible + span {
   box-shadow: var(--settings-focus);
 }
+.settings-window .seg input:disabled {
+  cursor: default;
+}
+.settings-window .seg input:disabled + span {
+  opacity: 0.4;
+}
 .settings-window .sub-block,
 .settings-window .bt-connection-proxy {
   display: grid;

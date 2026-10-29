@@ -116,14 +116,14 @@ public class AppStateService
         UpdateCachedAppState();
         return _cachedAppState;
     }
-    
-    
+
+
     // ---- Settings ----
     /// <summary>
     /// Current unit system (Metric/Imperial).
     /// </summary>
     public MeasurementType Units { get; private set; } = MeasurementType.Imperial;
-    
+
     /// <summary>
     /// Latest treadmill telemetry (raw values as parsed from BLE).
     /// </summary>
@@ -137,12 +137,12 @@ public class AppStateService
         LatestData = telemetry;
         NotifyAppStateUpdated();
     }
-    
+
     /// <summary>
     ///  Latest treadmill configuration (e.g., max speed, incline).
     /// </summary>
-    public TreadmillConfiguration? LatestConfiguration { get; private set; } = new TreadmillConfiguration(); 
-    
+    public TreadmillConfiguration? LatestConfiguration { get; private set; } = new TreadmillConfiguration();
+
     /// <summary>
     /// Push new treadmill configuration into app state.
     /// </summary>
@@ -152,17 +152,17 @@ public class AppStateService
         LatestConfiguration = config;
         NotifyAppStateUpdated();
     }
-    
-    
-    
-    
+
+
+
+
     /// <summary>
     /// Latest treadmill state (e.g., Running, Paused, Stopped).
     /// </summary>
     public TreadmillState LatestState { get; private set; } = TreadmillState.Stopped;
 
- 
-    
+
+
     /// <summary>
     /// Push new treadmill state into app state.
     /// </summary>
@@ -289,6 +289,15 @@ public class AppStateService
     public void UpdateWalkingModeConfig(WalkingModeConfiguration config)
     {
         WalkingModeConfig = config;
+        NotifyAppStateUpdated();
+    }
+
+    /// <summary>
+    /// Set what steers the walking direction
+    /// </summary>
+    public void SetWalkingSteering(WalkingSteering steering)
+    {
+        WalkingModeConfig.Steering = steering;
         NotifyAppStateUpdated();
     }
 
