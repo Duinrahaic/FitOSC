@@ -104,6 +104,11 @@ public class WalkingModeSettings
     public WalkingSteering Steering { get; set; } = WalkingSteering.Locked;
 
     /// <summary>
+    /// Where walking movement is sent (VRChat OSC or the left controller thumbstick)
+    /// </summary>
+    public LocomotionOutput Output { get; set; } = LocomotionOutput.Osc;
+
+    /// <summary>
     /// Default walking trim (multiplier: 0.0 to 2.0)
     /// Values above 1.0 allow reaching full VRChat speed at lower treadmill speeds
     /// </summary>

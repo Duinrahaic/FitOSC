@@ -11,6 +11,11 @@ public class WalkingModeConfiguration
     public decimal MaxSpeed { get; set; } = 8.0m;
 
     /// <summary>
+    /// Where walking movement is sent
+    /// </summary>
+    public LocomotionOutput Output { get; set; } = LocomotionOutput.Osc;
+
+    /// <summary>
     /// Trim multiplier for adjusting walking speed (0.0 - 2.0, default: 0.80)
     /// Values above 1.0 allow reaching full VRChat speed at lower treadmill speeds
     /// Final output is clamped to 0.0 - 1.0 range

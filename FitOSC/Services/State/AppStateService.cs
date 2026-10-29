@@ -179,7 +179,8 @@ public class AppStateService
         { AppInterface.Bluetooth, ConnectionStatus.Disconnected },
         { AppInterface.VR, ConnectionStatus.Disconnected },
         { AppInterface.Pulsoid, ConnectionStatus.Disconnected },
-        { AppInterface.OSC, ConnectionStatus.Disconnected }
+        { AppInterface.OSC, ConnectionStatus.Disconnected },
+        { AppInterface.SteamVRDriver, ConnectionStatus.Disconnected }
     };
 
     public void PublishInterfaceConnectionStatuses(AppInterface appInterface, ConnectionStatus status)
@@ -298,6 +299,15 @@ public class AppStateService
     public void SetWalkingSteering(WalkingSteering steering)
     {
         WalkingModeConfig.Steering = steering;
+        NotifyAppStateUpdated();
+    }
+
+    /// <summary>
+    /// Switch where walking movement is sent
+    /// </summary>
+    public void SetLocomotionOutput(LocomotionOutput output)
+    {
+        WalkingModeConfig.Output = output;
         NotifyAppStateUpdated();
     }
 

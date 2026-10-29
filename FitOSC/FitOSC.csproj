@@ -151,6 +151,32 @@
     <ItemGroup>
       <Folder Include="Extensions\" />
     </ItemGroup>
+    <!-- The SteamVR driver is C++, which dotnet can't build, so Visual Studio's MSBuild is found with vswhere.
+         It ships in SteamVR\driver\fitosc; SteamVRDriverService copies it out of the app folder before registering it. -->
+    <PropertyGroup>
+        <SteamVRDriverDir>$(MSBuildThisFileDirectory)..\SteamVRDriver\</SteamVRDriverDir>
+        <SteamVRDriverDll>$(SteamVRDriverDir)fitosc\bin\win64\driver_fitosc.dll</SteamVRDriverDll>
+        <VsWhere>$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer\vswhere.exe</VsWhere>
+    </PropertyGroup>
+    <ItemGroup>
+        <SteamVRDriverSource Include="$(SteamVRDriverDir)src\**;$(SteamVRDriverDir)third_party\**;$(SteamVRDriverDir)FitOSC.SteamVRDriver.vcxproj" />
+    </ItemGroup>
+    <Target Name="BuildSteamVRDriver" BeforeTargets="BeforeBuild" Inputs="@(SteamVRDriverSource)" Outputs="$(SteamVRDriverDll)">
+        <Exec Condition="Exists('$(VsWhere)')" ConsoleToMSBuild="true" StandardOutputImportance="low"
+              Command="&quot;$(VsWhere)&quot; -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find MSBuild\**\Bin\MSBuild.exe">
+            <Output TaskParameter="ConsoleOutput" PropertyName="VsMSBuild" />
+        </Exec>
+        <Warning Condition="'$(VsMSBuild)' == ''" Text="Visual Studio C++ tools not found; building without the SteamVR driver." />
+        <Exec Condition="'$(VsMSBuild)' != ''" Command="&quot;$(VsMSBuild)&quot; &quot;$(SteamVRDriverDir)FitOSC.SteamVRDriver.vcxproj&quot; -p:Configuration=Release -p:Platform=x64 -nologo -v:m" />
+    </Target>
+    <Target Name="IncludeSteamVRDriver" AfterTargets="BuildSteamVRDriver" BeforeTargets="AssignTargetPaths" Condition="Exists('$(SteamVRDriverDll)')">
+        <ItemGroup>
+            <_SteamVRDriverFile Include="$(SteamVRDriverDir)fitosc\**\*"
+                                Exclude="$(SteamVRDriverDir)fitosc\**\*.lib;$(SteamVRDriverDir)fitosc\**\*.exp;$(SteamVRDriverDir)fitosc\**\*.pdb" />
+            <ContentWithTargetPath Include="@(_SteamVRDriverFile)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"
+                                   TargetPath="SteamVR\driver\fitosc\%(_SteamVRDriverFile.RecursiveDir)%(_SteamVRDriverFile.Filename)%(_SteamVRDriverFile.Extension)" />
+        </ItemGroup>
+    </Target>
     <ItemGroup>
       <Protobuf Include="Utilities\BLE\ESPHome\api.proto" GrpcServices="None" />
       <None Update="Utilities\BLE\ESPHome\ESPHome-LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" TargetPath="licenses\ESPHome.txt" />

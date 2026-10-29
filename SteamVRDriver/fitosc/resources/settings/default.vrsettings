@@ -1,0 +1,6 @@
+{
+	"driver_fitosc": {
+		"enable": true,
+		"loadPriority": 1000
+	}
+}
