@@ -143,6 +143,16 @@ public class UserSettings
     public bool PreferMetric { get; set; } = true;
 
     /// <summary>
+    /// Day and month order for dates (null follows the system region)
+    /// </summary>
+    public DateFormat? DateFormat { get; set; }
+
+    /// <summary>
+    /// 12- or 24-hour clock for times (null follows the system region)
+    /// </summary>
+    public TimeFormat? TimeFormat { get; set; }
+
+    /// <summary>
     /// Enable session history tracking
     /// </summary>
     public bool HistoryEnabled { get; set; } = true;

@@ -1,0 +1,240 @@
+@using FitOSC.Models
+@using FitOSC.Services
+@using FitOSC.Services.History
+@using FitOSC.Services.State
+@using FitOSC.Services.Treadmill
+@inject AppStateService AppStateService
+@inject HistoryService HistoryService
+@inject DateTimeFormatService DateTimeFormatService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@{
+    var selected = Selected(Window());
+}
+
+@* Takes the live readout's place while the belt is idle, showing the selected session *@
+<div class="treadmill-display-history @(Visible ? "visible" : "")" style="--slot: @((int)_stat)">
+    @foreach (var stat in Enum.GetValues<HistoryStat>())
+    {
+        <button type="button" class="treadmill-info-box-item @(stat == _stat ? "active" : "")"
+                disabled="@(!IsCharted(stat))" @onclick="() => PickStat(stat)">
+            <span class="treadmill-info-box-value">@(selected is null ? "--" : FormatStat(stat, selected, compact: false))</span>
+            <span class="treadmill-info-box-title">@StatTitle(stat)</span>
+        </button>
+    }
+    <span class="treadmill-display-history-underline"></span>
+</div>
+
+@code {
+    // Same order as the live readout, so each stat keeps its place when the history takes over
+    private enum HistoryStat { Pace, Distance, Duration, Calories, HeartRate }
+
+    // What the scene draws per session: height as a share of the tallest, the value above it, the date and time below
+    private sealed record HistoryColumn(double Height, string Value, string Date, string Time);
+
+    private const int SessionWindow = 10;
+
+    // The stats take turns on the columns; hovering the display holds the current one
+    private static readonly TimeSpan RotateInterval = TimeSpan.FromSeconds(10);
+
+    private List<TreadmillSession> _sessions = new(); // newest first
+    private Guid? _selectedId; // null = the latest session
+    private HistoryStat _stat = HistoryStat.Distance;
+    private bool _idle; // connected, belt stopped and not running or paused
+    private bool _hovered;
+    private MeasurementType _units;
+    private Timer? _rotateTimer;
+    private DotNetObjectReference<SessionHistory>? _callbacks;
+
+    private bool Visible => _sessions.Count > 0 && _idle;
+    private bool IsMetric => _units == MeasurementType.Metric;
+
+    // Oldest on the left, latest on the right
+    private List<TreadmillSession> Window() => _sessions.Take(SessionWindow).Reverse().ToList();
+
+    private TreadmillSession? Selected(List<TreadmillSession> window) =>
+        window.FirstOrDefault(s => s.Id == _selectedId) ?? window.LastOrDefault();
+
+    protected override void OnInitialized()
+    {
+        _sessions = HistoryService.GetSessions();
+        ApplyAppState(AppStateService.GetCurrentAppStateInfo());
+
+        AppStateService.AppStateUpdated += HandleAppStateUpdated;
+        HistoryService.SessionHistoryUpdated += HandleSessionHistoryUpdated;
+        _rotateTimer = new Timer(_ => InvokeAsync(Rotate), null, RotateInterval, RotateInterval);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _callbacks = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("TreadmillDisplay.setHistoryCallbacks", _callbacks);
+        }
+
+        var window = Window();
+        var selected = Selected(window);
+        await JS.InvokeVoidAsync("TreadmillDisplay.setHistory", Columns(window), selected is null ? -1 : window.IndexOf(selected), Visible);
+    }
+
+    private List<HistoryColumn> Columns(List<TreadmillSession> window)
+    {
+        var peak = window.Select(s => StatValue(_stat, s) ?? 0).DefaultIfEmpty().Max();
+        return window
+            .Select(s => new HistoryColumn(
+                peak > 0 ? (double)((StatValue(_stat, s) ?? 0) / peak) : 0,
+                FormatStat(_stat, s, compact: true),
+                DateTimeFormatService.Date(s.StartTime),
+                DateTimeFormatService.Time(s.StartTime)))
+            .ToList();
+    }
+
+    [JSInvokable]
+    public Task SelectSession(int index) => InvokeAsync(() =>
+    {
+        // The row can change under the pointer when a session is saved
+        var window = Window();
+        if (index < window.Count)
+        {
+            _selectedId = window[index].Id;
+            StateHasChanged();
+        }
+    });
+
+    [JSInvokable]
+    public Task SetHovered(bool hovered) => InvokeAsync(() =>
+    {
+        _hovered = hovered;
+        if (!hovered)
+            RestartRotation();
+    });
+
+    private void PickStat(HistoryStat stat)
+    {
+        _stat = stat;
+        RestartRotation();
+    }
+
+    private void Rotate()
+    {
+        if (!Visible || _hovered)
+            return;
+
+        // Skip stats no session in the row has, like heart rate without a monitor
+        var stats = Enum.GetValues<HistoryStat>();
+        var next = _stat;
+        do
+        {
+            next = stats[((int)next + 1) % stats.Length];
+        } while (!IsCharted(next) && next != _stat);
+
+        _stat = next;
+        StateHasChanged();
+    }
+
+    private void RestartRotation() => _rotateTimer?.Change(RotateInterval, RotateInterval);
+
+    private bool IsCharted(HistoryStat stat) => Window().Any(s => StatValue(stat, s) > 0);
+
+    // Column heights; pace is charted by speed, so faster walks stand taller
+    private static decimal? StatValue(HistoryStat stat, TreadmillSession session) => stat switch
+    {
+        HistoryStat.Pace => HasPace(session) ? session.TotalDistance / session.DurationSeconds : null,
+        HistoryStat.Distance => session.TotalDistance,
+        HistoryStat.Duration => session.DurationSeconds,
+        HistoryStat.Calories => session.Calories,
+        _ => session.AverageHeartRate
+    };
+
+    private string StatTitle(HistoryStat stat) => stat switch
+    {
+        HistoryStat.Pace => "PACE",
+        HistoryStat.Distance => IsMetric ? "KILOMETERS" : "MILES",
+        HistoryStat.Duration => "DURATION",
+        HistoryStat.Calories => "KCAL",
+        _ => "BPM"
+    };
+
+    // Matches the live readout; compact drops the leading hours from durations for the column labels
+    private string FormatStat(HistoryStat stat, TreadmillSession session, bool compact) => stat switch
+    {
+        HistoryStat.Pace => HasPace(session) ? FormatPace(session) : "--",
+        HistoryStat.Distance => (IsMetric ? session.TotalDistance / 1000m : session.TotalDistance * 0.000621371m).ToString("0.00"),
+        HistoryStat.Duration => compact ? FormatClock(session.DurationSeconds) : TimeSpan.FromSeconds(session.DurationSeconds).ToString(@"hh\:mm\:ss"),
+        HistoryStat.Calories => session.Calories.ToString("0"),
+        _ => session.AverageHeartRate?.ToString("0") ?? "--"
+    };
+
+    // From distance and duration rather than the sampled average speed, so it agrees with the other stats
+    private static bool HasPace(TreadmillSession session) => session.TotalDistance > 0 && session.DurationSeconds > 0;
+
+    // Time per kilometre or mile
+    private string FormatPace(TreadmillSession session) =>
+        FormatClock((int)Math.Round(session.DurationSeconds / (IsMetric ? session.TotalDistance / 1000m : session.TotalDistance * 0.000621371m)));
+
+    private static string FormatClock(int seconds)
+    {
+        var duration = TimeSpan.FromSeconds(seconds);
+        return duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours}:{duration:mm\\:ss}"
+            : duration.ToString(@"mm\:ss");
+    }
+
+    private bool ApplyAppState(AppStateInfo data)
+    {
+        var isConnected = data.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var status)
+                          && status == ConnectionStatus.Connected;
+        // A moving belt counts too, in case the treadmill reports running late
+        var beltMoving = data.TreadmillTelemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Value > 0;
+        var idle = isConnected && !beltMoving && data.TreadmillState is not (TreadmillState.Running or TreadmillState.Paused);
+
+        var changed = idle != _idle || data.UserMeasurementType != _units;
+        if (idle && !_idle)
+        {
+            // Each showing starts on the latest session
+            _selectedId = null;
+            RestartRotation();
+        }
+        _idle = idle;
+        _units = data.UserMeasurementType;
+        return changed;
+    }
+
+    private void HandleAppStateUpdated(AppStateInfo data)
+    {
+        // Only re-render when visibility or units change
+        if (ApplyAppState(data))
+        {
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void HandleSessionHistoryUpdated(object? sender, EventArgs e)
+    {
+        var sessions = HistoryService.GetSessions();
+        InvokeAsync(() =>
+        {
+            _sessions = sessions;
+            StateHasChanged();
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _rotateTimer?.Dispose();
+        AppStateService.AppStateUpdated -= HandleAppStateUpdated;
+        HistoryService.SessionHistoryUpdated -= HandleSessionHistoryUpdated;
+
+        try
+        {
+            await JS.InvokeVoidAsync("TreadmillDisplay.setHistoryCallbacks");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The window is closing; the scene goes with it
+        }
+        _callbacks?.Dispose();
+    }
+}

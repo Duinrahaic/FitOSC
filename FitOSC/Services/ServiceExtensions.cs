@@ -25,9 +25,10 @@ public static class ServiceExtensions
     public static IServiceCollection RegisterServices(this IServiceCollection services)
     {
         services.AddSingleton<ConfigurationService>();
+        services.AddSingleton<DateTimeFormatService>();
         services.AddSingleton<BluetoothClientFactory>();
         services.AddSingleton<TreadmillManager>();
-        services.AddSingleton<IOscService,OscService>();
+        services.AddSingleton<IOscService, OscService>();
         services.AddSingleton<AppStateService>();
 
         // Register OpenVRService as both singleton (for injection) and hosted service (for auto-start)
@@ -43,8 +44,11 @@ public static class ServiceExtensions
         services.AddHostedService(sp => sp.GetRequiredService<VRChatParameterHandlerService>());
 
         services.AddSingleton<DebugConsoleService>();
-        services.AddSingleton<HistoryService>();
         services.AddSingleton<OnboardingService>();
+
+        // Register HistoryService as both singleton (for injection) and hosted service (for auto-start)
+        services.AddSingleton<HistoryService>();
+        services.AddHostedService(sp => sp.GetRequiredService<HistoryService>());
 
         // Register WebSocketService for telemetry broadcasting
         services.AddSingleton<WebSocketService>();
@@ -64,12 +68,12 @@ public static class ServiceExtensions
 
         return services;
     }
-    
+
     public static ILoggingBuilder RegisterLogger(this ILoggingBuilder builder)
     {
         builder
             .ClearProviders()
-            .AddSerilog( new LoggerConfiguration()
+            .AddSerilog(new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
                 .Enrich.FromLogContext()
@@ -81,10 +85,10 @@ public static class ServiceExtensions
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 7,
                     outputTemplate: "{Timestamp:HH:mm:ss.fff} {Level:u3} [{SourceContext}] {Message:lj}{NewLine}{Exception}")
-                .CreateLogger());   
-        return builder; 
+                .CreateLogger());
+        return builder;
     }
- 
+
     public static void AttachWebViewConsole(this CoreWebView2 core)
     {
         // Thread-safe check-then-act using Interlocked

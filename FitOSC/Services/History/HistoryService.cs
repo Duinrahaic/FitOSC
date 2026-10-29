@@ -7,28 +7,31 @@ using FitOSC.Services.Treadmill;
 namespace FitOSC.Services.History;
 
 /// <summary>
-/// Service for tracking and managing treadmill session history.
-/// Sessions are stored on disk and only loaded when explicitly requested.
+/// Records treadmill sessions from a connected treadmill and persists them to disk.
+/// Sessions are loaded from disk only on request.
 /// </summary>
-public class HistoryService
+public class HistoryService : IHostedService
 {
     private readonly ILogger<HistoryService> _logger;
     private readonly ConfigurationService _configService;
     private readonly AppStateService _appStateService;
     private readonly string _historyFilePath;
+    private readonly object _sessionLock = new();
     private TreadmillSession? _currentSession;
 
-    // Tracking variables for current session
-    private decimal _totalSpeedSum = 0;
-    private int _speedSampleCount = 0;
-    private decimal _maxSpeed = 0;
-    private int _totalHeartRateSum = 0;
-    private int _heartRateSampleCount = 0;
+    // Readings averaged over the session's running time
+    private readonly SessionStat _speed = new();
+    private readonly SessionStat _heartRate = new();
+    private readonly SessionStat _incline = new();
+    private readonly SessionStat _met = new();
+    private readonly SessionStat _forceOnBelt = new();
+    private readonly SessionStat _power = new();
 
     // Treadmill totals restart on a new workout or reconnect, so the session adds up what each reading gained.
     private readonly SessionCounter _distance = new();
     private readonly SessionCounter _calories = new();
     private readonly SessionCounter _elevation = new();
+    private readonly SessionCounter _steps = new();
 
     // Duration counts running time only, so pauses and reconnects inside a session do not add to it.
     private TimeSpan _runningTime;
@@ -51,41 +54,39 @@ public class HistoryService
         Directory.CreateDirectory(fitOscFolder);
 
         _historyFilePath = Path.Combine(fitOscFolder, "history.json");
+    }
 
-        // Subscribe to app state changes to track sessions
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
         _appStateService.AppStateUpdated += OnAppStateUpdated;
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _appStateService.AppStateUpdated -= OnAppStateUpdated;
+
+        lock (_sessionLock)
+        {
+            EndSession();
+        }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Get all saved sessions. Loads from disk on each call.
+    /// Get all saved sessions, newest first. Loads from disk on each call.
     /// </summary>
     public List<TreadmillSession> GetSessions()
     {
-        var sessions = LoadSessionsFromDisk();
-        return sessions.OrderByDescending(s => s.StartTime).ToList();
-    }
-
-    /// <summary>
-    /// Get the currently active session
-    /// </summary>
-    public TreadmillSession? GetCurrentSession()
-    {
-        return _currentSession;
-    }
-
-    /// <summary>
-    /// Delete a session by ID
-    /// </summary>
-    public void DeleteSession(Guid sessionId)
-    {
-        var sessions = LoadSessionsFromDisk();
-        var session = sessions.FirstOrDefault(s => s.Id == sessionId);
-        if (session != null)
+        try
         {
-            sessions.Remove(session);
-            SaveSessionsToDisk(sessions);
-            SessionHistoryUpdated?.Invoke(this, EventArgs.Empty);
-            _logger.LogInformation("Deleted session {SessionId}", sessionId);
+            return LoadSessionsFromDisk().OrderByDescending(s => s.StartTime).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load session history from disk");
+            return new List<TreadmillSession>();
         }
     }
 
@@ -94,26 +95,37 @@ public class HistoryService
     /// </summary>
     public void ClearAllHistory()
     {
-        SaveSessionsToDisk(new List<TreadmillSession>());
+        lock (_sessionLock)
+        {
+            SaveSessionsToDisk(new List<TreadmillSession>());
+        }
+
         SessionHistoryUpdated?.Invoke(this, EventArgs.Empty);
         _logger.LogInformation("Cleared all session history");
     }
 
     private void OnAppStateUpdated(AppStateInfo appState)
     {
-        var config = _configService.GetConfiguration();
-
-        // Only track if history is enabled
-        if (!config.User.HistoryEnabled)
+        lock (_sessionLock)
         {
-            return;
+            TrackSession(appState);
         }
+    }
 
+    private void TrackSession(AppStateInfo appState)
+    {
+        appState.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var bluetooth);
         var isRunning = appState.TreadmillState == TreadmillState.Running;
-        if (isRunning && _currentSession == null)
-            StartSession(appState);
+
+        // Sessions are only collected from a connected treadmill
         if (_currentSession == null)
-            return;
+        {
+            if (!isRunning || bluetooth != ConnectionStatus.Connected
+                || !_configService.GetConfiguration().User.HistoryEnabled)
+                return;
+
+            StartSession(appState);
+        }
 
         if (isRunning)
             _runningSince ??= DateTime.Now;
@@ -121,7 +133,6 @@ public class HistoryService
             StopRunningClock();
 
         // A pause or a reconnect keeps the session open; it ends when the treadmill stops or the connection is closed.
-        appState.ConnectionStates.TryGetValue(AppInterface.Bluetooth, out var bluetooth);
         var ended = bluetooth is ConnectionStatus.Disconnected or ConnectionStatus.Error
                     || (appState.TreadmillState == TreadmillState.Stopped && bluetooth != ConnectionStatus.Connecting);
         if (ended)
@@ -153,14 +164,16 @@ public class HistoryService
         };
 
         // Reset tracking variables
-        _totalSpeedSum = 0;
-        _speedSampleCount = 0;
-        _maxSpeed = 0;
-        _totalHeartRateSum = 0;
-        _heartRateSampleCount = 0;
+        _speed.Reset();
+        _heartRate.Reset();
+        _incline.Reset();
+        _met.Reset();
+        _forceOnBelt.Reset();
+        _power.Reset();
         _distance.Reset();
         _calories.Reset();
         _elevation.Reset();
+        _steps.Reset();
         _runningTime = TimeSpan.Zero;
         _runningSince = null;
 
@@ -174,16 +187,17 @@ public class HistoryService
 
         var telemetry = appState.TreadmillTelemetry;
 
-        // Update speed statistics
-        var speed = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed);
-        if (isRunning && speed is { Enabled: true })
+        if (isRunning)
         {
-            _totalSpeedSum += speed.Value;
-            _speedSampleCount++;
-            if (speed.Value > _maxSpeed)
-            {
-                _maxSpeed = speed.Value;
-            }
+            Sample(telemetry, TreadmillTelemetryProperty.InstantaneousSpeed, _speed);
+            Sample(telemetry, TreadmillTelemetryProperty.Incline, _incline);
+            Sample(telemetry, TreadmillTelemetryProperty.MetabolicEquivalent, _met);
+            Sample(telemetry, TreadmillTelemetryProperty.ForceOnBelt, _forceOnBelt);
+            Sample(telemetry, TreadmillTelemetryProperty.Power, _power);
+
+            // Zero means no monitor is reading
+            if (telemetry.GetTelemetryValue(TreadmillTelemetryProperty.HeartRate) is { Enabled: true, Value: > 0 } heartRate)
+                _heartRate.Add(heartRate.Value);
         }
 
         // Update distance
@@ -200,14 +214,6 @@ public class HistoryService
             _currentSession.Calories = (int)_calories.Add(calories.Value);
         }
 
-        // Update heart rate statistics
-        var heartRate = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.HeartRate);
-        if (isRunning && heartRate is { Enabled: true } && heartRate.Value > 0)
-        {
-            _totalHeartRateSum += (int)heartRate.Value;
-            _heartRateSampleCount++;
-        }
-
         // Update elevation gain
         var elevation = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.ElevationGain);
         if (elevation is { Enabled: true })
@@ -215,8 +221,21 @@ public class HistoryService
             _currentSession.ElevationGain = _elevation.Add(elevation.Value);
         }
 
+        // Update steps
+        var steps = telemetry.GetTelemetryValue(TreadmillTelemetryProperty.StepCount);
+        if (steps is { Enabled: true })
+        {
+            _currentSession.Steps = (int)_steps.Add(steps.Value);
+        }
+
         // Update duration
         _currentSession.DurationSeconds = RunningSeconds();
+    }
+
+    private static void Sample(TreadmillTelemetry telemetry, TreadmillTelemetryProperty property, SessionStat stat)
+    {
+        if (telemetry.GetTelemetryValue(property) is { Enabled: true } reading)
+            stat.Add(reading.Value);
     }
 
     private void EndSession()
@@ -224,77 +243,72 @@ public class HistoryService
         if (_currentSession == null)
             return;
 
-        var config = _configService.GetConfiguration();
-
-        // Set end time
-        _currentSession.EndTime = DateTime.Now;
-
-        // Calculate final averages
-        if (_speedSampleCount > 0)
-        {
-            _currentSession.AverageSpeed = _totalSpeedSum / _speedSampleCount;
-        }
-        _currentSession.MaxSpeed = _maxSpeed;
-
-        if (_heartRateSampleCount > 0)
-        {
-            _currentSession.AverageHeartRate = _totalHeartRateSum / _heartRateSampleCount;
-        }
-
-        // Calculate final duration
-        StopRunningClock();
-        _currentSession.DurationSeconds = RunningSeconds();
-
-        // Only save if session meets minimum duration
-        var durationMinutes = _currentSession.DurationSeconds / 60;
-        if (durationMinutes >= config.User.MinimumSessionDuration)
-        {
-            // Load existing sessions, append new one, and save
-            var sessions = LoadSessionsFromDisk();
-            sessions.Add(_currentSession);
-            SaveSessionsToDisk(sessions);
-            SessionHistoryUpdated?.Invoke(this, EventArgs.Empty);
-            _logger.LogInformation("Session saved: {Duration} minutes, {Distance}m, {Calories} cal",
-                durationMinutes, _currentSession.TotalDistance, _currentSession.Calories);
-        }
-        else
-        {
-            _logger.LogInformation("Session discarded (too short): {Duration} minutes < {MinDuration} minutes",
-                durationMinutes, config.User.MinimumSessionDuration);
-        }
-
+        var session = _currentSession;
         _currentSession = null;
-    }
 
-    /// <summary>
-    /// Load sessions from disk. Returns empty list if file doesn't exist or on error.
-    /// </summary>
-    private List<TreadmillSession> LoadSessionsFromDisk()
-    {
+        session.EndTime = DateTime.Now;
+
+        session.AverageSpeed = _speed.Average ?? 0;
+        session.MaxSpeed = _speed.Max ?? 0;
+        session.AverageHeartRate = _heartRate.Average is { } averageHeartRate ? (int)Math.Round(averageHeartRate) : null;
+        session.MaxHeartRate = (int?)_heartRate.Max;
+        session.AverageIncline = _incline.Average;
+        session.MaxIncline = _incline.Max;
+        session.AverageMet = _met.Average;
+        session.MaxMet = _met.Max;
+        session.AverageForceOnBelt = _forceOnBelt.Average;
+        session.MaxForceOnBelt = _forceOnBelt.Max;
+        session.AveragePower = _power.Average;
+        session.MaxPower = _power.Max;
+
+        StopRunningClock();
+        session.DurationSeconds = RunningSeconds();
+
+        var minimumMinutes = _configService.GetConfiguration().User.MinimumSessionDuration;
+        if (session.DurationSeconds < minimumMinutes * 60)
+        {
+            _logger.LogInformation("Session discarded (too short): {Duration}s < {MinDuration} minutes",
+                session.DurationSeconds, minimumMinutes);
+            return;
+        }
+
+        List<TreadmillSession> sessions;
         try
         {
-            if (File.Exists(_historyFilePath))
-            {
-                var json = File.ReadAllText(_historyFilePath);
-                var sessions = JsonSerializer.Deserialize<List<TreadmillSession>>(json);
-
-                if (sessions != null)
-                {
-                    _logger.LogDebug("Loaded {Count} sessions from disk", sessions.Count);
-                    return sessions;
-                }
-            }
+            sessions = LoadSessionsFromDisk();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load session history from disk");
+            // Never overwrite a history file we couldn't read
+            _logger.LogError(ex, "Failed to load session history; session from {StartTime} not saved",
+                session.StartTime);
+            return;
         }
 
-        return new List<TreadmillSession>();
+        sessions.Add(session);
+        SaveSessionsToDisk(sessions);
+        _logger.LogInformation("Session saved: {Duration}s, {Distance}m, {Calories} cal",
+            session.DurationSeconds, session.TotalDistance, session.Calories);
+
+        SessionHistoryUpdated?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
-    /// Save sessions to disk.
+    /// Load sessions from disk. Returns an empty list if the file doesn't exist; throws if it can't be read.
+    /// </summary>
+    private List<TreadmillSession> LoadSessionsFromDisk()
+    {
+        if (!File.Exists(_historyFilePath))
+            return new List<TreadmillSession>();
+
+        // Earlier versions could write null entries into the array
+        var json = File.ReadAllText(_historyFilePath);
+        return JsonSerializer.Deserialize<List<TreadmillSession?>>(json)?.OfType<TreadmillSession>().ToList()
+               ?? new List<TreadmillSession>();
+    }
+
+    /// <summary>
+    /// Save sessions to disk via a temp file so a crash mid-write can't corrupt the history.
     /// </summary>
     private void SaveSessionsToDisk(List<TreadmillSession> sessions)
     {
@@ -305,7 +319,9 @@ public class HistoryService
                 WriteIndented = true
             });
 
-            File.WriteAllText(_historyFilePath, json);
+            var tempPath = _historyFilePath + ".tmp";
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, _historyFilePath, overwrite: true);
             _logger.LogDebug("Saved {Count} sessions to disk", sessions.Count);
         }
         catch (Exception ex)
@@ -335,6 +351,33 @@ public class HistoryService
         {
             _last = null;
             _total = 0;
+        }
+    }
+
+    /// <summary>
+    /// Averages a reading across one session and keeps its peak; both are null until the treadmill sends one.
+    /// </summary>
+    private sealed class SessionStat
+    {
+        private decimal _sum;
+        private int _count;
+
+        public decimal? Average => _count > 0 ? _sum / _count : null;
+        public decimal? Max { get; private set; }
+
+        public void Add(decimal reading)
+        {
+            _sum += reading;
+            _count++;
+            if (Max is not { } max || reading > max)
+                Max = reading;
+        }
+
+        public void Reset()
+        {
+            _sum = 0;
+            _count = 0;
+            Max = null;
         }
     }
 }

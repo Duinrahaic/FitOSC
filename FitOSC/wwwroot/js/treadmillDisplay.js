@@ -51,6 +51,26 @@ window.TreadmillDisplay = {
     mountainSpacing: 12,
     mountainCount: 8,
 
+    // Session history: a column per recent session, raised while the belt is idle.
+    // SessionHistory.razor supplies the columns; the scene draws and animates them.
+    history: { columns: [], selected: -1, visible: false },
+    historyCallbacks: null,
+    historyBars: [],
+    historyGlow: null,
+    historyLabels: null,
+    historyPointer: null,
+    historyHovered: -1,
+    historyBlend: 0, // 0 = path view, 1 = history view
+    historyRaycaster: new THREE.Raycaster(),
+    historyPoint: new THREE.Vector3(),
+    historyRoot: null,
+    historyRootHandlers: null,
+    historyMaxHeight: 4.2,
+    historyMaxSpacing: 2.05,
+    // Easing rates per second: rise gently while idle, clear out fast when the belt starts
+    historyRiseRate: 3,
+    historySinkRate: 10,
+
     initialize: function(containerId) {
         const container = document.getElementById(containerId);
         if (!container) {
@@ -94,6 +114,9 @@ window.TreadmillDisplay = {
 
         // Create shadow fan effect
         this.createShadowFan();
+
+        // Create session history columns
+        this.createHistory(container);
 
         // Add lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
@@ -460,6 +483,227 @@ window.TreadmillDisplay = {
         this.scene.add(this.shadowFan);
     },
 
+    createHistory: function(container) {
+        // Pulsing patch of ground under the selected session
+        this.historyGlow = new THREE.Mesh(
+            new THREE.PlaneGeometry(1, 1),
+            new THREE.MeshBasicMaterial({
+                color: 0x00d4aa,
+                transparent: true,
+                opacity: 0,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            })
+        );
+        this.historyGlow.rotation.x = -Math.PI / 2;
+        this.historyGlow.visible = false;
+        this.scene.add(this.historyGlow);
+
+        // HTML labels stay sharp; they're placed over the columns every frame
+        this.historyLabels = document.createElement('div');
+        this.historyLabels.className = 'treadmill-display-history-labels';
+        container.appendChild(this.historyLabels);
+
+        const canvas = this.renderer.domElement;
+        canvas.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            this.historyPointer = new THREE.Vector2(
+                (event.clientX - rect.left) / rect.width * 2 - 1,
+                -(event.clientY - rect.top) / rect.height * 2 + 1
+            );
+        });
+        canvas.addEventListener('mouseleave', () => this.historyPointer = null);
+        canvas.addEventListener('click', () => {
+            if (this.historyHovered < 0) return;
+            this.history.selected = this.historyHovered;
+            this.historyCallbacks?.invokeMethodAsync('SelectSession', this.historyHovered);
+        });
+
+        // Anywhere over the display, header included, holds the charted stat
+        this.historyRoot = container.parentElement;
+        this.historyRootHandlers = {
+            mouseenter: () => this.historyCallbacks?.invokeMethodAsync('SetHovered', true),
+            mouseleave: () => this.historyCallbacks?.invokeMethodAsync('SetHovered', false)
+        };
+        Object.entries(this.historyRootHandlers).forEach(([type, handler]) => this.historyRoot.addEventListener(type, handler));
+
+        this.buildHistoryColumns();
+    },
+
+    createHistoryColumn: function() {
+        const group = new THREE.Group();
+
+        // Unit box standing on the ground; scaled to its width and height each frame
+        const geometry = new THREE.BoxGeometry(1, 1, 0.9);
+        geometry.translate(0, 0.5, 0);
+
+        // Mountain palette: lit front and top, darker sides and back. Box faces: +x, -x, top, bottom, front, back
+        const face = (color, opacity) => new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: opacity,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const faces = [
+            face(0x00a080, 0.2),
+            face(0x00a080, 0.2),
+            face(0x00d4aa, 0.45),
+            face(0x0a2a22, 0.1),
+            face(0x00d4aa, 0.22),
+            face(0x0a2a22, 0.15)
+        ];
+        group.add(new THREE.Mesh(geometry, faces));
+
+        const edges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(geometry),
+            new THREE.LineBasicMaterial({ color: 0x00d4aa, transparent: true, opacity: 0.6 })
+        );
+        group.add(edges);
+
+        const materials = [...faces, edges.material];
+        materials.forEach(material => material.userData.baseOpacity = material.opacity);
+
+        // Invisible target filling the column's slot, so short columns are still easy to hover
+        const hitGeometry = new THREE.BoxGeometry(1.8, 1, 1.3);
+        hitGeometry.translate(0, 0.5, 0);
+        const hit = new THREE.Mesh(hitGeometry, new THREE.MeshBasicMaterial({ visible: false }));
+        group.add(hit);
+
+        group.visible = false;
+        this.scene.add(group);
+
+        const value = document.createElement('div');
+        value.className = 'value';
+        const date = document.createElement('div');
+        date.className = 'date';
+        this.historyLabels.append(value, date);
+
+        return { group, hit, materials, value, date, height: 0 };
+    },
+
+    buildHistoryColumns: function() {
+        this.historyBars.forEach(bar => {
+            this.scene.remove(bar.group);
+            bar.group.traverse(object => {
+                object.geometry?.dispose();
+                [].concat(object.material ?? []).forEach(material => material.dispose());
+            });
+            bar.value.remove();
+            bar.date.remove();
+        });
+
+        this.historyBars = this.history.columns.map(() => this.createHistoryColumn());
+        this.historyHovered = -1;
+        this.syncHistoryLabels();
+    },
+
+    syncHistoryLabels: function() {
+        this.historyBars.forEach((bar, i) => {
+            const column = this.history.columns[i];
+            bar.value.textContent = column.value;
+            bar.date.textContent = `${column.date}\n${column.time}`;
+        });
+    },
+
+    // columns: oldest first, each { height (0-1 of the tallest), value, date, time }
+    setHistory: function(columns, selected, visible) {
+        const countChanged = columns.length !== this.history.columns.length;
+        this.history = { columns, selected, visible };
+
+        if (!this.scene) return;
+        if (countChanged) {
+            this.buildHistoryColumns();
+        } else {
+            this.syncHistoryLabels();
+        }
+    },
+
+    setHistoryCallbacks: function(callbacks) {
+        this.historyCallbacks = callbacks ?? null;
+    },
+
+    updateHistory: function(time, deltaTime) {
+        const rate = this.history.visible ? this.historyRiseRate : this.historySinkRate;
+        const ease = 1 - Math.exp(-rate * deltaTime);
+
+        const target = this.history.visible ? 1 : 0;
+        this.historyBlend += (target - this.historyBlend) * ease;
+        if (Math.abs(target - this.historyBlend) < 0.001) {
+            this.historyBlend = target;
+        }
+        const blend = this.historyBlend;
+
+        // Raise the camera's gaze from the path to the row of columns
+        this.camera.position.set(0, 3 - 0.4 * blend, 10);
+        this.camera.lookAt(0, 2.4 * blend, 0);
+
+        // Trees sink into the ground to clear the row
+        this.trees.forEach(tree => {
+            tree.scale.y = Math.max(0.001, 1 - blend);
+            tree.visible = blend < 0.98;
+        });
+
+        this.historyLabels.style.opacity = blend;
+
+        const standing = this.historyBars.some(bar => bar.height > 0.005);
+        if (!this.history.visible && !standing) {
+            this.historyBars.forEach(bar => bar.group.visible = false);
+            this.historyGlow.visible = false;
+            this.historyHovered = -1;
+            return;
+        }
+
+        // Fit the row to the width of the view at the columns' depth
+        const count = this.historyBars.length;
+        const halfWidth = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.camera.position.z * this.camera.aspect;
+        const spacing = Math.min(this.historyMaxSpacing, halfWidth * 1.8 / Math.max(count, 1));
+
+        this.historyHovered = -1;
+        if (this.history.visible && this.historyPointer) {
+            this.historyRaycaster.setFromCamera(this.historyPointer, this.camera);
+            const hit = this.historyRaycaster.intersectObjects(this.historyBars.map(bar => bar.hit), false)[0];
+            if (hit) {
+                this.historyHovered = this.historyBars.findIndex(bar => bar.hit === hit.object);
+            }
+        }
+        this.renderer.domElement.style.cursor = this.historyHovered >= 0 ? 'pointer' : '';
+
+        const width = this.historyLabels.clientWidth;
+        const height = this.historyLabels.clientHeight;
+        const place = (element, point) => {
+            element.style.left = `${(point.x + 1) / 2 * width}px`;
+            element.style.top = `${(1 - point.y) / 2 * height}px`;
+        };
+
+        this.historyBars.forEach((bar, i) => {
+            const columnHeight = this.history.visible ? Math.max(0.05, this.history.columns[i].height) * this.historyMaxHeight : 0;
+            bar.height += (columnHeight - bar.height) * ease;
+
+            const x = (i - (count - 1) / 2) * spacing;
+            bar.group.position.set(x, 0, 0);
+            bar.group.scale.set(spacing * 0.54, Math.max(bar.height, 0.001), 1);
+            bar.group.visible = bar.height > 0.005;
+            bar.hit.scale.y = Math.max(1, 0.8 / Math.max(bar.height, 0.001));
+
+            const hot = i === this.history.selected || i === this.historyHovered;
+            bar.materials.forEach(material => material.opacity = Math.min(1, material.userData.baseOpacity * (hot ? 2.2 : 1)));
+
+            place(bar.value, this.historyPoint.set(x, bar.height + 0.2, 0).project(this.camera));
+            place(bar.date, this.historyPoint.set(x, 0, 0.6).project(this.camera));
+            bar.value.classList.toggle('hot', hot);
+            bar.date.classList.toggle('hot', hot);
+        });
+
+        const selected = this.historyBars[this.history.selected];
+        if (selected) {
+            this.historyGlow.position.set(selected.group.position.x, 0.01, 0);
+            this.historyGlow.scale.set(spacing * 0.75, 1.3, 1);
+        }
+        this.historyGlow.visible = !!selected && blend > 0;
+        this.historyGlow.material.opacity = (0.18 + 0.12 * Math.sin(time * 2)) * blend;
+    },
+
     setSpeed: function(speed) {
         this.targetSpeed = speed;
     },
@@ -717,7 +961,7 @@ window.TreadmillDisplay = {
             this.prevHorizontal = this.horizontal;
         }
 
-        // Camera always looks forward, no rotation
+        this.updateHistory(time, deltaTime);
 
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
@@ -772,6 +1016,11 @@ window.TreadmillDisplay = {
             });
         }
 
+        if (this.historyRoot) {
+            Object.entries(this.historyRootHandlers).forEach(([type, handler]) => this.historyRoot.removeEventListener(type, handler));
+        }
+        this.historyLabels?.remove();
+
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -779,6 +1028,13 @@ window.TreadmillDisplay = {
         this.mountains = null;
         this.trees = [];
         this.treeContainer = null;
+        this.historyBars = [];
+        this.historyGlow = null;
+        this.historyLabels = null;
+        this.historyRoot = null;
+        this.historyRootHandlers = null;
+        this.historyPointer = null;
+        this.historyBlend = 0;
 
         console.log('Three.js display disposed');
     }

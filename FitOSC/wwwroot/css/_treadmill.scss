@@ -99,7 +99,9 @@
 	max-width: 100%;
 	overflow: hidden;
 
-	&-metrics {
+	// Readout across the top: the live session, or the selected past session while idle
+	&-metrics,
+	&-history {
 	  display: flex;
 	  flex-direction: row;
 	  gap: 16px;
@@ -137,6 +139,92 @@
 		}
 	  }
 
+	}
+
+	// Each stat picks what the columns chart; the charted one is underlined
+	&-history {
+	  .treadmill-info-box-item {
+		padding: 0;
+		background: none;
+		border: none;
+		color: $color-text;
+		font: inherit;
+		cursor: pointer;
+
+		.treadmill-info-box-title {
+		  transition: color 0.35s ease;
+		}
+
+		&:hover:not(:disabled) .treadmill-info-box-title,
+		&.active .treadmill-info-box-title {
+		  color: $color-text;
+		}
+
+		&:disabled {
+		  cursor: default;
+		}
+	  }
+
+	  // Slides between stats. Follows the items' space-between layout: 200px each, shrinking together when the
+	  // display is narrower than five of them, the 16px gaps and the 20px side padding.
+	  &-underline {
+		--item-width: min(200px, calc((100% - 104px) / 5));
+
+		position: absolute;
+		bottom: 0;
+		left: calc(20px + var(--slot) * (100% - 40px - var(--item-width)) / 4);
+		width: var(--item-width);
+		height: 2px;
+		background: $color-scene-accent;
+		box-shadow: 0 0 6px $color-scene-accent;
+		transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+	  }
+
+	  // The live readout steps aside while the history shows
+	  &.visible ~ .treadmill-display-metrics {
+		opacity: 0;
+		pointer-events: none;
+	  }
+
+	  // Value above each column and date over time below it, placed by treadmillDisplay.js
+	  &-labels {
+		position: absolute;
+		inset: 0;
+		z-index: 10;
+		overflow: hidden;
+		pointer-events: none;
+		user-select: none;
+		opacity: 0;
+
+		.value,
+		.date {
+		  position: absolute;
+		  color: $color-text-muted;
+		  text-align: center;
+		  white-space: pre;
+
+		  &.hot {
+			color: $color-text;
+		  }
+		}
+
+		.value {
+		  transform: translate(-50%, -100%);
+		  font-size: 15px;
+		  font-weight: 300;
+		  font-variant-numeric: tabular-nums;
+
+		  &.hot {
+			font-size: 24px;
+		  }
+		}
+
+		.date {
+		  transform: translate(-50%, 6px);
+		  font-size: 11px;
+		  line-height: 1.35;
+		}
+	  }
 	}
 
 	&-visual-container {
