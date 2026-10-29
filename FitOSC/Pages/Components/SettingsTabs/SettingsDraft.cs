@@ -24,11 +24,13 @@ public sealed class SettingsDraft
     public WalkingDraft Walking { get; private set; } = new();
     public IntegrationsDraft Integrations { get; private set; } = new();
 
-    public static SettingsDraft From(AppConfiguration config, bool launchWithSteamVR, bool webSocketEnabled, UpdateChannel updateChannel) => new()
+    public static SettingsDraft From(AppConfiguration config, bool launchWithSteamVR, bool webSocketEnabled, UpdateChannel updateChannel, DateFormat dateFormat, TimeFormat timeFormat) => new()
     {
         General = new GeneralDraft
         {
             PreferMetric = config.User.PreferMetric,
+            DateFormat = dateFormat,
+            TimeFormat = timeFormat,
             HistoryEnabled = config.User.HistoryEnabled,
             MinimumSessionDuration = config.User.MinimumSessionDuration,
             UseHardwareAcceleration = config.User.UseHardwareAcceleration,
@@ -107,6 +109,8 @@ public sealed class SettingsDraft
     public sealed record GeneralDraft
     {
         public bool PreferMetric { get; set; } = true;
+        public DateFormat DateFormat { get; set; }
+        public TimeFormat TimeFormat { get; set; }
         public bool HistoryEnabled { get; set; } = true;
         public int MinimumSessionDuration { get; set; } = 5;
         public bool UseHardwareAcceleration { get; set; } = true;

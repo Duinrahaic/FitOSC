@@ -8,6 +8,7 @@
 @using FitOSC.Pages.Components.SettingsTabs
 @inject ConfigurationService ConfigService
 @inject UpdateService UpdateService
+@inject DateTimeFormatService DateTimeFormatService
 @inject AppStateService AppStateService
 @inject OpenVRService OpenVRService
 @inject WebSocketService WebSocketService
@@ -139,7 +140,8 @@
 
         var config = ConfigService.GetConfiguration();
         var autoLaunch = OpenVR.Applications is null ? config.OpenVR.AutoLaunch : OpenVRService.GetAutoLaunch();
-        _baseline = SettingsDraft.From(config, autoLaunch, WebSocketService.IsEnabled, UpdateService.Channel);
+        _baseline = SettingsDraft.From(config, autoLaunch, WebSocketService.IsEnabled, UpdateService.Channel,
+            DateTimeFormatService.DateFormat, DateTimeFormatService.TimeFormat);
         _draft = _baseline.Clone();
         _activePage = SettingsPage.General;
         _saveAttempted = false;
@@ -221,6 +223,11 @@
         if (generalChanged)
         {
             config.User.PreferMetric = general.PreferMetric;
+            // Formats follow the system region until the user picks one.
+            if (general.DateFormat != baseline.General.DateFormat)
+                config.User.DateFormat = general.DateFormat;
+            if (general.TimeFormat != baseline.General.TimeFormat)
+                config.User.TimeFormat = general.TimeFormat;
             config.User.HistoryEnabled = general.HistoryEnabled;
             config.User.MinimumSessionDuration = general.MinimumSessionDuration;
             config.User.UseHardwareAcceleration = general.UseHardwareAcceleration;
