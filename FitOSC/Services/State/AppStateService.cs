@@ -24,6 +24,8 @@ public class AppStateService
             UpdateIntervalMs = walking.UpdateIntervalMs,
             ThumbstickRampSpeed = walking.ThumbstickRampSpeed
         };
+        if (walking.DefaultMode != WalkingMode.Disabled)
+            _lastActiveWalkingMode = walking.DefaultMode;
     }
 
     /// <summary>
@@ -254,6 +256,7 @@ public class AppStateService
         NotifyAppStateUpdated(forceImmediate: true); // User action should be immediate
     }
 
+    // Seeded from the saved default mode; then follows the last mode used or selected.
     private WalkingMode _lastActiveWalkingMode = WalkingMode.Dynamic;
     private int _lastOverrideIndex = 0;
 

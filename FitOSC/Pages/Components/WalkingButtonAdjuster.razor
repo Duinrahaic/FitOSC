@@ -254,19 +254,11 @@
     {
         if (!Enabled) return;
 
-        // Toggle between Disabled and the configured default mode
-        var config = ConfigService.GetConfiguration();
-        var defaultMode = config.WalkingMode.DefaultMode;
-
-        // If default mode is somehow Disabled, fall back to Dynamic
-        if (defaultMode == WalkingMode.Disabled)
-            defaultMode = WalkingMode.Dynamic;
-
-        WalkingMode nextMode = CurrentMode == WalkingMode.Disabled
-            ? defaultMode
-            : WalkingMode.Disabled;
-
-        AppState.SetWalkingMode(nextMode);
+        // Same toggle as the SteamVR binding, so both resume the selected mode.
+        if (CurrentMode == WalkingMode.Disabled)
+            AppState.EnableAutoWalk();
+        else
+            AppState.DisableAutoWalk();
         StateHasChanged();
     }
 
