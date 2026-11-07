@@ -252,8 +252,10 @@ public class AppStateService
     /// </summary>
     public void SetWalkingMode(WalkingMode mode)
     {
-        // Choosing a mode supersedes a default saved earlier in the session.
-        _nextSessionWalkingMode = null;
+        // Switching to another mode supersedes a default saved earlier in the session; reselecting the current one,
+        // as presets and speed steps do, keeps it.
+        if (mode != CurrentWalkingMode)
+            _nextSessionWalkingMode = null;
         CurrentWalkingMode = mode;
         NotifyAppStateUpdated(forceImmediate: true); // User action should be immediate
     }
