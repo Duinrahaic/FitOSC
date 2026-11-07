@@ -629,25 +629,24 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
                 && OpenVR.Input.GetDigitalActionData(_speedStepHoldHandle, ref stepHold,
                     (uint)Marshal.SizeOf(typeof(InputDigitalActionData_t)), OpenVR.k_ulInvalidInputValueHandle) == EVRInputError.None
                 && stepHold is { bActive: true, bState: true };
-            if (stepHeld)
-            {
-                var stick = actionEvent.SpeedModifier;
-                if (_speedStepDirection == 0 && MathF.Abs(stick) > SpeedStepEnter)
-                {
-                    _speedStepDirection = Math.Sign(stick);
-                    actionEvent.SpeedStepUpPressed = _speedStepDirection > 0;
-                    actionEvent.SpeedStepDownPressed = _speedStepDirection < 0;
-                }
-                else if (MathF.Abs(stick) < SpeedStepRelease)
-                {
-                    _speedStepDirection = 0;
-                }
-                actionEvent.SpeedModifier = 0f;
-            }
-            else
+            // Steps arm only from neutral, so a stick already pushed when the button goes down stays a boost.
+            var stick = actionEvent.SpeedModifier;
+            if (MathF.Abs(stick) < SpeedStepRelease)
             {
                 _speedStepDirection = 0;
             }
+            else if (!stepHeld)
+            {
+                _speedStepDirection = Math.Sign(stick);
+            }
+            else if (_speedStepDirection == 0 && MathF.Abs(stick) > SpeedStepEnter)
+            {
+                _speedStepDirection = Math.Sign(stick);
+                actionEvent.SpeedStepUpPressed = _speedStepDirection > 0;
+                actionEvent.SpeedStepDownPressed = _speedStepDirection < 0;
+            }
+            if (stepHeld)
+                actionEvent.SpeedModifier = 0f;
 
             // Get analog action data for manual movement (vector2)
             if (_manualMovementHandle != 0)
