@@ -13,8 +13,17 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (!firstRender)
+            return;
+        try
+        {
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            // Presses still work without sound.
+            Logger.LogWarning("Could not load the feedback sounds: {Message}", ex.Message);
+        }
     }
 
     // SteamVR presses arrive off the render thread.

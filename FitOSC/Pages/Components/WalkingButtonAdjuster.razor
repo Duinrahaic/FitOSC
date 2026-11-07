@@ -62,6 +62,7 @@
                     @* Every preset is the same control, so only the picked one glows. *@
                     <button class="treadmill-control-adjuster walking @(isActive ? $"active {_glow.ClassFor(RemoteControl.WalkingPreset)}" : "")"
                             @onclick="() => SetOverrideIndex(index)" type="button"
+                            aria-label="@($"Walk at {speed * 100:N0} percent")" aria-pressed="@(isActive ? "true" : "false")"
                             aria-disabled="@AriaDisabled(RemoteControl.WalkingPreset)">
 
                         <div class="led @(isActive ? "active" : string.Empty)">
