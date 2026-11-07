@@ -850,7 +850,8 @@
     filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));
 
     .treadmill-control-adjuster-indicator-value,
-    .treadmill-control-adjuster-indicator-title {
+    .treadmill-control-adjuster-indicator-title,
+    .treadmill-control-adjuster-indicator-led .led .led-text {
       color: $color-accent;
     }
   }

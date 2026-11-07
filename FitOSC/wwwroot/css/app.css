@@ -1033,7 +1033,8 @@ html .app main {
   filter: drop-shadow(0 0 4px rgba(33, 150, 243, 0.9));
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow .treadmill-control-adjuster-indicator-value,
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow .treadmill-control-adjuster-indicator-title {
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow .treadmill-control-adjuster-indicator-title,
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow .treadmill-control-adjuster-indicator-led .led .led-text {
   color: #2196f3;
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking.control-glow:not([aria-disabled=true]) .led.active {
