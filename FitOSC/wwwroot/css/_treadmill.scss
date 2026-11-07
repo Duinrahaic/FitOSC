@@ -846,10 +846,10 @@
   }
 }
 
-// A SteamVR binding just used this control. Disabled controls stay unlit.
+// This control was just pressed, on screen or from SteamVR. Disabled controls stay unlit.
 .treadmill-interaction {
-  .treadmill-control-row button.remote-glow:not([aria-disabled="true"]),
-  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.remote-glow:not([aria-disabled="true"]) {
+  .treadmill-control-row button.control-glow:not([aria-disabled="true"]),
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.control-glow:not([aria-disabled="true"]) {
     border-color: $color-accent;
     color: $color-accent;
     filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));
@@ -859,7 +859,7 @@
     transition: outline-color 0.2s ease, filter 0.2s ease;
   }
 
-  .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.remote-glow {
+  .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow {
     outline-color: $color-accent;
     filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));
 

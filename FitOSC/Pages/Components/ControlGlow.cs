@@ -3,9 +3,9 @@ using FitOSC.Services.State;
 namespace FitOSC.Pages.Components;
 
 /// <summary>
-/// Lights an on-screen control briefly when a SteamVR binding uses it. Disabled controls stay unlit (see CSS).
+/// Lights an on-screen control briefly when it is pressed, on screen or from SteamVR. Disabled controls stay unlit (see CSS).
 /// </summary>
-public sealed class RemoteGlow : IDisposable
+public sealed class ControlGlow : IDisposable
 {
     private static readonly TimeSpan Duration = TimeSpan.FromMilliseconds(600);
 
@@ -18,18 +18,18 @@ public sealed class RemoteGlow : IDisposable
 
     /// <param name="invoke">The component's InvokeAsync, so lighting runs on its render context.</param>
     /// <param name="render">The component's StateHasChanged.</param>
-    public RemoteGlow(AppStateService appState, Func<Func<Task>, Task> invoke, Action render, params RemoteControl[] controls)
+    public ControlGlow(AppStateService appState, Func<Func<Task>, Task> invoke, Action render, params RemoteControl[] controls)
     {
         _appState = appState;
         _invoke = invoke;
         _render = render;
-        _watched = [..controls];
-        _appState.RemoteControlUsed += OnRemoteControlUsed;
+        _watched = [.. controls];
+        _appState.ControlPressed += OnControlPressed;
     }
 
-    public string ClassFor(RemoteControl control) => _lit.ContainsKey(control) ? "remote-glow" : string.Empty;
+    public string ClassFor(RemoteControl control) => _lit.ContainsKey(control) ? "control-glow" : string.Empty;
 
-    private void OnRemoteControlUsed(RemoteControl control)
+    private void OnControlPressed(RemoteControl control, bool acts)
     {
         if (!_watched.Contains(control))
             return;
@@ -48,5 +48,5 @@ public sealed class RemoteGlow : IDisposable
         });
     }
 
-    public void Dispose() => _appState.RemoteControlUsed -= OnRemoteControlUsed;
+    public void Dispose() => _appState.ControlPressed -= OnControlPressed;
 }

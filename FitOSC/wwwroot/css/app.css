@@ -1017,8 +1017,8 @@ html .app main {
   font-size: 18px;
 }
 
-.treadmill-interaction .treadmill-control-row button.remote-glow:not([aria-disabled=true]),
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.remote-glow:not([aria-disabled=true]) {
+.treadmill-interaction .treadmill-control-row button.control-glow:not([aria-disabled=true]),
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.control-glow:not([aria-disabled=true]) {
   border-color: #2196f3;
   color: #2196f3;
   filter: drop-shadow(0 0 4px rgba(33, 150, 243, 0.9));
@@ -1026,12 +1026,12 @@ html .app main {
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row {
   transition: outline-color 0.2s ease, filter 0.2s ease;
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.remote-glow {
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow {
   outline-color: #2196f3;
   filter: drop-shadow(0 0 4px rgba(33, 150, 243, 0.9));
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.remote-glow .treadmill-control-adjuster-indicator-value,
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.remote-glow .treadmill-control-adjuster-indicator-title {
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow .treadmill-control-adjuster-indicator-value,
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow .treadmill-control-adjuster-indicator-title {
   color: #2196f3;
 }
 

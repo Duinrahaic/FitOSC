@@ -17,7 +17,7 @@
     }
 
     // SteamVR presses arrive off the render thread.
-    private void OnControlPressed(bool acts) => _ = InvokeAsync(async () =>
+    private void OnControlPressed(RemoteControl control, bool acts) => _ = InvokeAsync(async () =>
     {
         if (_module is not null)
             await _module.InvokeVoidAsync(acts ? "chimeUp" : "chimeDown", ConfigService.GetConfiguration().User.FeedbackVolume / 100.0);

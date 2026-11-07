@@ -14,10 +14,10 @@
     [Parameter] public EventCallback OnClick { get; set; }
     [Parameter, EditorRequired] public RemoteControl Control { get; set; }
 
-    private RemoteGlow _glow = null!;
+    private ControlGlow _glow = null!;
 
     protected override void OnInitialized() =>
-        _glow = new RemoteGlow(AppState, InvokeAsync, StateHasChanged, Control);
+        _glow = new ControlGlow(AppState, InvokeAsync, StateHasChanged, Control);
 
     private async Task HandleClick()
     {

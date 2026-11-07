@@ -93,7 +93,7 @@
 </div>
 @code
 {
-    private RemoteGlow _glow = null!;
+    private ControlGlow _glow = null!;
 
     private WalkingMode CurrentMode => AppState.CurrentWalkingMode;
     // The active mode, or the mode the toggle resumes while walking is off.
@@ -155,7 +155,7 @@
 
     protected override void OnInitialized()
     {
-        _glow = new RemoteGlow(AppState, InvokeAsync, StateHasChanged,
+        _glow = new ControlGlow(AppState, InvokeAsync, StateHasChanged,
             RemoteControl.WalkingToggle, RemoteControl.WalkingIncrease, RemoteControl.WalkingDecrease);
         AppState.AppStateUpdated += HandleAppStateUpdated;
     }

@@ -12,14 +12,9 @@ public partial class AppStateService
     private const float MaxWalkingTrim = 2.0f;
 
     /// <summary>
-    /// Raised when a SteamVR binding uses an on-screen control, so that control can light up.
+    /// Raised for every press of a control, on screen or from SteamVR, with whether it acts.
     /// </summary>
-    public event Action<RemoteControl>? RemoteControlUsed;
-
-    /// <summary>
-    /// Raised for every press of a control, on screen or from SteamVR: true when it acts, false when it can't.
-    /// </summary>
-    public event Action<bool>? ControlPressed;
+    public event Action<RemoteControl, bool>? ControlPressed;
 
     /// <summary>
     /// Whether the control is available at all. One that isn't is shown disabled.
@@ -58,22 +53,13 @@ public partial class AppStateService
     };
 
     /// <summary>
-    /// Reports a press of an on-screen control and returns whether it acts. The caller acts only when it does.
+    /// Reports a press of a control, on screen or from SteamVR, and returns whether it acts. The caller acts only when it does.
     /// </summary>
     public bool PressControl(RemoteControl control)
     {
         var acts = CanAct(control);
-        ControlPressed?.Invoke(acts);
+        ControlPressed?.Invoke(control, acts);
         return acts;
-    }
-
-    /// <summary>
-    /// Reports a press from a SteamVR binding, lighting its on-screen control, and returns whether it acts.
-    /// </summary>
-    public bool PressRemoteControl(RemoteControl control)
-    {
-        RemoteControlUsed?.Invoke(control);
-        return PressControl(control);
     }
 
     /// <summary>

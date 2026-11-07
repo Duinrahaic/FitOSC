@@ -43,7 +43,7 @@
     private string _valueFormat = "F2";
     private TreadmillTelemetryValue? _data;
     private TreadmillConfiguration? _configuration;
-    private RemoteGlow _glow = null!;
+    private ControlGlow _glow = null!;
     private RemoteControl _increase;
     private RemoteControl _decrease;
 
@@ -56,7 +56,7 @@
         (_increase, _decrease) = ControlType == TreadmillControlType.Incline
             ? (RemoteControl.TreadmillInclineIncrease, RemoteControl.TreadmillInclineDecrease)
             : (RemoteControl.TreadmillSpeedIncrease, RemoteControl.TreadmillSpeedDecrease);
-        _glow = new RemoteGlow(AppState, InvokeAsync, StateHasChanged, _increase, _decrease);
+        _glow = new ControlGlow(AppState, InvokeAsync, StateHasChanged, _increase, _decrease);
         AppStateOnAppStateUpdated(AppState.GetCurrentAppStateInfo());
         AppState.AppStateUpdated += AppStateOnAppStateUpdated;
         
