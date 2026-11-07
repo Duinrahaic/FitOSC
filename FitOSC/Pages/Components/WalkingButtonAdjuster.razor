@@ -5,7 +5,8 @@
 @implements IDisposable
 
 <div class="treadmill-control-adjuster-container wide">
-    <div class="treadmill-control-adjuster-indicator-row @_glow.ClassFor(RemoteControl.WalkingToggle)" @onclick="RotateWalkingMode">
+    <div class="treadmill-control-adjuster-indicator-row @_glow.ClassFor(RemoteControl.WalkingToggle)" @onclick="RotateWalkingMode"
+         role="button" tabindex="0" aria-label="Toggle walking" @onkeydown="ToggleOnKey">
         <div class="treadmill-control-adjuster-indicator">
             <div class="treadmill-control-adjuster-indicator-value">
                 @SpeedPercentage.ToString("N0")
@@ -36,17 +37,17 @@
     <div class="treadmill-control-group">
         <div class="treadmill-control-adjuster-container">
             <button class="treadmill-control-adjuster increase @_glow.ClassFor(RemoteControl.WalkingIncrease)"
-                    @onclick="Increase" type="button"
+                    @onclick="Increase" type="button" aria-label="Increase walking speed"
                     aria-disabled="@AriaDisabled(RemoteControl.WalkingIncrease)">
-                <i class="fa fa-add"></i>
+                <i class="fa fa-add" aria-hidden="true"></i>
             </button>
             <div class="treadmill-control-adjuster-title @(CurrentMode == WalkingMode.Disabled ? "disabled" : "")">
                 @GetAdjustmentLabel()
             </div>
             <button class="treadmill-control-adjuster decrease @_glow.ClassFor(RemoteControl.WalkingDecrease)"
-                    @onclick="Decrease" type="button"
+                    @onclick="Decrease" type="button" aria-label="Decrease walking speed"
                     aria-disabled="@AriaDisabled(RemoteControl.WalkingDecrease)">
-                <i class="fa fa-minus"></i>
+                <i class="fa fa-minus" aria-hidden="true"></i>
             </button>
         </div>
         <div class="treadmill-control-adjuster-container walking">
@@ -225,6 +226,13 @@
         {
             AppState.SetWalkingMode(WalkingMode.Override);
         }
+    }
+
+    // The toggle row is not a native button, so Enter and Space press it from the keyboard.
+    private void ToggleOnKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ")
+            RotateWalkingMode();
     }
 
     private void RotateWalkingMode()
