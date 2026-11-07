@@ -42,6 +42,9 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FitOSC", "SteamVRDriver", "fitosc");
 
     private readonly SemaphoreSlim _registrationLock = new(1, 1);
+    // Sends come from the locomotion timer while shutdown releases from another thread.
+    private readonly object _sendLock = new();
+    private bool _stopped;
     private readonly byte[] _packet = new byte[16];
     private readonly byte[] _reply = new byte[16];
     private Socket? _socket;
@@ -74,7 +77,12 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
     public async Task ShutdownAsync()
     {
         appState.AppStateUpdated -= OnAppStateUpdated;
-        Release();
+        lock (_sendLock)
+        {
+            // Later sends are dropped, so a locomotion tick can't take the stick back after it is released.
+            _stopped = true;
+            ReleaseLocked();
+        }
         await UnregisterAsync();
     }
 
@@ -92,6 +100,15 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
     /// When <paramref name="active"/> is false the driver passes the real thumbstick through.
     /// </summary>
     public void Send(float vertical, float horizontal, bool active)
+    {
+        lock (_sendLock)
+        {
+            if (!_stopped)
+                SendLocked(vertical, horizontal, active);
+        }
+    }
+
+    private void SendLocked(float vertical, float horizontal, bool active)
     {
         if (_socket == null)
         {
@@ -122,9 +139,15 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
     /// </summary>
     public void Release()
     {
+        lock (_sendLock)
+            ReleaseLocked();
+    }
+
+    private void ReleaseLocked()
+    {
         if (_socket != null)
         {
-            Send(0f, 0f, active: false);
+            SendLocked(0f, 0f, active: false);
             _socket.Dispose();
             _socket = null;
         }
@@ -332,7 +355,8 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
 
     public void Dispose()
     {
-        _socket?.Dispose();
+        lock (_sendLock)
+            _socket?.Dispose();
         _registrationLock.Dispose();
     }
 }
