@@ -20,20 +20,6 @@ public partial class Index
             // Load user preferences
             AppState.UpdatePreferredUnits(config.User.PreferMetric);
 
-            // Load walking mode configuration from persisted settings
-            var walkingModeConfig = new WalkingModeConfiguration
-            {
-                MaxSpeed = config.WalkingMode.MaxSpeed,
-                Output = config.WalkingMode.Output,
-                WalkingTrim = config.WalkingMode.DefaultTrim,
-                Steering = config.WalkingMode.Steering,
-                SmoothingFactor = config.WalkingMode.SmoothingFactor,
-                MaxTurnAngle = config.WalkingMode.MaxTurnAngle,
-                UpdateIntervalMs = config.WalkingMode.UpdateIntervalMs,
-                ThumbstickRampSpeed = config.WalkingMode.ThumbstickRampSpeed
-            };
-            AppState.UpdateWalkingModeConfig(walkingModeConfig);
-
             // Auto-connect to last known device if enabled
             // Only auto-connect once per app session (not on WebView reloads)
             if (config.Treadmill.AutoConnect

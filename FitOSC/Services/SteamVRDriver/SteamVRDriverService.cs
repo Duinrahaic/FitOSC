@@ -44,7 +44,7 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
     private readonly byte[] _reply = new byte[16];
     private Socket? _socket;
     private bool _registered;
-    private LocomotionOutput _output = LocomotionOutput.Osc;
+    private LocomotionOutput _output;
     private DateTime _socketOpened;
     private DateTime _lastReply = DateTime.MinValue;
     private ushort _lastFlags;
@@ -56,6 +56,10 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        // A crash skips unregistering, so reconcile what SteamVR has registered with the saved output.
+        _registered = IsRegistered();
+        _output = appState.WalkingModeConfig.Output;
+        _ = _output == LocomotionOutput.Joystick ? RegisterAsync() : UnregisterAsync();
         appState.AppStateUpdated += OnAppStateUpdated;
         return Task.CompletedTask;
     }
@@ -195,10 +199,12 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
         await _registrationLock.WaitAsync();
         try
         {
-            if (_registered || !Directory.Exists(BundledDriverPath))
+            if (!Directory.Exists(BundledDriverPath))
                 return;
+            // Copy even when already registered, so a driver left registered by a crash still gets updated.
             CopyDriver();
-            _registered = await RunVrPathRegAsync("adddriver");
+            if (!_registered)
+                _registered = await RunVrPathRegAsync("adddriver");
         }
         finally
         {
@@ -272,19 +278,35 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
     }
 
     /// <summary>Finds vrpathreg through the SteamVR runtime listed in openvrpaths.vrpath.</summary>
-    private static string? FindVrPathReg()
+    private static string? FindVrPathReg() =>
+        ReadVrPaths("runtime")
+            .Select(runtime => Path.Combine(runtime, "bin", "win64", "vrpathreg.exe"))
+            .FirstOrDefault(File.Exists);
+
+    /// <summary>Whether openvrpaths.vrpath lists the installed driver as an external driver.</summary>
+    private static bool IsRegistered()
+    {
+        var installed = Path.TrimEndingDirectorySeparator(Path.GetFullPath(InstalledDriverPath));
+        return ReadVrPaths("external_drivers").Any(driver =>
+            string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(driver)), installed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Reads one path list from SteamVR's openvrpaths.vrpath.</summary>
+    private static List<string> ReadVrPaths(string property)
     {
         var pathsFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "openvr", "openvrpaths.vrpath");
         if (!File.Exists(pathsFile))
-            return null;
+            return [];
 
         using var document = JsonDocument.Parse(File.ReadAllText(pathsFile));
-        if (!document.RootElement.TryGetProperty("runtime", out var runtimes))
-            return null;
+        if (!document.RootElement.TryGetProperty(property, out var paths) || paths.ValueKind != JsonValueKind.Array)
+            return [];
 
-        return runtimes.EnumerateArray()
-            .Select(runtime => Path.Combine(runtime.GetString() ?? "", "bin", "win64", "vrpathreg.exe"))
-            .FirstOrDefault(File.Exists);
+        return paths.EnumerateArray()
+            .Select(path => path.GetString())
+            .Where(path => !string.IsNullOrEmpty(path))
+            .Select(path => path!)
+            .ToList();
     }
 
     public void Dispose()

@@ -1,4 +1,5 @@
 ﻿using FitOSC.Models;
+using FitOSC.Services.Configuration;
 using FitOSC.Services.Treadmill;
 
 namespace FitOSC.Services.State;
@@ -8,6 +9,23 @@ namespace FitOSC.Services.State;
 /// </summary>
 public class AppStateService
 {
+    public AppStateService(ConfigurationService configService)
+    {
+        // Load the saved walking settings up front, so services never see defaults before the UI renders.
+        var walking = configService.GetConfiguration().WalkingMode;
+        WalkingModeConfig = new WalkingModeConfiguration
+        {
+            MaxSpeed = walking.MaxSpeed,
+            Output = walking.Output,
+            WalkingTrim = walking.DefaultTrim,
+            Steering = walking.Steering,
+            SmoothingFactor = walking.SmoothingFactor,
+            MaxTurnAngle = walking.MaxTurnAngle,
+            UpdateIntervalMs = walking.UpdateIntervalMs,
+            ThumbstickRampSpeed = walking.ThumbstickRampSpeed
+        };
+    }
+
     /// <summary>
     /// Event raised whenever treadmill telemetry is updated.
     /// </summary>
@@ -225,7 +243,7 @@ public class AppStateService
     /// <summary>
     /// Walking mode configuration settings
     /// </summary>
-    public WalkingModeConfiguration WalkingModeConfig { get; private set; } = new WalkingModeConfiguration();
+    public WalkingModeConfiguration WalkingModeConfig { get; private set; }
 
     /// <summary>
     /// Set the current walking mode
