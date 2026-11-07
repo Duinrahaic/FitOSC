@@ -1,33 +1,30 @@
-// Feedback chimes for control presses: two notes up when a press acts, two notes down when it can't.
-// Gain of each note at full volume; the user's volume (0 to 1) scales it.
-const maxGain = 0.14;
+// Treadmill-style feedback beeps for control presses: high when a press acts, low when it can't.
+// Gain at full volume; the user's volume (0 to 1) scales it.
+const maxGain = 0.08;
 let context;
 
-function note(volume, hz, delay, seconds) {
-    const start = context.currentTime + delay;
-    const oscillator = new OscillatorNode(context, { type: 'sine', frequency: hz });
-
-    // A fast attack and an exponential release keep the note free of clicks.
-    const gain = new GainNode(context, { gain: 0 });
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(maxGain * volume, start + 0.004);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + seconds);
-
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start(start);
-    oscillator.stop(start + seconds);
-}
-
-function chime(volume, notes) {
+// A short square-wave tone, filtered to soften it into the sound of a console's piezo buzzer.
+function beep(volume, hz, seconds) {
     if (volume <= 0) return;
     context ??= new AudioContext();
     if (context.state === 'suspended') context.resume();
-    for (const [hz, delay, seconds] of notes)
-        note(volume, hz, delay, seconds);
+
+    const now = context.currentTime;
+    const oscillator = new OscillatorNode(context, { type: 'square', frequency: hz });
+    const filter = new BiquadFilterNode(context, { type: 'lowpass', frequency: hz * 2.5 });
+
+    // Flat with a fast attack and release, like a buzzer switching on and off, without clicks.
+    const gain = new GainNode(context, { gain: 0 });
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(maxGain * volume, now + 0.003);
+    gain.gain.setValueAtTime(maxGain * volume, now + seconds - 0.008);
+    gain.gain.linearRampToValueAtTime(0, now + seconds);
+
+    oscillator.connect(filter).connect(gain).connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + seconds);
 }
 
-// G5 then D6.
-export const chimeUp = volume => chime(volume, [[784, 0, 0.07], [1175, 0.035, 0.1]]);
+export const beepHigh = volume => beep(volume, 2400, 0.09);
 
-// C5 then F#4.
-export const chimeDown = volume => chime(volume, [[523, 0, 0.07], [370, 0.045, 0.12]]);
+export const beepLow = volume => beep(volume, 800, 0.14);
