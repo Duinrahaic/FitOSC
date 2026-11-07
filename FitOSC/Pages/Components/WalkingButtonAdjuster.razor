@@ -6,7 +6,8 @@
 
 <div class="treadmill-control-adjuster-container wide">
     <div class="treadmill-control-adjuster-indicator-row @_glow.ClassFor(RemoteControl.WalkingToggle)" @onclick="RotateWalkingMode"
-         role="button" tabindex="0" aria-label="Toggle walking" @onkeydown="ToggleOnKey">
+         role="button" tabindex="0" aria-label="Toggle walking" aria-pressed="@(CurrentMode == WalkingMode.Disabled ? "false" : "true")"
+         @onkeydown="ToggleOnKey">
         <div class="treadmill-control-adjuster-indicator">
             <div class="treadmill-control-adjuster-indicator-value">
                 @SpeedPercentage.ToString("N0")
@@ -231,7 +232,8 @@
     // The toggle row is not a native button, so Enter and Space press it from the keyboard.
     private void ToggleOnKey(KeyboardEventArgs e)
     {
-        if (e.Key is "Enter" or " ")
+        // Holding the key repeats it, which would toggle walking back and forth.
+        if (!e.Repeat && e.Key is ("Enter" or " "))
             RotateWalkingMode();
     }
 
