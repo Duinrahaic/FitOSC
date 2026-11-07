@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -249,9 +250,18 @@ namespace
         return result;
     }
 
+    struct Push
+    {
+        vr::IVRDriverInput *owner;
+        UpdateScalarFn update;
+        vr::VRInputComponentHandle_t component;
+        float value;
+    };
+
     vr::EVRInputError OnUpdateScalar(UpdateScalarFn original, vr::IVRDriverInput *self,
                                      vr::VRInputComponentHandle_t component, float value, double timeOffset)
     {
+        std::optional<Push> restore;
         if (!t_inHook)
         {
             std::lock_guard lock(g_mutex);
@@ -259,11 +269,23 @@ namespace
             if (it != g_axes.end())
             {
                 Stick &stick = g_sticks[it->second.stick];
-                stick.real[it->second.axis] = value;
-                value = OutputFor(stick, it->second.axis, Clock::now());
+                int axis = it->second.axis, other = 1 - axis;
+                auto now = Clock::now();
+                bool wasInjected = stick.left && InjectionLive(now) && !UserActive(stick);
+                stick.real[axis] = value;
+                value = OutputFor(stick, axis, now);
+
+                // The user just took over on this axis; the other axis still holds the injected value until its
+                // controller reports again, so hand it back now as well.
+                if (wasInjected && UserActive(stick) && stick.owner && stick.update &&
+                    stick.axis[other] != vr::k_ulInvalidInputComponentHandle)
+                    restore = Push{stick.owner, stick.update, stick.axis[other], stick.real[other]};
             }
         }
-        return CallOriginal(original, self, component, value, timeOffset);
+        vr::EVRInputError result = CallOriginal(original, self, component, value, timeOffset);
+        if (restore)
+            CallOriginal(restore->update, restore->owner, restore->component, restore->value, 0.0);
+        return result;
     }
 
     // One hook pair per IVRDriverInput version, each calling through to that version's original functions.
@@ -280,14 +302,6 @@ namespace
     {
         return OnUpdateScalar(g_originals[V].update, self, component, value, timeOffset);
     }
-
-    struct Push
-    {
-        vr::IVRDriverInput *owner;
-        UpdateScalarFn update;
-        vr::VRInputComponentHandle_t component;
-        float value;
-    };
 
     // Re-sends the left stick, since controllers often only report when the real stick moves.
     // Sticks the user is pushing are left to their own driver so a stale value never overwrites a fresh one.
