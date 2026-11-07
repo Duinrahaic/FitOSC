@@ -621,10 +621,12 @@
 				outline: 2px solid $color-border;
 				padding: 0 4px;
 				border-radius: $control-border-radius;
+				transition: outline-color 0.3s ease;
 				
 				.led-text{
 				  font-size: 30px;
 				  color: $color-border;
+				  transition: color 0.3s ease;
 				}
 				
 				.led-indicator{
@@ -632,6 +634,8 @@
 				  width: 8px;
 				  height: 24px;
 				  border-radius: 4px;
+				  box-shadow: 0 0 0 transparent, 0 0 0 transparent;
+				  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 				}
 				
 				&:not(.led-disabled)
