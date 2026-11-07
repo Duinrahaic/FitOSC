@@ -144,11 +144,11 @@
 
     private Task Notify() => Changed.InvokeAsync();
 
-    // Plays the beep at the chosen volume once the slider settles.
+    // Plays the chime at the chosen volume once the slider settles.
     private async Task PreviewFeedbackVolume()
     {
         _sounds ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
-        await _sounds.InvokeVoidAsync("beep", Draft.FeedbackVolume / 100.0);
+        await _sounds.InvokeVoidAsync("chimeUp", Draft.FeedbackVolume / 100.0);
     }
 
     private Task SetPreferMetric(bool preferMetric)
