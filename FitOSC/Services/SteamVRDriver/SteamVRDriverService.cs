@@ -13,6 +13,7 @@ public enum SteamVRDriverStatus
     NotBundled,
     SteamVRNotFound,
     RestartSteamVR,
+    UnsupportedSteamVR,
     NoLeftController,
     Ready,
 }
@@ -31,6 +32,7 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
     private const ushort MoveActive = 1;
     private const ushort StatusStickFound = 1;
     private const ushort StatusUserOverride = 2;
+    private const ushort StatusUnknownInputLayout = 4;
 
     private static readonly TimeSpan ReplyTimeout = TimeSpan.FromSeconds(1);
 
@@ -173,10 +175,12 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
             if (DateTime.UtcNow - _socketOpened > ReplyTimeout)
                 SetStatus(SteamVRDriverStatus.RestartSteamVR);
         }
-        else if ((_lastFlags & StatusStickFound) == 0)
-            SetStatus(SteamVRDriverStatus.NoLeftController);
-        else
+        else if ((_lastFlags & StatusStickFound) != 0)
             SetStatus(SteamVRDriverStatus.Ready);
+        else if ((_lastFlags & StatusUnknownInputLayout) != 0)
+            SetStatus(SteamVRDriverStatus.UnsupportedSteamVR);
+        else
+            SetStatus(SteamVRDriverStatus.NoLeftController);
     }
 
     private void SetStatus(SteamVRDriverStatus status)

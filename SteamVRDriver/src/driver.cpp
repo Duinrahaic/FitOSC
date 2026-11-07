@@ -48,8 +48,26 @@ namespace
     // in the public SDK; vrserver 2.19's _005 takes CreateScalar/UpdateScalar arguments at the same slots as _003/_004.
     constexpr const char *kInputVersions[] = {"IVRDriverInput_005", "IVRDriverInput_004", "IVRDriverInput_003"};
     constexpr size_t kInputVersionCount = std::size(kInputVersions);
+    constexpr const char *kUndocumentedInputVersion = "IVRDriverInput_005";
     constexpr int kCreateScalarSlot = 2;
     constexpr int kUpdateScalarSlot = 3;
+
+    // _005 is only hooked when its slots start like a vrserver build whose layout was checked by disassembly, so a
+    // SteamVR update that moves them can't make the hooks read the wrong arguments. These prologues forward the
+    // CreateScalar arguments (type and units on the stack) and the UpdateScalar value and time offset. To support a
+    // new vrserver, confirm the slots still take those arguments and add its prologues here.
+    struct KnownPrologues
+    {
+        std::vector<uint8_t> create;
+        std::vector<uint8_t> update;
+    };
+
+    const KnownPrologues kKnownInput005[] = {
+        // vrserver 2.19.1
+        {{0x48, 0x83, 0xEC, 0x48, 0x8B, 0x44, 0x24, 0x78, 0x89, 0x44, 0x24, 0x30, 0x8B, 0x44, 0x24, 0x70, 0x89, 0x44,
+          0x24, 0x28, 0x4C, 0x89, 0x4C, 0x24, 0x20},
+         {0x48, 0x83, 0xEC, 0x38, 0x4C, 0x8B, 0xC2, 0xF2, 0x0F, 0x11, 0x5C, 0x24, 0x20}},
+    };
 
 #pragma pack(push, 1)
     struct MovePacket
@@ -72,6 +90,7 @@ namespace
     constexpr uint16_t kMoveActive = 1;
     constexpr uint16_t kStatusStickFound = 1;
     constexpr uint16_t kStatusUserOverride = 2;
+    constexpr uint16_t kStatusUnknownInputLayout = 4;
 
     using Clock = std::chrono::steady_clock;
 
@@ -122,6 +141,8 @@ namespace
     Injection g_injection;
 
     std::atomic<bool> g_running{false};
+    // Set when this vrserver's _005 layout isn't recognized, so Valve's controllers can't be tracked.
+    std::atomic<bool> g_unknownInputLayout{false};
     std::thread g_networkThread;
     SOCKET g_socket = INVALID_SOCKET;
 
@@ -289,7 +310,7 @@ namespace
     uint16_t StatusFlags()
     {
         std::lock_guard lock(g_mutex);
-        uint16_t flags = 0;
+        uint16_t flags = g_unknownInputLayout ? kStatusUnknownInputLayout : 0;
         for (const Stick &stick : g_sticks)
         {
             if (!stick.left)
@@ -408,6 +429,18 @@ namespace
         return {HookPair{reinterpret_cast<void *>(&HookCreateScalar<V>), reinterpret_cast<void *>(&HookUpdateScalar<V>)}...};
     }
 
+    bool StartsWith(const void *code, const std::vector<uint8_t> &prologue)
+    {
+        return std::memcmp(code, prologue.data(), prologue.size()) == 0;
+    }
+
+    bool IsKnownInput005(const void *create, const void *update)
+    {
+        return std::any_of(std::begin(kKnownInput005), std::end(kKnownInput005), [&](const KnownPrologues &known) {
+            return StartsWith(create, known.create) && StartsWith(update, known.update);
+        });
+    }
+
     bool InstallHooks(vr::IVRDriverContext *context)
     {
         if (MH_Initialize() != MH_OK)
@@ -433,6 +466,12 @@ namespace
             void **vtable = *reinterpret_cast<void ***>(input);
             void *create = vtable[kCreateScalarSlot];
             void *update = vtable[kUpdateScalarSlot];
+            if (std::strcmp(kInputVersions[v], kUndocumentedInputVersion) == 0 && !IsKnownInput005(create, update))
+            {
+                g_unknownInputLayout = true;
+                summary += " unknown layout, skipped;";
+                continue;
+            }
             bool createHooked = std::find(hookedTargets.begin(), hookedTargets.end(), create) != hookedTargets.end();
             bool updateHooked = std::find(hookedTargets.begin(), hookedTargets.end(), update) != hookedTargets.end();
             if (createHooked || updateHooked)
