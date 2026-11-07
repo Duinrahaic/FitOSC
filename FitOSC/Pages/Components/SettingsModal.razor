@@ -288,7 +288,7 @@
         if (draft.Walking.Output != baseline.Walking.Output)
             AppStateService.SetLocomotionOutput(draft.Walking.Output);
         if (defaultModeChanged)
-            AppStateService.SetPreferredWalkingMode(draft.Walking.DefaultMode);
+            AppStateService.SetNextSessionWalkingMode(draft.Walking.DefaultMode);
         if (integrations.WebSocketEnabled != baseline.Integrations.WebSocketEnabled)
         {
             if (integrations.WebSocketEnabled)
