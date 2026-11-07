@@ -24,8 +24,9 @@ public partial class AppStateService
         RemoteControl.WalkingToggle => true,
         RemoteControl.WalkingIncrease or RemoteControl.WalkingDecrease or RemoteControl.WalkingPreset =>
             CurrentWalkingMode != WalkingMode.Disabled,
+        // Treadmills ignore speed changes while the belt is still, and not all of them report stopped or paused.
         RemoteControl.TreadmillSpeedIncrease or RemoteControl.TreadmillSpeedDecrease =>
-            TreadmillTakes(TreadmillCommands.Speed) && Reported(TreadmillTelemetryProperty.InstantaneousSpeed) != null,
+            TreadmillTakes(TreadmillCommands.Speed) && Reported(TreadmillTelemetryProperty.InstantaneousSpeed) is { Value: > 0 },
         RemoteControl.TreadmillInclineIncrease or RemoteControl.TreadmillInclineDecrease =>
             TreadmillTakes(TreadmillCommands.Incline) && Reported(TreadmillTelemetryProperty.Incline) != null,
         RemoteControl.TreadmillStart => TreadmillTakes(TreadmillCommands.Start),
