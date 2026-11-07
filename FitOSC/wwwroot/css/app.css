@@ -1035,6 +1035,12 @@ html .app main {
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow .treadmill-control-adjuster-indicator-title {
   color: #2196f3;
 }
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking.control-glow:not([aria-disabled=true]) .led.active {
+  outline-color: #2196f3;
+}
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking.control-glow:not([aria-disabled=true]) .led.active .led-text {
+  color: #2196f3;
+}
 
 .modal-overlay {
   position: fixed;

@@ -57,7 +57,8 @@
                     int index = i;
                     var speed = Config.OverrideSpeeds[i];
                     var isActive = CurrentMode == WalkingMode.Override && Config.CurrentOverrideIndex == i;
-                    <button class="treadmill-control-adjuster walking @(isActive ? "active" : "")"
+                    @* Every preset is the same control, so only the picked one glows. *@
+                    <button class="treadmill-control-adjuster walking @(isActive ? $"active {_glow.ClassFor(RemoteControl.WalkingPreset)}" : "")"
                             @onclick="() => SetOverrideIndex(index)" type="button"
                             aria-disabled="@AriaDisabled(RemoteControl.WalkingPreset)">
 
@@ -156,7 +157,7 @@
     protected override void OnInitialized()
     {
         _glow = new ControlGlow(AppState, InvokeAsync, StateHasChanged,
-            RemoteControl.WalkingToggle, RemoteControl.WalkingIncrease, RemoteControl.WalkingDecrease);
+            RemoteControl.WalkingToggle, RemoteControl.WalkingIncrease, RemoteControl.WalkingDecrease, RemoteControl.WalkingPreset);
         AppState.AppStateUpdated += HandleAppStateUpdated;
     }
 

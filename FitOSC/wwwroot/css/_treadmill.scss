@@ -853,4 +853,13 @@
       color: $color-accent;
     }
   }
+
+  // A preset box's frame is its light's outline, so the picked preset's glow goes there.
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking.control-glow:not([aria-disabled="true"]) .led.active {
+    outline-color: $color-accent;
+
+    .led-text {
+      color: $color-accent;
+    }
+  }
 }
