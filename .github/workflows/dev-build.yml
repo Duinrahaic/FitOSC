@@ -21,6 +21,7 @@ env:
 
 jobs:
   dev:
+    if: github.ref == 'refs/heads/development'
     runs-on: windows-latest
     timeout-minutes: 30
 
