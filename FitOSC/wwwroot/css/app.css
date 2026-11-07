@@ -761,31 +761,28 @@ html .app main {
   justify-content: start;
   width: 100%;
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled) {
-  color: #2d682f;
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led .led-indicator {
+  color: #1e441f;
+  text-shadow: 0 0 0 transparent, 0 0 0 transparent;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled) .led-text {
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led .led-text {
   color: #a0a0a0;
+  transition: color 0.3s ease;
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled).active .led-indicator {
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.active .led-indicator {
   color: #4caf50;
   text-shadow: 0 0 0 #4caf50, 0 0 4px #4caf50;
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led:not(.led-disabled).active .led-text {
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.active .led-text {
   color: #e0e0e0;
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled {
-  color: #ba160a;
-}
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled .led-text {
-  color: #a0a0a0;
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled .led-indicator {
+  color: #590b05;
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled.active .led-indicator {
   color: #f44336;
   text-shadow: 0 0 0 #f44336, 0 0 4px #f44336;
-}
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator .treadmill-control-adjuster-indicator-led .led.led-disabled.active .led-text {
-  color: #e0e0e0;
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-title {
   letter-spacing: 4px;

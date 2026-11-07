@@ -502,6 +502,7 @@
 			  gap: 8px;
 			  user-select: none;
 			  
+			  // The lit row glows; the others are dark. Toggling walking fades the glow from one row to the other.
 			  .led{
 				display: flex;
 				flex-direction: row;
@@ -509,59 +510,39 @@
 				align-items: center;
 				justify-content: start;
 				width: 100%;
-				
-				&:not(.led-disabled)
-				{
-				  color: darken($color-success, 20%);
-				  .led-text{
-					color: $color-text-muted;
-				  }
-				  &.active
-				  {
-					
-					.led-indicator{
-					  color: $color-success;
-					  text-shadow:  glow($color-success,0, 4px);
-					  
-					  
-					}
-					
-					.led-text{
-					  color: $color-text;
-					}
-					
-					
-					
-				  }
-				  
+
+				.led-indicator{
+				  color: darken($color-success, 30%);
+				  text-shadow: 0 0 0 transparent, 0 0 0 transparent;
+				  transition: color 0.3s ease, text-shadow 0.3s ease;
 				}
-				
+
+				.led-text{
+				  color: $color-text-muted;
+				  transition: color 0.3s ease;
+				}
+
+				&.active{
+				  .led-indicator{
+					color: $color-success;
+					text-shadow: glow($color-success, 0, 4px);
+				  }
+
+				  .led-text{
+					color: $color-text;
+				  }
+				}
 
 				&.led-disabled{
-				  color: darken($color-error, 20%);
-				  .led-text{
-					color: $color-text-muted;
+				  .led-indicator{
+					color: darken($color-error, 40%);
 				  }
-				  &.active
-				  {
-					
-					.led-indicator{
-					  color: $color-error;
-					  text-shadow:  glow($color-error,0, 4px);
-					  
-					  
-					}
-					
-					.led-text{
-					  color: $color-text;
-					}
-					
-					
-					
+
+				  &.active .led-indicator{
+					color: $color-error;
+					text-shadow: glow($color-error, 0, 4px);
 				  }
 				}
-			
-				
 			  }
 			}
 			
