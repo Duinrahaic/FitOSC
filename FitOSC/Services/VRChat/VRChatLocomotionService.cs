@@ -201,6 +201,9 @@ public class VRChatLocomotionService : IHostedService, IDisposable
     /// <summary>Steps the override preset in Override mode, otherwise the walking trim.</summary>
     private void StepSpeed(int direction)
     {
+        // Matches the on-screen +/- buttons, which are disabled while walking is off.
+        if (_currentMode == WalkingMode.Disabled)
+            return;
         if (_currentMode == WalkingMode.Override)
         {
             var newIndex = Math.Clamp(_modeConfig.CurrentOverrideIndex + direction, 0, _modeConfig.OverrideSpeeds.Count - 1);

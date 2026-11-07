@@ -25,7 +25,7 @@ public class AppStateService
             ThumbstickRampSpeed = walking.ThumbstickRampSpeed
         };
         if (walking.DefaultMode != WalkingMode.Disabled)
-            _lastActiveWalkingMode = walking.DefaultMode;
+            PreferredWalkingMode = walking.DefaultMode;
     }
 
     /// <summary>
@@ -256,8 +256,8 @@ public class AppStateService
         NotifyAppStateUpdated(forceImmediate: true); // User action should be immediate
     }
 
-    // Seeded from the saved default mode; then follows the last mode used or selected.
-    private WalkingMode _lastActiveWalkingMode = WalkingMode.Dynamic;
+    /// <summary>The mode walking resumes in. Seeded from the saved default mode, then follows the last mode used or selected.</summary>
+    public WalkingMode PreferredWalkingMode { get; private set; } = WalkingMode.Dynamic;
     private int _lastOverrideIndex = 0;
 
     /// <summary>
@@ -266,7 +266,7 @@ public class AppStateService
     public void EnableAutoWalk()
     {
         WalkingModeConfig.CurrentOverrideIndex = _lastOverrideIndex;
-        SetWalkingMode(_lastActiveWalkingMode);
+        SetWalkingMode(PreferredWalkingMode);
     }
 
     /// <summary>
@@ -276,7 +276,7 @@ public class AppStateService
     {
         if (CurrentWalkingMode != WalkingMode.Disabled)
         {
-            _lastActiveWalkingMode = CurrentWalkingMode;
+            PreferredWalkingMode = CurrentWalkingMode;
             _lastOverrideIndex = WalkingModeConfig.CurrentOverrideIndex;
         }
         WalkingModeConfig.CurrentOverrideIndex = 0;
@@ -289,9 +289,11 @@ public class AppStateService
     /// </summary>
     public void SetPreferredWalkingMode(WalkingMode mode)
     {
-        _lastActiveWalkingMode = mode;
+        PreferredWalkingMode = mode;
         if (CurrentWalkingMode != WalkingMode.Disabled)
             SetWalkingMode(mode);
+        else
+            NotifyAppStateUpdated(forceImmediate: true);
     }
 
     /// <summary>
@@ -299,7 +301,7 @@ public class AppStateService
     /// </summary>
     public WalkingMode SwapPreferredWalkingMode()
     {
-        var current = CurrentWalkingMode != WalkingMode.Disabled ? CurrentWalkingMode : _lastActiveWalkingMode;
+        var current = CurrentWalkingMode != WalkingMode.Disabled ? CurrentWalkingMode : PreferredWalkingMode;
         var mode = current == WalkingMode.Override ? WalkingMode.Dynamic : WalkingMode.Override;
         SetPreferredWalkingMode(mode);
         return mode;

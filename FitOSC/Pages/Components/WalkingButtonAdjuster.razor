@@ -1,9 +1,7 @@
 ﻿@using FitOSC.Models
-@using FitOSC.Services.Configuration
 @using FitOSC.Services.State
 @using FitOSC.Services.Treadmill
 @inject AppStateService AppState
-@inject ConfigurationService ConfigService
 @implements IDisposable
 
 <div class="treadmill-control-adjuster-container wide @(Enabled ? string.Empty : "disabled")">
@@ -21,7 +19,7 @@
 
             <div class="treadmill-control-adjuster-indicator-led">
                 <WalkingModeLed Text="DISABLED" AdditionalClasses="led-disabled" IsActive="@(CurrentMode == WalkingMode.Disabled)"/>
-                @switch (ConfigService.GetConfiguration().WalkingMode.DefaultMode)
+                @switch (SelectedMode)
                 {
                     case WalkingMode.Dynamic:
                         <WalkingModeLed Text="DYNAMIC" IsActive="@(CurrentMode == WalkingMode.Dynamic)"/>
@@ -52,7 +50,7 @@
             </button>
         </div>
         <div class="treadmill-control-adjuster-container walking">
-            @if (ConfigService.GetConfiguration().WalkingMode.DefaultMode == WalkingMode.Override)
+            @if (SelectedMode == WalkingMode.Override)
             {
                 @for (int i = Config.OverrideSpeeds.Count - 1; i >= 0; i--)
                 {
@@ -99,6 +97,8 @@
     public bool Enabled { get; set; } = true;
 
     private WalkingMode CurrentMode => AppState.CurrentWalkingMode;
+    // The active mode, or the mode the toggle resumes while walking is off.
+    private WalkingMode SelectedMode => CurrentMode == WalkingMode.Disabled ? AppState.PreferredWalkingMode : CurrentMode;
     private WalkingModeConfiguration Config => AppState.WalkingModeConfig;
 
     private bool _showTrimText = false;
