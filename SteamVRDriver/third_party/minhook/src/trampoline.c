@@ -215,7 +215,7 @@ BOOL CreateTrampolineFunction(PTRAMPOLINE ct)
         }
         else if ((hs.opcode & 0xF0) == 0x70
             || (hs.opcode & 0xFC) == 0xE0
-            || (hs.opcode2 & 0xF0) == 0x80)
+            || ((hs.flags & F_RELATIVE) && (hs.opcode2 & 0xF0) == 0x80))
         {
             // Direct relative Jcc
             ULONG_PTR dest = pOldInst + hs.len;
