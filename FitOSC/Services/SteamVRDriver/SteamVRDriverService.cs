@@ -38,6 +38,8 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
 
     // SteamVR keeps a loaded driver's DLL open, so it runs from a copy outside the app folder that updates replace.
     private static readonly string BundledDriverPath = Path.Combine(AppContext.BaseDirectory, "SteamVR", "driver", "fitosc");
+    // A build can leave the driver folder behind without the DLL, so the DLL is what marks the driver as bundled.
+    private static bool IsBundled => File.Exists(Path.Combine(BundledDriverPath, "bin", "win64", "driver_fitosc.dll"));
     private static readonly string InstalledDriverPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FitOSC", "SteamVRDriver", "fitosc");
 
@@ -188,7 +190,7 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
 
     private void UpdateStatus()
     {
-        if (!Directory.Exists(BundledDriverPath))
+        if (!IsBundled)
             SetStatus(SteamVRDriverStatus.NotBundled);
         else if (!_registered)
             SetStatus(SteamVRDriverStatus.SteamVRNotFound);
@@ -226,8 +228,16 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
         await _registrationLock.WaitAsync();
         try
         {
-            if (!Directory.Exists(BundledDriverPath))
+            if (!IsBundled)
+            {
+                // Don't leave SteamVR loading a driver this build no longer ships.
+                if (_registered)
+                {
+                    await RunVrPathRegAsync("removedriver");
+                    _registered = false;
+                }
                 return;
+            }
             // Copy even when already registered, so a driver left registered by a crash still gets updated.
             CopyDriver();
             if (!_registered)
