@@ -321,8 +321,21 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
             return true;
 
         var installed = Path.TrimEndingDirectorySeparator(Path.GetFullPath(InstalledDriverPath));
-        return drivers.Any(driver =>
-            string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(driver)), installed, StringComparison.OrdinalIgnoreCase));
+        return drivers.Any(driver => NormalizedPath(driver) is { } path &&
+            string.Equals(path, installed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The full path without a trailing separator, or null for an entry that is not a valid path.</summary>
+    private static string? NormalizedPath(string path)
+    {
+        try
+        {
+            return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Reads one path list from SteamVR's openvrpaths.vrpath, or null when the file can't be read.</summary>
