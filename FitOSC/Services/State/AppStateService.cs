@@ -258,6 +258,13 @@ public class AppStateService
         NotifyAppStateUpdated(forceImmediate: true); // User action should be immediate
     }
 
+    /// <summary>
+    /// Raised when a SteamVR binding uses an on-screen control, so that control can light up.
+    /// </summary>
+    public event Action<RemoteControl>? RemoteControlUsed;
+
+    public void NotifyRemoteControlUsed(RemoteControl control) => RemoteControlUsed?.Invoke(control);
+
     /// <summary>The mode walking resumes in. Seeded from the saved default mode, then follows the last mode used or selected.</summary>
     public WalkingMode PreferredWalkingMode { get; private set; } = WalkingMode.Dynamic;
     private int _lastOverrideIndex = 0;

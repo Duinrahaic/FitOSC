@@ -230,6 +230,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             // Handle toggle walking action
             if (action.ToggleWalkingPressed)
             {
+                _appState.NotifyRemoteControlUsed(RemoteControl.WalkingToggle);
                 if (_currentMode == WalkingMode.Disabled)
                 {
                     _appState.EnableAutoWalk();
@@ -275,11 +276,13 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 if (_appState.LatestState == TreadmillState.Running)
                 {
+                    _appState.NotifyRemoteControlUsed(RemoteControl.TreadmillStop);
                     _ = _treadmillManager.StopAsync();
                     _logger.LogInformation("Treadmill stopped via SteamVR action");
                 }
                 else
                 {
+                    _appState.NotifyRemoteControlUsed(RemoteControl.TreadmillStart);
                     _ = _treadmillManager.StartAsync();
                     _logger.LogInformation("Treadmill started via SteamVR action");
                 }
@@ -287,6 +290,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
             if (action.TreadmillSpeedUpPressed)
             {
+                _appState.NotifyRemoteControlUsed(RemoteControl.TreadmillSpeedIncrease);
                 var currentSpeed = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
                 _ = _treadmillManager.SetSpeedAsync(currentSpeed + 0.2m * 1.609344m);
                 _logger.LogInformation("Treadmill speed up via SteamVR action");
@@ -294,6 +298,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
             if (action.TreadmillSlowDownPressed)
             {
+                _appState.NotifyRemoteControlUsed(RemoteControl.TreadmillSpeedDecrease);
                 var currentSpeed = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
                 _ = _treadmillManager.SetSpeedAsync(Math.Max(0m, currentSpeed - 0.2m * 1.609344m));
                 _logger.LogInformation("Treadmill slow down via SteamVR action");
@@ -301,6 +306,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
             if (action.TreadmillInclineUpPressed)
             {
+                _appState.NotifyRemoteControlUsed(RemoteControl.TreadmillInclineIncrease);
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
                 if (config is { SupportsIncline: true })
@@ -312,6 +318,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
             if (action.TreadmillInclineDownPressed)
             {
+                _appState.NotifyRemoteControlUsed(RemoteControl.TreadmillInclineDecrease);
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
                 var config = _appState.LatestConfiguration;
                 if (config is { SupportsIncline: true })
@@ -342,11 +349,13 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
             if (action.SpeedStepUpPressed)
             {
+                _appState.NotifyRemoteControlUsed(RemoteControl.WalkingIncrease);
                 StepSpeed(1);
             }
 
             if (action.SpeedStepDownPressed)
             {
+                _appState.NotifyRemoteControlUsed(RemoteControl.WalkingDecrease);
                 StepSpeed(-1);
             }
 

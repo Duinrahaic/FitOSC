@@ -845,3 +845,27 @@
 	}
   }
 }
+
+// A SteamVR binding just used this control. Disabled controls stay unlit.
+.treadmill-interaction {
+  .treadmill-control-row button.remote-glow:not(:disabled),
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.remote-glow:not(:disabled) {
+    border-color: $color-accent;
+    color: $color-accent;
+    filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));
+  }
+
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row {
+    transition: outline-color 0.2s ease, filter 0.2s ease;
+  }
+
+  .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.remote-glow {
+    outline-color: $color-accent;
+    filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));
+
+    .treadmill-control-adjuster-indicator-value,
+    .treadmill-control-adjuster-indicator-title {
+      color: $color-accent;
+    }
+  }
+}

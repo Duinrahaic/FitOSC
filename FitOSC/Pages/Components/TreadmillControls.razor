@@ -31,9 +31,9 @@
         <img src="images/FitOSC-Bunny.svg" alt="fitosc-logo"/>
 
         <div class="treadmill-control-row">
-            <StateButton OnClick="Treadmill.StartAsync" Enabled="@Accepts(TreadmillCommands.Start)" Icon="fa fa-play" Title="START"/>
+            <StateButton OnClick="Treadmill.StartAsync" Remote="RemoteControl.TreadmillStart" Enabled="@Accepts(TreadmillCommands.Start)" Icon="fa fa-play" Title="START"/>
             <StateButton OnClick="Treadmill.PauseAsync" Enabled="@Accepts(TreadmillCommands.Pause)" Icon="fa fa-pause" Title="PAUSE"/>
-            <StateButton OnClick="Treadmill.StopAsync" Enabled="@Accepts(TreadmillCommands.Stop)" Icon="fa fa-square" Title="STOP"/>
+            <StateButton OnClick="Treadmill.StopAsync" Remote="RemoteControl.TreadmillStop" Enabled="@Accepts(TreadmillCommands.Stop)" Icon="fa fa-square" Title="STOP"/>
         </div>
     </div>
 
