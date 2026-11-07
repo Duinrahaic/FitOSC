@@ -11,28 +11,13 @@
 
     protected override void OnInitialized() => AppState.ControlPressed += OnControlPressed;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-            return;
-        try
-        {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
-        }
-        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
-        {
-            // Presses still work without sound.
-            Logger.LogWarning("Could not load the feedback sounds: {Message}", ex.Message);
-        }
-    }
-
-    // SteamVR presses arrive off the render thread.
+    // SteamVR presses arrive off the render thread. The sound module loads on the first press and is retried on
+    // later presses if loading fails.
     private void OnControlPressed(RemoteControl control, bool acts) => _ = InvokeAsync(async () =>
     {
-        if (_module is null)
-            return;
         try
         {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
             await _module.InvokeVoidAsync(acts ? "beepHigh" : "beepLow", ConfigService.GetConfiguration().User.FeedbackVolume / 100.0);
         }
         catch (Exception ex) when (ex is JSException or JSDisconnectedException)
