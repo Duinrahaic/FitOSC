@@ -4,6 +4,7 @@
 @inject HistoryService HistoryService
 @inject UpdateService UpdateService
 @inject IJSRuntime JS
+@inject ILogger<UserSettingsTab> Logger
 @implements IAsyncDisposable
 
 <section class="page" aria-labelledby="settings-general-heading">
@@ -147,8 +148,16 @@
     // Plays the beep at the chosen volume once the slider settles.
     private async Task PreviewFeedbackVolume()
     {
-        _sounds ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
-        await _sounds.InvokeVoidAsync("beepHigh", Draft.FeedbackVolume / 100.0);
+        try
+        {
+            _sounds ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
+            await _sounds.InvokeVoidAsync("beepHigh", Draft.FeedbackVolume / 100.0);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            // A missed preview should not bring up the app's error banner.
+            Logger.LogWarning("Could not play the feedback preview: {Message}", ex.Message);
+        }
     }
 
     private Task SetPreferMetric(bool preferMetric)

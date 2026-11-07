@@ -3,6 +3,7 @@
 @inject AppStateService AppState
 @inject ConfigurationService ConfigService
 @inject IJSRuntime JS
+@inject ILogger<InteractionSounds> Logger
 @implements IAsyncDisposable
 
 @code {
@@ -19,8 +20,17 @@
     // SteamVR presses arrive off the render thread.
     private void OnControlPressed(RemoteControl control, bool acts) => _ = InvokeAsync(async () =>
     {
-        if (_module is not null)
+        if (_module is null)
+            return;
+        try
+        {
             await _module.InvokeVoidAsync(acts ? "beepHigh" : "beepLow", ConfigService.GetConfiguration().User.FeedbackVolume / 100.0);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            // A missed beep is not worth failing the press over, e.g. while the window closes.
+            Logger.LogWarning("Could not play the feedback beep: {Message}", ex.Message);
+        }
     });
 
     public async ValueTask DisposeAsync()
