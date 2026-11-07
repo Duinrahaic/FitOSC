@@ -555,6 +555,7 @@
 			letter-spacing: 4px;
 			font-size: 18px;
 			user-select: none;
+			transition: color 0.3s ease;
 
 			&.disabled {
 			  color: $color-text-muted;

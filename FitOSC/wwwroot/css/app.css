@@ -788,6 +788,7 @@ html .app main {
   letter-spacing: 4px;
   font-size: 18px;
   user-select: none;
+  transition: color 0.3s ease;
 }
 .treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-title.disabled {
   color: #a0a0a0;
