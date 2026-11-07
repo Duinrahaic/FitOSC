@@ -1,30 +1,34 @@
-// Treadmill-style feedback beeps for control presses: high when a press acts, low when it can't.
+// Feedback beeps for control presses: a warm beep when a press acts, the same beep a fifth lower when it can't.
 // Gain at full volume; the user's volume (0 to 1) scales it.
-const maxGain = 0.08;
+const maxGain = 0.24;
 let context;
 
-// A short square-wave tone, filtered to soften it into the sound of a console's piezo buzzer.
+// A sine with a faint octave overtone for body, low-passed to keep it round.
 function beep(volume, hz, seconds) {
     if (volume <= 0) return;
     context ??= new AudioContext();
     if (context.state === 'suspended') context.resume();
 
     const now = context.currentTime;
-    const oscillator = new OscillatorNode(context, { type: 'square', frequency: hz });
-    const filter = new BiquadFilterNode(context, { type: 'lowpass', frequency: hz * 2.5 });
+    const peak = maxGain * volume;
 
-    // Flat with a fast attack and release, like a buzzer switching on and off, without clicks.
+    // A soft attack, a short hold, then an exponential fade keep the beep smooth and free of clicks.
     const gain = new GainNode(context, { gain: 0 });
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(maxGain * volume, now + 0.003);
-    gain.gain.setValueAtTime(maxGain * volume, now + seconds - 0.008);
-    gain.gain.linearRampToValueAtTime(0, now + seconds);
+    gain.gain.linearRampToValueAtTime(peak, now + 0.01);
+    gain.gain.setValueAtTime(peak, now + seconds * 0.45);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds);
+    gain.connect(new BiquadFilterNode(context, { type: 'lowpass', frequency: hz * 2.2, Q: 0.5 })).connect(context.destination);
 
-    oscillator.connect(filter).connect(gain).connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + seconds);
+    for (const [multiple, level] of [[1, 1 / 1.2], [2, 0.2 / 1.2]]) {
+        const oscillator = new OscillatorNode(context, { type: 'sine', frequency: hz * multiple });
+        oscillator.connect(new GainNode(context, { gain: level })).connect(gain);
+        oscillator.start(now);
+        oscillator.stop(now + seconds);
+    }
 }
 
-export const beepHigh = volume => beep(volume, 2400, 0.09);
+export const beepHigh = volume => beep(volume, 620, 0.15);
 
-export const beepLow = volume => beep(volume, 800, 0.14);
+// The can't-act beep is a little longer and louder so it reads as clearly as the high one.
+export const beepLow = volume => beep(volume * 1.125, 415, 0.2);
