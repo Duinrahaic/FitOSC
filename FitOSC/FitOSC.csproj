@@ -173,6 +173,8 @@
             <Output TaskParameter="ConsoleOutput" PropertyName="VsMSBuild" />
         </Exec>
         <Warning Condition="'$(VsMSBuild)' == ''" Text="Visual Studio C++ tools not found; building without the SteamVR driver." />
+        <!-- This target only runs when the driver sources are newer than the DLL, so one left from an earlier build is stale. -->
+        <Delete Condition="'$(VsMSBuild)' == ''" Files="$(SteamVRDriverDll)" />
         <Exec Condition="'$(VsMSBuild)' != ''" Command="&quot;$(VsMSBuild)&quot; &quot;$(SteamVRDriverDir)FitOSC.SteamVRDriver.vcxproj&quot; -p:Configuration=Release -p:Platform=x64 -nologo -v:m" />
     </Target>
     <Target Name="IncludeSteamVRDriver" AfterTargets="BuildSteamVRDriver" BeforeTargets="AssignTargetPaths" Condition="Exists('$(SteamVRDriverDll)')">
