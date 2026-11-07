@@ -530,7 +530,15 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         if (output != _activeOutput)
         {
             if (_activeOutput == LocomotionOutput.Joystick)
+            {
                 _steamVRDriver.Release();
+            }
+            else
+            {
+                // Stop the avatar: VRChat keeps the last OSC movement until it is told otherwise.
+                _oscService.SendMessage("/input/Vertical", 0f);
+                _oscService.SendMessage("/input/Horizontal", 0f);
+            }
             _activeOutput = output;
             _logger.LogInformation($"Walking output switched to {output}");
         }
@@ -541,7 +549,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
                 _steamVRDriver.Send(vertical, horizontal, active: _currentMode != WalkingMode.Disabled);
                 break;
             default:
-                // Locomotion inputs must be sent every tick — VRChat resets them to 0 if they stop arriving
+                // Sent every tick so VRChat always has the current movement.
                 _oscService.SendMessage("/input/Vertical", vertical);
                 _oscService.SendMessage("/input/Horizontal", horizontal);
                 break;
