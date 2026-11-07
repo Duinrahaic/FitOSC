@@ -282,35 +282,52 @@ public sealed class SteamVRDriverService(ILogger<SteamVRDriverService> logger, A
     }
 
     /// <summary>Finds vrpathreg through the SteamVR runtime listed in openvrpaths.vrpath.</summary>
-    private static string? FindVrPathReg() =>
-        ReadVrPaths("runtime")
+    private string? FindVrPathReg() =>
+        ReadVrPaths("runtime")?
             .Select(runtime => Path.Combine(runtime, "bin", "win64", "vrpathreg.exe"))
             .FirstOrDefault(File.Exists);
 
-    /// <summary>Whether openvrpaths.vrpath lists the installed driver as an external driver.</summary>
-    private static bool IsRegistered()
+    /// <summary>
+    /// Whether openvrpaths.vrpath lists the installed driver as an external driver. An unreadable file counts as
+    /// registered, so a registration left by a crash is still removed.
+    /// </summary>
+    private bool IsRegistered()
     {
+        var drivers = ReadVrPaths("external_drivers");
+        if (drivers == null)
+            return true;
+
         var installed = Path.TrimEndingDirectorySeparator(Path.GetFullPath(InstalledDriverPath));
-        return ReadVrPaths("external_drivers").Any(driver =>
+        return drivers.Any(driver =>
             string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(driver)), installed, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Reads one path list from SteamVR's openvrpaths.vrpath.</summary>
-    private static List<string> ReadVrPaths(string property)
+    /// <summary>Reads one path list from SteamVR's openvrpaths.vrpath, or null when the file can't be read.</summary>
+    private List<string>? ReadVrPaths(string property)
     {
         var pathsFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "openvr", "openvrpaths.vrpath");
         if (!File.Exists(pathsFile))
             return [];
 
-        using var document = JsonDocument.Parse(File.ReadAllText(pathsFile));
-        if (!document.RootElement.TryGetProperty(property, out var paths) || paths.ValueKind != JsonValueKind.Array)
-            return [];
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(pathsFile));
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty(property, out var paths)
+                || paths.ValueKind != JsonValueKind.Array)
+                return [];
 
-        return paths.EnumerateArray()
-            .Select(path => path.GetString())
-            .Where(path => !string.IsNullOrEmpty(path))
-            .Select(path => path!)
-            .ToList();
+            return paths.EnumerateArray()
+                .Where(path => path.ValueKind == JsonValueKind.String)
+                .Select(path => path.GetString()!)
+                .Where(path => path.Length > 0)
+                .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            logger.LogWarning("Could not read {File}: {Message}", pathsFile, ex.Message);
+            return null;
+        }
     }
 
     public void Dispose()
