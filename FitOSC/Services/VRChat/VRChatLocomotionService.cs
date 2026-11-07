@@ -55,6 +55,10 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
     // Periodic update timer
     private Timer? _updateTimer;
+    // Timer callbacks can overlap when one runs long; a tick that finds the previous one still running is skipped.
+    private readonly object _tickLock = new();
+    // Zeroes still owed to VRChat's OSC axes after leaving OSC output, kept until OSC is connected to receive them.
+    private bool _oscResetPending;
 
 
     public VRChatLocomotionService(
@@ -361,6 +365,8 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
     private void PeriodicUpdate(object? state)
     {
+        if (!Monitor.TryEnter(_tickLock))
+            return;
         try
         {
             // Check for manual override (left thumbstick active)
@@ -390,6 +396,10 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in periodic VRChat locomotion update");
+        }
+        finally
+        {
+            Monitor.Exit(_tickLock);
         }
     }
 
@@ -530,17 +540,19 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         if (output != _activeOutput)
         {
             if (_activeOutput == LocomotionOutput.Joystick)
-            {
                 _steamVRDriver.Release();
-            }
             else
-            {
-                // Stop the avatar: VRChat keeps the last OSC movement until it is told otherwise.
-                _oscService.SendMessage("/input/Vertical", 0f);
-                _oscService.SendMessage("/input/Horizontal", 0f);
-            }
+                _oscResetPending = true; // VRChat keeps the last OSC movement until it is told otherwise.
             _activeOutput = output;
             _logger.LogInformation($"Walking output switched to {output}");
+        }
+
+        if (output != LocomotionOutput.Osc && _oscResetPending && _oscService.IsConnected)
+        {
+            _oscService.SendMessage("/input/Vertical", 0f);
+            _oscService.SendMessage("/input/Horizontal", 0f);
+            // A send that finds no connection marks OSC disconnected; the reset is then retried after it reconnects.
+            _oscResetPending = !_oscService.IsConnected;
         }
 
         switch (output)
