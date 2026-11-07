@@ -317,7 +317,7 @@
 	  width: 50%;
 	  transition: all 0.2s ease;
 
-	  &:disabled {
+	  &[aria-disabled="true"] {
 		border-color: $color-border;
 		color: $color-text-muted;
 		cursor: default;
@@ -599,7 +599,7 @@
 
 			$control-border-radius: 8px;
 
-			&:disabled {
+			&[aria-disabled="true"] {
 			  border-color: $color-border;
 			  color: $color-text-muted;
 			  cursor: default;
@@ -848,8 +848,8 @@
 
 // A SteamVR binding just used this control. Disabled controls stay unlit.
 .treadmill-interaction {
-  .treadmill-control-row button.remote-glow:not(:disabled),
-  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.remote-glow:not(:disabled) {
+  .treadmill-control-row button.remote-glow:not([aria-disabled="true"]),
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.remote-glow:not([aria-disabled="true"]) {
     border-color: $color-accent;
     color: $color-accent;
     filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));

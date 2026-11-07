@@ -1,7 +1,7 @@
 ﻿@using FitOSC.Services.State
 @inject AppStateService AppState
 @implements IDisposable
-<button class="treadmill-control-button @(Remote is { } remote ? _glow?.ClassFor(remote) : null)" disabled="@(!Enabled)" @onclick="HandleClick">
+<button class="treadmill-control-button @_glow.ClassFor(Control)" type="button" aria-disabled="@(Enabled ? null : "true")" @onclick="HandleClick">
     <i class="@Icon"></i>
     <div class="treadmill-control-button-title @(!Enabled ? "disabled" : "")">
         @Title
@@ -12,24 +12,18 @@
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string Icon { get; set; } = "fa-solid fa-circle";
     [Parameter] public EventCallback OnClick { get; set; }
-    /// <summary>The SteamVR binding that presses this button, if any.</summary>
-    [Parameter] public RemoteControl? Remote { get; set; }
+    [Parameter, EditorRequired] public RemoteControl Control { get; set; }
 
-    private RemoteGlow? _glow;
+    private RemoteGlow _glow = null!;
 
-    protected override void OnInitialized()
-    {
-        if (Remote is { } remote)
-            _glow = new RemoteGlow(AppState, InvokeAsync, StateHasChanged, remote);
-    }
+    protected override void OnInitialized() =>
+        _glow = new RemoteGlow(AppState, InvokeAsync, StateHasChanged, Control);
 
     private async Task HandleClick()
     {
-        if (Enabled)
-        {
+        if (AppState.PressControl(Control))
             await OnClick.InvokeAsync();
-        }
     }
 
-    public void Dispose() => _glow?.Dispose();
+    public void Dispose() => _glow.Dispose();
 }

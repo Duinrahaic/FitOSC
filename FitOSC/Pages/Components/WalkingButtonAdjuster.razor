@@ -4,7 +4,7 @@
 @inject AppStateService AppState
 @implements IDisposable
 
-<div class="treadmill-control-adjuster-container wide @(Enabled ? string.Empty : "disabled")">
+<div class="treadmill-control-adjuster-container wide">
     <div class="treadmill-control-adjuster-indicator-row @_glow.ClassFor(RemoteControl.WalkingToggle)" @onclick="RotateWalkingMode">
         <div class="treadmill-control-adjuster-indicator">
             <div class="treadmill-control-adjuster-indicator-value">
@@ -36,16 +36,16 @@
     <div class="treadmill-control-group">
         <div class="treadmill-control-adjuster-container">
             <button class="treadmill-control-adjuster increase @_glow.ClassFor(RemoteControl.WalkingIncrease)"
-                    @onclick="Increase"
-                    disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
+                    @onclick="Increase" type="button"
+                    aria-disabled="@AriaDisabled(RemoteControl.WalkingIncrease)">
                 <i class="fa fa-add"></i>
             </button>
             <div class="treadmill-control-adjuster-title @(CurrentMode == WalkingMode.Disabled ? "disabled" : "")">
                 @GetAdjustmentLabel()
             </div>
             <button class="treadmill-control-adjuster decrease @_glow.ClassFor(RemoteControl.WalkingDecrease)"
-                    @onclick="Decrease"
-                    disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
+                    @onclick="Decrease" type="button"
+                    aria-disabled="@AriaDisabled(RemoteControl.WalkingDecrease)">
                 <i class="fa fa-minus"></i>
             </button>
         </div>
@@ -58,8 +58,8 @@
                     var speed = Config.OverrideSpeeds[i];
                     var isActive = CurrentMode == WalkingMode.Override && Config.CurrentOverrideIndex == i;
                     <button class="treadmill-control-adjuster walking @(isActive ? "active" : "")"
-                            @onclick="() => SetOverrideIndex(index)"
-                            disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
+                            @onclick="() => SetOverrideIndex(index)" type="button"
+                            aria-disabled="@AriaDisabled(RemoteControl.WalkingPreset)">
 
                         <div class="led @(isActive ? "active" : string.Empty)">
                             <div class="led-indicator"></div>
@@ -93,15 +93,15 @@
 </div>
 @code
 {
-    [Parameter]
-    public bool Enabled { get; set; } = true;
-
     private RemoteGlow _glow = null!;
 
     private WalkingMode CurrentMode => AppState.CurrentWalkingMode;
     // The active mode, or the mode the toggle resumes while walking is off.
     private WalkingMode SelectedMode => CurrentMode == WalkingMode.Disabled ? AppState.PreferredWalkingMode : CurrentMode;
     private WalkingModeConfiguration Config => AppState.WalkingModeConfig;
+
+    // Disabled buttons still take clicks, so pressing one can play its feedback.
+    private string? AriaDisabled(RemoteControl control) => AppState.IsEnabled(control) ? null : "true";
 
     private bool _showTrimText = false;
     private System.Threading.Timer? _trimTextTimer;
@@ -198,51 +198,22 @@
         };
     }
 
-    private void Increase()
+    private void Increase() => Step(RemoteControl.WalkingIncrease, 1);
+
+    private void Decrease() => Step(RemoteControl.WalkingDecrease, -1);
+
+    private void Step(RemoteControl control, int direction)
     {
-        if (!Enabled) return;
+        if (!AppState.PressControl(control)) return;
 
-        var config = AppState.WalkingModeConfig;
-
+        AppState.StepWalkingSpeed(direction);
         if (CurrentMode == WalkingMode.Dynamic)
-        {
-            // Increase trim by 0.05 (multiplier range: 0.0 to 2.0)
-            config.WalkingTrim = Math.Min(2.0f, config.WalkingTrim + 0.05f);
-            AppState.UpdateWalkingModeConfig(config);
             ShowTrimText();
-        }
-        else if (CurrentMode == WalkingMode.Override)
-        {
-            // Move to next preset
-            config.CurrentOverrideIndex = Math.Min(config.OverrideSpeeds.Count - 1, config.CurrentOverrideIndex + 1);
-            AppState.UpdateWalkingModeConfig(config);
-        }
-    }
-
-    private void Decrease()
-    {
-        if (!Enabled) return;
-
-        var config = AppState.WalkingModeConfig;
-
-        if (CurrentMode == WalkingMode.Dynamic)
-        {
-            // Decrease trim by 0.05 (multiplier range: 0.0 to 2.0)
-            config.WalkingTrim = Math.Max(0.0f, config.WalkingTrim - 0.05f);
-            AppState.UpdateWalkingModeConfig(config);
-            ShowTrimText();
-        }
-        else if (CurrentMode == WalkingMode.Override)
-        {
-            // Move to previous preset
-            config.CurrentOverrideIndex = Math.Max(0, config.CurrentOverrideIndex - 1);
-            AppState.UpdateWalkingModeConfig(config);
-        }
     }
 
     private void SetOverrideIndex(int index)
     {
-        if (!Enabled) return;
+        if (!AppState.PressControl(RemoteControl.WalkingPreset)) return;
 
         var config = AppState.WalkingModeConfig;
         config.CurrentOverrideIndex = index;
@@ -257,7 +228,7 @@
 
     private void RotateWalkingMode()
     {
-        if (!Enabled) return;
+        if (!AppState.PressControl(RemoteControl.WalkingToggle)) return;
 
         // Same toggle as the SteamVR binding, so both resume the selected mode.
         if (CurrentMode == WalkingMode.Disabled)

@@ -7,7 +7,7 @@ namespace FitOSC.Services.State;
 /// <summary>
 /// Global app state service for settings, treadmill telemetry, and state publishing.
 /// </summary>
-public class AppStateService
+public partial class AppStateService
 {
     public AppStateService(ConfigurationService configService)
     {
@@ -260,13 +260,6 @@ public class AppStateService
         NotifyAppStateUpdated(forceImmediate: true); // User action should be immediate
     }
 
-    /// <summary>
-    /// Raised when a SteamVR binding uses an on-screen control, so that control can light up.
-    /// </summary>
-    public event Action<RemoteControl>? RemoteControlUsed;
-
-    public void NotifyRemoteControlUsed(RemoteControl control) => RemoteControlUsed?.Invoke(control);
-
     /// <summary>The mode walking resumes in. Seeded from the saved default mode, then follows the last mode used or selected.</summary>
     public WalkingMode PreferredWalkingMode { get; private set; } = WalkingMode.Dynamic;
     private int _lastOverrideIndex = 0;
@@ -376,7 +369,7 @@ public class AppStateService
     /// </summary>
     public void AdjustWalkingTrim(float delta)
     {
-        var newTrim = Math.Clamp(WalkingModeConfig.WalkingTrim + delta, 0.0f, 2.0f);
+        var newTrim = Math.Clamp(WalkingModeConfig.WalkingTrim + delta, 0.0f, MaxWalkingTrim);
         WalkingModeConfig.WalkingTrim = newTrim;
         NotifyAppStateUpdated();
     }

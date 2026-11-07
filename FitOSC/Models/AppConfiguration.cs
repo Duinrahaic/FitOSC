@@ -180,6 +180,11 @@ public class UserSettings
     public bool UseHardwareAcceleration { get; set; } = true;
 
     /// <summary>
+    /// Volume of the sounds played when a control is pressed, in percent (0 is silent)
+    /// </summary>
+    public int FeedbackVolume { get; set; } = 40;
+
+    /// <summary>
     /// Whether the user has completed the onboarding wizard.
     /// </summary>
     public bool OnboardingCompleted { get; set; } = false;

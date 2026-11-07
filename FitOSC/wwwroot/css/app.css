@@ -606,7 +606,7 @@ html .app main {
   width: 50%;
   transition: all 0.2s ease;
 }
-.treadmill-interaction .treadmill-control-row button:disabled {
+.treadmill-interaction .treadmill-control-row button[aria-disabled=true] {
   border-color: #2c2c2c;
   color: #a0a0a0;
   cursor: default;
@@ -812,7 +812,7 @@ html .app main {
   overflow: hidden;
   transition: all 0.2s ease;
 }
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster:disabled {
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster[aria-disabled=true] {
   border-color: #2c2c2c;
   color: #a0a0a0;
   cursor: default;
@@ -1017,8 +1017,8 @@ html .app main {
   font-size: 18px;
 }
 
-.treadmill-interaction .treadmill-control-row button.remote-glow:not(:disabled),
-.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.remote-glow:not(:disabled) {
+.treadmill-interaction .treadmill-control-row button.remote-glow:not([aria-disabled=true]),
+.treadmill-interaction .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.remote-glow:not([aria-disabled=true]) {
   border-color: #2196f3;
   color: #2196f3;
   filter: drop-shadow(0 0 4px rgba(33, 150, 243, 0.9));
@@ -1889,6 +1889,29 @@ html .app main {
 .settings-window .with-btn {
   display: flex;
   gap: 6px;
+}
+.settings-window .volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-window .volume input[type=range] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  accent-color: var(--settings-accent);
+  cursor: pointer;
+}
+.settings-window .volume input[type=range]:focus-visible {
+  outline: none;
+  box-shadow: var(--settings-focus);
+  border-radius: 4px;
+}
+.settings-window .volume output {
+  width: 40px;
+  text-align: right;
+  color: var(--settings-muted);
+  font-variant-numeric: tabular-nums;
 }
 .settings-window .settings-btn {
   display: inline-flex;

@@ -3,7 +3,8 @@
 @using FitOSC.Services.History
 @inject HistoryService HistoryService
 @inject UpdateService UpdateService
-@implements IDisposable
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <section class="page" aria-labelledby="settings-general-heading">
     <h2 id="settings-general-heading">General</h2>
@@ -59,6 +60,19 @@
                 </div>
             </div>
         }
+    </div>
+
+    <h3>Sound</h3>
+    <div class="group">
+        <div class="row inline">
+            <div class="lab"><label for="settings-feedback-volume">Feedback volume</label></div>
+            <div class="ctl w-md volume">
+                <input type="range" id="settings-feedback-volume" min="0" max="100" step="5"
+                       @bind="Draft.FeedbackVolume" @bind:event="oninput" @bind:after="Notify"
+                       @onchange="PreviewFeedbackVolume" />
+                <output for="settings-feedback-volume">@Draft.FeedbackVolume%</output>
+            </div>
+        </div>
     </div>
 
     <h3>System</h3>
@@ -126,8 +140,16 @@
     private bool _confirmClear;
     private string? _clearStatus;
     private CancellationTokenSource? _confirmTimeout;
+    private IJSObjectReference? _sounds;
 
     private Task Notify() => Changed.InvokeAsync();
+
+    // Plays the beep at the chosen volume once the slider settles.
+    private async Task PreviewFeedbackVolume()
+    {
+        _sounds ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
+        await _sounds.InvokeVoidAsync("beep", Draft.FeedbackVolume / 100.0);
+    }
 
     private Task SetPreferMetric(bool preferMetric)
     {
@@ -196,9 +218,11 @@
         });
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         _confirmTimeout?.Cancel();
         UpdateService.Changed -= HandleUpdateChanged;
+        if (_sounds is not null)
+            await _sounds.DisposeAsync();
     }
 }
