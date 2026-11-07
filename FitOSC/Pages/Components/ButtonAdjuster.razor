@@ -18,7 +18,7 @@
             @_unit
         </div>
     </div>
-    <button class="treadmill-control-adjuster increase"
+    <button class="treadmill-control-adjuster increase @_glow.ClassFor(_increase)"
             @onclick="Increase" type="button" aria-label="Increase @ControlType"
             disabled="@(!_enabled)">
         <i class="fa fa-add" aria-hidden="true"></i>
@@ -26,7 +26,7 @@
     <div class="treadmill-control-adjuster-title @(!_enabled ? "disabled" : "")">
         @_title
     </div>
-    <button class="treadmill-control-adjuster decrease"
+    <button class="treadmill-control-adjuster decrease @_glow.ClassFor(_decrease)"
             @onclick="Decrease" type="button" aria-label="Decrease @ControlType"
             disabled="@(!_enabled)">
         <i class="fa fa-minus" aria-hidden="true"></i>
@@ -44,10 +44,17 @@
     private string _valueFormat = "F2";
     private TreadmillTelemetryValue? _data;
     private TreadmillConfiguration? _configuration;
+    private RemoteGlow _glow = null!;
+    private RemoteControl _increase;
+    private RemoteControl _decrease;
  
     
     protected override void OnInitialized()
     {
+        (_increase, _decrease) = ControlType == TreadmillControlType.Incline
+            ? (RemoteControl.TreadmillInclineIncrease, RemoteControl.TreadmillInclineDecrease)
+            : (RemoteControl.TreadmillSpeedIncrease, RemoteControl.TreadmillSpeedDecrease);
+        _glow = new RemoteGlow(AppState, InvokeAsync, StateHasChanged, _increase, _decrease);
         AppStateOnAppStateUpdated(AppState.GetCurrentAppStateInfo());
         AppState.AppStateUpdated += AppStateOnAppStateUpdated;
         
@@ -171,5 +178,6 @@
     public void Dispose()
     {
         AppState.AppStateUpdated -= AppStateOnAppStateUpdated;
+        _glow.Dispose();
     }
 }

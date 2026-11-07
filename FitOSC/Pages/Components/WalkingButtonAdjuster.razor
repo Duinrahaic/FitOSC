@@ -5,7 +5,7 @@
 @implements IDisposable
 
 <div class="treadmill-control-adjuster-container wide @(Enabled ? string.Empty : "disabled")">
-    <div class="treadmill-control-adjuster-indicator-row" @onclick="RotateWalkingMode">
+    <div class="treadmill-control-adjuster-indicator-row @_glow.ClassFor(RemoteControl.WalkingToggle)" @onclick="RotateWalkingMode">
         <div class="treadmill-control-adjuster-indicator">
             <div class="treadmill-control-adjuster-indicator-value">
                 @SpeedPercentage.ToString("N0")
@@ -35,7 +35,7 @@
     </div>
     <div class="treadmill-control-group">
         <div class="treadmill-control-adjuster-container">
-            <button class="treadmill-control-adjuster increase"
+            <button class="treadmill-control-adjuster increase @_glow.ClassFor(RemoteControl.WalkingIncrease)"
                     @onclick="Increase"
                     disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
                 <i class="fa fa-add"></i>
@@ -43,7 +43,7 @@
             <div class="treadmill-control-adjuster-title @(CurrentMode == WalkingMode.Disabled ? "disabled" : "")">
                 @GetAdjustmentLabel()
             </div>
-            <button class="treadmill-control-adjuster decrease"
+            <button class="treadmill-control-adjuster decrease @_glow.ClassFor(RemoteControl.WalkingDecrease)"
                     @onclick="Decrease"
                     disabled="@(!Enabled || CurrentMode == WalkingMode.Disabled)">
                 <i class="fa fa-minus"></i>
@@ -95,6 +95,8 @@
 {
     [Parameter]
     public bool Enabled { get; set; } = true;
+
+    private RemoteGlow _glow = null!;
 
     private WalkingMode CurrentMode => AppState.CurrentWalkingMode;
     // The active mode, or the mode the toggle resumes while walking is off.
@@ -153,6 +155,8 @@
 
     protected override void OnInitialized()
     {
+        _glow = new RemoteGlow(AppState, InvokeAsync, StateHasChanged,
+            RemoteControl.WalkingToggle, RemoteControl.WalkingIncrease, RemoteControl.WalkingDecrease);
         AppState.AppStateUpdated += HandleAppStateUpdated;
     }
 
@@ -164,6 +168,7 @@
     public void Dispose()
     {
         AppState.AppStateUpdated -= HandleAppStateUpdated;
+        _glow.Dispose();
         _trimTextTimer?.Dispose();
     }
 
