@@ -223,7 +223,7 @@
         config.CurrentOverrideIndex = index;
         AppState.UpdateWalkingModeConfig(config);
 
-        // Automatically switch to Override mode if not already
+        // Starts walking when it is off, and switches from Dynamic, at the picked preset.
         if (CurrentMode != WalkingMode.Override)
         {
             AppState.SetWalkingMode(WalkingMode.Override);

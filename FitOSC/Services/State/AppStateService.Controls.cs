@@ -21,9 +21,9 @@ public partial class AppStateService
     /// </summary>
     public bool IsEnabled(RemoteControl control) => control switch
     {
-        RemoteControl.WalkingToggle => true,
-        RemoteControl.WalkingIncrease or RemoteControl.WalkingDecrease or RemoteControl.WalkingPreset =>
-            CurrentWalkingMode != WalkingMode.Disabled,
+        // A preset also starts walking at its speed, so like the toggle it is always available.
+        RemoteControl.WalkingToggle or RemoteControl.WalkingPreset => true,
+        RemoteControl.WalkingIncrease or RemoteControl.WalkingDecrease => CurrentWalkingMode != WalkingMode.Disabled,
         // Treadmills ignore speed changes while the belt is still, and not all of them report stopped or paused.
         RemoteControl.TreadmillSpeedIncrease or RemoteControl.TreadmillSpeedDecrease =>
             TreadmillTakes(TreadmillCommands.Speed) && Reported(TreadmillTelemetryProperty.InstantaneousSpeed) is { Value: > 0 },
