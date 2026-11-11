@@ -198,6 +198,25 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         _logger.LogInformation($"Preset {preset} activated via SteamVR action");
     }
 
+    /// <summary>Steps the override preset in Override mode, otherwise the walking trim.</summary>
+    private void StepSpeed(int direction)
+    {
+        // Matches the on-screen +/- buttons, which are disabled while walking is off.
+        if (_currentMode == WalkingMode.Disabled)
+            return;
+        if (_currentMode == WalkingMode.Override)
+        {
+            var newIndex = Math.Clamp(_modeConfig.CurrentOverrideIndex + direction, 0, _modeConfig.OverrideSpeeds.Count - 1);
+            _appState.SetOverrideSpeedIndex(newIndex);
+            _logger.LogInformation($"Override preset stepped to index {newIndex} via SteamVR action");
+        }
+        else
+        {
+            _appState.AdjustWalkingTrim(0.05f * direction);
+            _logger.LogInformation($"Walking trim stepped {(direction > 0 ? "up" : "down")} via SteamVR action");
+        }
+    }
+
     private void OnYawResetRequested()
     {
         if (_latestOpenVRData != null)
@@ -323,6 +342,16 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 _appState.AdjustWalkingTrim(-0.05f);
                 _logger.LogInformation("Walking speed down via SteamVR action");
+            }
+
+            if (action.SpeedStepUpPressed)
+            {
+                StepSpeed(1);
+            }
+
+            if (action.SpeedStepDownPressed)
+            {
+                StepSpeed(-1);
             }
 
             if (action.EnableOverridePressed)

@@ -246,9 +246,11 @@
             config.Treadmill.AutoConnect = draft.Treadmill.AutoConnect;
         }
 
+        var defaultModeChanged = false;
         if (draft.IsChanged(SettingsPage.Walking, baseline))
         {
             var walking = draft.Walking;
+            defaultModeChanged = config.WalkingMode.DefaultMode != walking.DefaultMode;
             config.WalkingMode.MaxSpeed = walking.MaxSpeedKph;
             config.WalkingMode.DefaultMode = walking.DefaultMode;
             config.WalkingMode.Steering = walking.Steering;
@@ -285,6 +287,8 @@
             AppStateService.SetWalkingSteering(draft.Walking.Steering);
         if (draft.Walking.Output != baseline.Walking.Output)
             AppStateService.SetLocomotionOutput(draft.Walking.Output);
+        if (defaultModeChanged)
+            AppStateService.SetNextSessionWalkingMode(draft.Walking.DefaultMode);
         if (integrations.WebSocketEnabled != baseline.Integrations.WebSocketEnabled)
         {
             if (integrations.WebSocketEnabled)

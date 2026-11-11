@@ -24,6 +24,8 @@ public class AppStateService
             UpdateIntervalMs = walking.UpdateIntervalMs,
             ThumbstickRampSpeed = walking.ThumbstickRampSpeed
         };
+        if (walking.DefaultMode != WalkingMode.Disabled)
+            PreferredWalkingMode = walking.DefaultMode;
     }
 
     /// <summary>
@@ -250,12 +252,20 @@ public class AppStateService
     /// </summary>
     public void SetWalkingMode(WalkingMode mode)
     {
+        // Switching to another mode supersedes a default saved earlier in the session; reselecting the current one,
+        // as presets and speed steps do, keeps it.
+        if (mode != CurrentWalkingMode)
+            _nextSessionWalkingMode = null;
         CurrentWalkingMode = mode;
         NotifyAppStateUpdated(forceImmediate: true); // User action should be immediate
     }
 
-    private WalkingMode _lastActiveWalkingMode = WalkingMode.Dynamic;
+    /// <summary>The mode walking resumes in. Seeded from the saved default mode, then follows the last mode used or selected.</summary>
+    public WalkingMode PreferredWalkingMode { get; private set; } = WalkingMode.Dynamic;
     private int _lastOverrideIndex = 0;
+
+    /// <summary>A default mode saved while walking, applied once walking stops.</summary>
+    private WalkingMode? _nextSessionWalkingMode;
 
     /// <summary>
     /// Enable auto-walk, restoring the last active mode and override index.
@@ -263,7 +273,7 @@ public class AppStateService
     public void EnableAutoWalk()
     {
         WalkingModeConfig.CurrentOverrideIndex = _lastOverrideIndex;
-        SetWalkingMode(_lastActiveWalkingMode);
+        SetWalkingMode(PreferredWalkingMode);
     }
 
     /// <summary>
@@ -273,7 +283,7 @@ public class AppStateService
     {
         if (CurrentWalkingMode != WalkingMode.Disabled)
         {
-            _lastActiveWalkingMode = CurrentWalkingMode;
+            PreferredWalkingMode = _nextSessionWalkingMode ?? CurrentWalkingMode;
             _lastOverrideIndex = WalkingModeConfig.CurrentOverrideIndex;
         }
         WalkingModeConfig.CurrentOverrideIndex = 0;
@@ -286,9 +296,22 @@ public class AppStateService
     /// </summary>
     public void SetPreferredWalkingMode(WalkingMode mode)
     {
-        _lastActiveWalkingMode = mode;
+        PreferredWalkingMode = mode;
         if (CurrentWalkingMode != WalkingMode.Disabled)
             SetWalkingMode(mode);
+        else
+            NotifyAppStateUpdated(forceImmediate: true);
+    }
+
+    /// <summary>
+    /// Set the mode the next walking session starts in, leaving an active session's mode unchanged.
+    /// </summary>
+    public void SetNextSessionWalkingMode(WalkingMode mode)
+    {
+        if (CurrentWalkingMode == WalkingMode.Disabled)
+            SetPreferredWalkingMode(mode);
+        else
+            _nextSessionWalkingMode = mode;
     }
 
     /// <summary>
@@ -296,7 +319,7 @@ public class AppStateService
     /// </summary>
     public WalkingMode SwapPreferredWalkingMode()
     {
-        var current = CurrentWalkingMode != WalkingMode.Disabled ? CurrentWalkingMode : _lastActiveWalkingMode;
+        var current = CurrentWalkingMode != WalkingMode.Disabled ? CurrentWalkingMode : PreferredWalkingMode;
         var mode = current == WalkingMode.Override ? WalkingMode.Dynamic : WalkingMode.Override;
         SetPreferredWalkingMode(mode);
         return mode;

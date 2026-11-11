@@ -38,6 +38,12 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
     // SteamVR Action Handles
     private ulong _actionSetHandle;
     private ulong _speedModifierHandle;
+    private ulong _speedStepHoldHandle;
+
+    // Speed stick flicks while the speed step button is held: enter past StepEnter, re-arm below StepRelease.
+    private const float SpeedStepEnter = 0.7f;
+    private const float SpeedStepRelease = 0.3f;
+    private int _speedStepDirection;
     private ulong _manualMovementHandle;
     private ulong _toggleWalkingHandle;
     private ulong _recenterYawHandle;
@@ -195,6 +201,10 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
             error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TempSpeedUp", ref _tempSpeedUpHandle);
             if (error != EVRInputError.None)
                 _logger?.LogWarning("Failed to get TempSpeedUp action handle: {Error}", error);
+
+            error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/SpeedStepHold", ref _speedStepHoldHandle);
+            if (error != EVRInputError.None)
+                _logger?.LogWarning("Failed to get SpeedStepHold action handle: {Error}", error);
 
             error = OpenVR.Input.GetActionHandle("/actions/fitosc/in/TempSpeedDown", ref _tempSpeedDownHandle);
             if (error != EVRInputError.None)
@@ -612,6 +622,31 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
                     _loggedActionDebug = true;
                 }
             }
+
+            // While the speed step button is held, flicking the speed stick steps the speed instead of boosting it.
+            var stepHold = new InputDigitalActionData_t();
+            var stepHeld = _speedStepHoldHandle != 0
+                && OpenVR.Input.GetDigitalActionData(_speedStepHoldHandle, ref stepHold,
+                    (uint)Marshal.SizeOf(typeof(InputDigitalActionData_t)), OpenVR.k_ulInvalidInputValueHandle) == EVRInputError.None
+                && stepHold is { bActive: true, bState: true };
+            // Steps arm only from neutral, so a stick already pushed when the button goes down stays a boost.
+            var stick = actionEvent.SpeedModifier;
+            if (MathF.Abs(stick) < SpeedStepRelease)
+            {
+                _speedStepDirection = 0;
+            }
+            else if (!stepHeld)
+            {
+                _speedStepDirection = Math.Sign(stick);
+            }
+            else if (_speedStepDirection == 0 && MathF.Abs(stick) > SpeedStepEnter)
+            {
+                _speedStepDirection = Math.Sign(stick);
+                actionEvent.SpeedStepUpPressed = _speedStepDirection > 0;
+                actionEvent.SpeedStepDownPressed = _speedStepDirection < 0;
+            }
+            if (stepHeld)
+                actionEvent.SpeedModifier = 0f;
 
             // Get analog action data for manual movement (vector2)
             if (_manualMovementHandle != 0)
