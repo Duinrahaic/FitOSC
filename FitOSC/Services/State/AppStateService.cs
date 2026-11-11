@@ -1,4 +1,5 @@
 ﻿using FitOSC.Models;
+using FitOSC.Services.Configuration;
 using FitOSC.Services.Treadmill;
 
 namespace FitOSC.Services.State;
@@ -8,6 +9,23 @@ namespace FitOSC.Services.State;
 /// </summary>
 public class AppStateService
 {
+    public AppStateService(ConfigurationService configService)
+    {
+        // Load the saved walking settings up front, so services never see defaults before the UI renders.
+        var walking = configService.GetConfiguration().WalkingMode;
+        WalkingModeConfig = new WalkingModeConfiguration
+        {
+            MaxSpeed = walking.MaxSpeed,
+            Output = walking.Output,
+            WalkingTrim = walking.DefaultTrim,
+            Steering = walking.Steering,
+            SmoothingFactor = walking.SmoothingFactor,
+            MaxTurnAngle = walking.MaxTurnAngle,
+            UpdateIntervalMs = walking.UpdateIntervalMs,
+            ThumbstickRampSpeed = walking.ThumbstickRampSpeed
+        };
+    }
+
     /// <summary>
     /// Event raised whenever treadmill telemetry is updated.
     /// </summary>
@@ -179,7 +197,8 @@ public class AppStateService
         { AppInterface.Bluetooth, ConnectionStatus.Disconnected },
         { AppInterface.VR, ConnectionStatus.Disconnected },
         { AppInterface.Pulsoid, ConnectionStatus.Disconnected },
-        { AppInterface.OSC, ConnectionStatus.Disconnected }
+        { AppInterface.OSC, ConnectionStatus.Disconnected },
+        { AppInterface.SteamVRDriver, ConnectionStatus.Disconnected }
     };
 
     public void PublishInterfaceConnectionStatuses(AppInterface appInterface, ConnectionStatus status)
@@ -224,7 +243,7 @@ public class AppStateService
     /// <summary>
     /// Walking mode configuration settings
     /// </summary>
-    public WalkingModeConfiguration WalkingModeConfig { get; private set; } = new WalkingModeConfiguration();
+    public WalkingModeConfiguration WalkingModeConfig { get; private set; }
 
     /// <summary>
     /// Set the current walking mode
@@ -298,6 +317,15 @@ public class AppStateService
     public void SetWalkingSteering(WalkingSteering steering)
     {
         WalkingModeConfig.Steering = steering;
+        NotifyAppStateUpdated();
+    }
+
+    /// <summary>
+    /// Switch where walking movement is sent
+    /// </summary>
+    public void SetLocomotionOutput(LocomotionOutput output)
+    {
+        WalkingModeConfig.Output = output;
         NotifyAppStateUpdated();
     }
 

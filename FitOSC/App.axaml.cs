@@ -6,6 +6,7 @@ using Avalonia.Markup.Xaml;
 using FitOSC.Client.ViewModels;
 using FitOSC.Client.Views;
 using FitOSC.Services;
+using FitOSC.Services.SteamVRDriver;
 using FitOSC.Services.Treadmill;
 using Application = Avalonia.Application;
 
@@ -63,6 +64,8 @@ public class App : Application, IDisposable
         // Release the treadmill before the process ends; a stalled link must not keep the app open.
         if (AppHost?.Services.GetService<TreadmillManager>() is { } treadmill)
             Task.Run(treadmill.DisconnectAsync).Wait(TreadmillDisconnectTimeout);
+        if (AppHost?.Services.GetService<SteamVRDriverService>() is { } steamVRDriver)
+            steamVRDriver.Shutdown();
 
         Environment.Exit(0);
     }

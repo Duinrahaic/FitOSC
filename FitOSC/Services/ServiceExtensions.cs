@@ -6,6 +6,7 @@ using FitOSC.Services.History;
 using FitOSC.Services.Logger;
 using FitOSC.Services.OSC;
 using FitOSC.Services.State;
+using FitOSC.Services.SteamVRDriver;
 using FitOSC.Services.Treadmill;
 using FitOSC.Services.Midi;
 using FitOSC.Services.Pulsoid;
@@ -32,6 +33,8 @@ public static class ServiceExtensions
         services.AddSingleton<AppStateService>();
 
         // Register OpenVRService as both singleton (for injection) and hosted service (for auto-start)
+        services.AddSingleton<SteamVRDriverService>();
+        services.AddHostedService(sp => sp.GetRequiredService<SteamVRDriverService>());
         services.AddSingleton<OpenVRService>();
         services.AddHostedService(sp => sp.GetRequiredService<OpenVRService>());
 
