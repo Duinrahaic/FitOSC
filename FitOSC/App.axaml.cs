@@ -58,7 +58,6 @@ public class App : Application, IDisposable
 
 
     private static readonly TimeSpan TreadmillDisconnectTimeout = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan SteamVRDriverShutdownTimeout = TimeSpan.FromSeconds(3);
 
     private void Exit(object? sender, EventArgs e)
     {
@@ -66,7 +65,7 @@ public class App : Application, IDisposable
         if (AppHost?.Services.GetService<TreadmillManager>() is { } treadmill)
             Task.Run(treadmill.DisconnectAsync).Wait(TreadmillDisconnectTimeout);
         if (AppHost?.Services.GetService<SteamVRDriverService>() is { } steamVRDriver)
-            Task.Run(steamVRDriver.ShutdownAsync).Wait(SteamVRDriverShutdownTimeout);
+            steamVRDriver.Shutdown();
 
         Environment.Exit(0);
     }
