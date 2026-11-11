@@ -41,7 +41,7 @@
     private List<TreadmillSession> _sessions = new(); // newest first
     private Guid? _selectedId; // null = the latest session
     private HistoryStat _stat = HistoryStat.Distance;
-    private bool _idle; // connected, belt stopped and not running or paused
+    private bool _idle; // connected, belt stopped, not running or paused, and walking off
     private bool _hovered;
     private MeasurementType _units;
     private Timer? _rotateTimer;
@@ -188,7 +188,10 @@
                           && status == ConnectionStatus.Connected;
         // A moving belt counts too, in case the treadmill reports running late
         var beltMoving = data.TreadmillTelemetry.Values[TreadmillTelemetryProperty.InstantaneousSpeed].Value > 0;
-        var idle = isConnected && !beltMoving && data.TreadmillState is not (TreadmillState.Running or TreadmillState.Paused);
+        // Walking moves the avatar without the belt, so it keeps the live view up too
+        var walking = data.Walking.Mode != WalkingMode.Disabled;
+        var idle = isConnected && !beltMoving && !walking
+                   && data.TreadmillState is not (TreadmillState.Running or TreadmillState.Paused);
 
         var changed = idle != _idle || data.UserMeasurementType != _units;
         if (idle && !_idle)
