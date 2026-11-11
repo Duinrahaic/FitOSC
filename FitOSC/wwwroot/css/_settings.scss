@@ -244,6 +244,16 @@
 
   .with-btn { display: flex; gap: 6px; }
 
+  .volume {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    input[type=range] { flex: 1; min-width: 0; margin: 0; accent-color: var(--settings-accent); cursor: pointer; }
+    input[type=range]:focus-visible { outline: none; box-shadow: var(--settings-focus); border-radius: 4px; }
+    output { width: 40px; text-align: right; color: var(--settings-muted); font-variant-numeric: tabular-nums; }
+  }
+
   .settings-btn {
     display: inline-flex;
     align-items: center;

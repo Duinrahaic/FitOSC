@@ -34,6 +34,7 @@ public sealed class SettingsDraft
             HistoryEnabled = config.User.HistoryEnabled,
             MinimumSessionDuration = config.User.MinimumSessionDuration,
             UseHardwareAcceleration = config.User.UseHardwareAcceleration,
+            FeedbackVolume = config.User.FeedbackVolume,
             LaunchWithSteamVR = launchWithSteamVR,
             AutoUpdate = config.Updates.AutoUpdate,
             UpdateChannel = updateChannel
@@ -115,6 +116,7 @@ public sealed class SettingsDraft
         public bool HistoryEnabled { get; set; } = true;
         public int MinimumSessionDuration { get; set; } = 5;
         public bool UseHardwareAcceleration { get; set; } = true;
+        public int FeedbackVolume { get; set; } = 40;
         public bool LaunchWithSteamVR { get; set; }
         public bool AutoUpdate { get; set; } = true;
         public UpdateChannel UpdateChannel { get; set; }

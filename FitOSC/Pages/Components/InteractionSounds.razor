@@ -1,0 +1,36 @@
+@using FitOSC.Services.State
+@using FitOSC.Services.Configuration
+@inject AppStateService AppState
+@inject ConfigurationService ConfigService
+@inject IJSRuntime JS
+@inject ILogger<InteractionSounds> Logger
+@implements IAsyncDisposable
+
+@code {
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized() => AppState.ControlPressed += OnControlPressed;
+
+    // SteamVR presses arrive off the render thread. The sound module loads on the first press and is retried on
+    // later presses if loading fails.
+    private void OnControlPressed(RemoteControl control, bool acts) => _ = InvokeAsync(async () =>
+    {
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interactionSounds.js");
+            await _module.InvokeVoidAsync(acts ? "beepHigh" : "beepLow", ConfigService.GetConfiguration().User.FeedbackVolume / 100.0);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            // A missed beep is not worth failing the press over, e.g. while the window closes.
+            Logger.LogWarning("Could not play the feedback beep: {Message}", ex.Message);
+        }
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        AppState.ControlPressed -= OnControlPressed;
+        if (_module is not null)
+            await _module.DisposeAsync();
+    }
+}
