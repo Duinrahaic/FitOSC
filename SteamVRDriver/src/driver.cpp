@@ -1,0 +1,569 @@
+// FitOSC SteamVR driver: blends FitOSC walking movement into the left controller's thumbstick.
+//
+// SteamVR has no API for one driver to change another driver's input, so this driver hooks
+// IVRDriverInput inside vrserver (the same technique as OpenVR-SpaceCalibrator). It loads before the
+// controller drivers (see loadPriority in default.vrsettings) so it sees their thumbstick components
+// being created, then rewrites the left-hand thumbstick axes while FitOSC is sending movement.
+// The user's own stick always wins: pushing it past the deadzone passes the real values through.
+//
+// FitOSC sends MovePacket datagrams to 127.0.0.1:kPort and gets a StatusPacket back for each one.
+// If no packet arrives for kInjectionTimeout the real stick values are restored.
+//
+// Nothing calls back into SteamVR while holding g_mutex: SteamVR calls the hooks from threads that
+// hold its own locks, so doing so can deadlock vrserver and stall every app waiting on it.
+
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+
+#include <MinHook.h>
+#include <openvr_driver.h>
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <cstring>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+namespace
+{
+    // Keep in sync with SteamVRDriverService in the FitOSC app.
+    constexpr uint32_t kMagic = 0x43534F46; // "FOSC"
+    constexpr uint16_t kProtocolVersion = 1;
+    constexpr uint16_t kPort = 39574;
+
+    constexpr auto kInjectionTimeout = std::chrono::milliseconds(250);
+    constexpr float kUserDeadzone = 0.2f;
+
+    // Controller drivers get whichever IVRDriverInput version their SDK asks for, and vrserver backs each version
+    // with its own functions, so each is hooked. Valve's drivers (lighthouse, oculus, vrlink) use _005, which is not
+    // in the public SDK; vrserver 2.19's _005 takes CreateScalar/UpdateScalar arguments at the same slots as _003/_004.
+    constexpr const char *kInputVersions[] = {"IVRDriverInput_005", "IVRDriverInput_004", "IVRDriverInput_003"};
+    constexpr size_t kInputVersionCount = std::size(kInputVersions);
+    constexpr const char *kUndocumentedInputVersion = "IVRDriverInput_005";
+    constexpr int kCreateScalarSlot = 2;
+    constexpr int kUpdateScalarSlot = 3;
+
+    // _005 is only hooked when its slots start like a vrserver build whose layout was checked by disassembly, so a
+    // SteamVR update that moves them can't make the hooks read the wrong arguments. These prologues forward the
+    // CreateScalar arguments (type and units on the stack) and the UpdateScalar value and time offset. To support a
+    // new vrserver, confirm the slots still take those arguments and add its prologues here.
+    struct KnownPrologues
+    {
+        std::vector<uint8_t> create;
+        std::vector<uint8_t> update;
+    };
+
+    const KnownPrologues kKnownInput005[] = {
+        // vrserver 2.19.1
+        {{0x48, 0x83, 0xEC, 0x48, 0x8B, 0x44, 0x24, 0x78, 0x89, 0x44, 0x24, 0x30, 0x8B, 0x44, 0x24, 0x70, 0x89, 0x44,
+          0x24, 0x28, 0x4C, 0x89, 0x4C, 0x24, 0x20},
+         {0x48, 0x83, 0xEC, 0x38, 0x4C, 0x8B, 0xC2, 0xF2, 0x0F, 0x11, 0x5C, 0x24, 0x20}},
+    };
+
+#pragma pack(push, 1)
+    struct MovePacket
+    {
+        uint32_t magic;
+        uint16_t version;
+        uint16_t flags;
+        float x;
+        float y;
+    };
+
+    struct StatusPacket
+    {
+        uint32_t magic;
+        uint16_t version;
+        uint16_t flags;
+    };
+#pragma pack(pop)
+
+    constexpr uint16_t kMoveActive = 1;
+    constexpr uint16_t kStatusStickFound = 1;
+    constexpr uint16_t kStatusUserOverride = 2;
+    constexpr uint16_t kStatusUnknownInputLayout = 4;
+
+    using Clock = std::chrono::steady_clock;
+
+    using CreateScalarFn = vr::EVRInputError (*)(vr::IVRDriverInput *, vr::PropertyContainerHandle_t, const char *,
+                                                 vr::VRInputComponentHandle_t *, vr::EVRScalarType, vr::EVRScalarUnits);
+    using UpdateScalarFn = vr::EVRInputError (*)(vr::IVRDriverInput *, vr::VRInputComponentHandle_t, float, double);
+
+    struct InputOriginals
+    {
+        CreateScalarFn create = nullptr;
+        UpdateScalarFn update = nullptr;
+    };
+
+    InputOriginals g_originals[kInputVersionCount];
+
+    // Set while a hook runs on this thread. One version's implementation can call into another's, and the
+    // inner hook must not treat the already-rewritten value as the real stick.
+    thread_local bool t_inHook = false;
+
+    struct Stick
+    {
+        // The interface and original function the owning driver reports through; pushes go through them too.
+        vr::IVRDriverInput *owner = nullptr;
+        UpdateScalarFn update = nullptr;
+        vr::PropertyContainerHandle_t container = vr::k_ulInvalidPropertyContainer;
+        vr::VRInputComponentHandle_t axis[2] = {vr::k_ulInvalidInputComponentHandle, vr::k_ulInvalidInputComponentHandle};
+        float real[2] = {0.f, 0.f};
+        // Refreshed by RefreshHands; some controllers (e.g. Vive wands) swap hands at runtime.
+        bool left = false;
+    };
+
+    struct Injection
+    {
+        bool active = false;
+        float value[2] = {0.f, 0.f};
+        Clock::time_point receivedAt;
+    };
+
+    struct AxisRef
+    {
+        size_t stick;
+        int axis;
+    };
+
+    std::mutex g_mutex;
+    std::vector<Stick> g_sticks;
+    std::unordered_map<vr::VRInputComponentHandle_t, AxisRef> g_axes;
+    Injection g_injection;
+
+    std::atomic<bool> g_running{false};
+    // Set when this vrserver's _005 layout isn't recognized, so Valve's controllers can't be tracked.
+    std::atomic<bool> g_unknownInputLayout{false};
+    std::thread g_networkThread;
+    SOCKET g_socket = INVALID_SOCKET;
+
+    void Log(const std::string &message)
+    {
+        if (vr::VRDriverLog())
+            vr::VRDriverLog()->Log(("[FitOSC] " + message).c_str());
+    }
+
+    int AxisFor(const char *name)
+    {
+        if (std::strcmp(name, "/input/joystick/x") == 0 || std::strcmp(name, "/input/thumbstick/x") == 0)
+            return 0;
+        if (std::strcmp(name, "/input/joystick/y") == 0 || std::strcmp(name, "/input/thumbstick/y") == 0)
+            return 1;
+        return -1;
+    }
+
+    bool IsLeftHand(vr::PropertyContainerHandle_t container)
+    {
+        vr::ETrackedPropertyError error = vr::TrackedProp_Success;
+        int32_t role = vr::VRProperties()->GetInt32Property(container, vr::Prop_ControllerRoleHint_Int32, &error);
+        return error == vr::TrackedProp_Success && role == vr::TrackedControllerRole_LeftHand;
+    }
+
+    // Reads each stick's hand from SteamVR outside g_mutex, then stores it for the hooks.
+    void RefreshHands()
+    {
+        std::vector<vr::PropertyContainerHandle_t> containers;
+        {
+            std::lock_guard lock(g_mutex);
+            for (const Stick &stick : g_sticks)
+                containers.push_back(stick.container);
+        }
+
+        std::vector<bool> left;
+        for (vr::PropertyContainerHandle_t container : containers)
+            left.push_back(IsLeftHand(container));
+
+        std::lock_guard lock(g_mutex);
+        for (size_t i = 0; i < containers.size() && i < g_sticks.size(); ++i)
+            if (g_sticks[i].container == containers[i])
+                g_sticks[i].left = left[i];
+    }
+
+    bool UserActive(const Stick &stick)
+    {
+        return std::hypot(stick.real[0], stick.real[1]) > kUserDeadzone;
+    }
+
+    // Callers hold g_mutex.
+    bool InjectionLive(Clock::time_point now)
+    {
+        return g_injection.active && now - g_injection.receivedAt < kInjectionTimeout;
+    }
+
+    // Callers hold g_mutex.
+    float OutputFor(const Stick &stick, int axis, Clock::time_point now)
+    {
+        if (stick.left && InjectionLive(now) && !UserActive(stick))
+            return g_injection.value[axis];
+        return stick.real[axis];
+    }
+
+    // Runs the original with t_inHook set, so hooks it reaches pass straight through.
+    template <typename Fn, typename... Args> vr::EVRInputError CallOriginal(Fn original, Args... args)
+    {
+        bool outer = t_inHook;
+        t_inHook = true;
+        vr::EVRInputError result = original(args...);
+        t_inHook = outer;
+        return result;
+    }
+
+    vr::EVRInputError OnCreateScalar(CreateScalarFn original, UpdateScalarFn update, vr::IVRDriverInput *self,
+                                     vr::PropertyContainerHandle_t container, const char *name,
+                                     vr::VRInputComponentHandle_t *handle, vr::EVRScalarType type, vr::EVRScalarUnits units)
+    {
+        bool nested = t_inHook;
+        vr::EVRInputError result = CallOriginal(original, self, container, name, handle, type, units);
+        if (nested || result != vr::VRInputError_None || handle == nullptr || name == nullptr)
+            return result;
+
+        int axis = AxisFor(name);
+        if (axis < 0)
+            return result;
+
+        {
+            std::lock_guard lock(g_mutex);
+            auto it = std::find_if(g_sticks.begin(), g_sticks.end(),
+                                   [container](const Stick &stick) { return stick.container == container; });
+            if (it == g_sticks.end())
+            {
+                g_sticks.push_back(Stick{});
+                it = std::prev(g_sticks.end());
+                it->container = container;
+            }
+            it->owner = self;
+            it->update = update;
+            it->axis[axis] = *handle;
+            g_axes[*handle] = AxisRef{static_cast<size_t>(it - g_sticks.begin()), axis};
+        }
+        Log(std::string("Tracking ") + name + " on container " + std::to_string(container));
+        return result;
+    }
+
+    struct Push
+    {
+        vr::IVRDriverInput *owner;
+        UpdateScalarFn update;
+        vr::VRInputComponentHandle_t component;
+        float value;
+    };
+
+    vr::EVRInputError OnUpdateScalar(UpdateScalarFn original, vr::IVRDriverInput *self,
+                                     vr::VRInputComponentHandle_t component, float value, double timeOffset)
+    {
+        std::optional<Push> restore;
+        if (!t_inHook)
+        {
+            std::lock_guard lock(g_mutex);
+            auto it = g_axes.find(component);
+            if (it != g_axes.end())
+            {
+                Stick &stick = g_sticks[it->second.stick];
+                int axis = it->second.axis, other = 1 - axis;
+                auto now = Clock::now();
+                bool wasInjected = stick.left && InjectionLive(now) && !UserActive(stick);
+                stick.real[axis] = value;
+                value = OutputFor(stick, axis, now);
+
+                // The user just took over on this axis; the other axis still holds the injected value until its
+                // controller reports again, so hand it back now as well.
+                if (wasInjected && UserActive(stick) && stick.owner && stick.update &&
+                    stick.axis[other] != vr::k_ulInvalidInputComponentHandle)
+                    restore = Push{stick.owner, stick.update, stick.axis[other], stick.real[other]};
+            }
+        }
+        vr::EVRInputError result = CallOriginal(original, self, component, value, timeOffset);
+        if (restore)
+            CallOriginal(restore->update, restore->owner, restore->component, restore->value, 0.0);
+        return result;
+    }
+
+    // One hook pair per IVRDriverInput version, each calling through to that version's original functions.
+    template <size_t V>
+    vr::EVRInputError HookCreateScalar(vr::IVRDriverInput *self, vr::PropertyContainerHandle_t container, const char *name,
+                                       vr::VRInputComponentHandle_t *handle, vr::EVRScalarType type, vr::EVRScalarUnits units)
+    {
+        return OnCreateScalar(g_originals[V].create, g_originals[V].update, self, container, name, handle, type, units);
+    }
+
+    template <size_t V>
+    vr::EVRInputError HookUpdateScalar(vr::IVRDriverInput *self, vr::VRInputComponentHandle_t component, float value,
+                                       double timeOffset)
+    {
+        return OnUpdateScalar(g_originals[V].update, self, component, value, timeOffset);
+    }
+
+    // Re-sends the left stick, since controllers often only report when the real stick moves.
+    // Sticks the user is pushing are left to their own driver so a stale value never overwrites a fresh one.
+    void PushAll()
+    {
+        std::vector<Push> pushes;
+        {
+            std::lock_guard lock(g_mutex);
+            auto now = Clock::now();
+            for (const Stick &stick : g_sticks)
+                for (int axis = 0; axis < 2; ++axis)
+                    if (stick.owner && stick.update && stick.left && !UserActive(stick) &&
+                        stick.axis[axis] != vr::k_ulInvalidInputComponentHandle)
+                        pushes.push_back(Push{stick.owner, stick.update, stick.axis[axis], OutputFor(stick, axis, now)});
+        }
+        for (const Push &push : pushes)
+            CallOriginal(push.update, push.owner, push.component, push.value, 0.0);
+    }
+
+    uint16_t StatusFlags()
+    {
+        std::lock_guard lock(g_mutex);
+        uint16_t flags = g_unknownInputLayout ? kStatusUnknownInputLayout : 0;
+        for (const Stick &stick : g_sticks)
+        {
+            if (!stick.left)
+                continue;
+            flags |= kStatusStickFound;
+            if (UserActive(stick))
+                flags |= kStatusUserOverride;
+        }
+        return flags;
+    }
+
+    void NetworkLoop()
+    {
+        bool wasLive = false;
+        while (g_running)
+        {
+            RefreshHands();
+
+            MovePacket packet{};
+            sockaddr_in from{};
+            int fromLength = sizeof(from);
+            int received = recvfrom(g_socket, reinterpret_cast<char *>(&packet), sizeof(packet), 0,
+                                    reinterpret_cast<sockaddr *>(&from), &fromLength);
+
+            if (received == sizeof(packet) && packet.magic == kMagic && packet.version == kProtocolVersion)
+            {
+                {
+                    std::lock_guard lock(g_mutex);
+                    g_injection.active = (packet.flags & kMoveActive) != 0;
+                    g_injection.value[0] = std::clamp(packet.x, -1.f, 1.f);
+                    g_injection.value[1] = std::clamp(packet.y, -1.f, 1.f);
+                    g_injection.receivedAt = Clock::now();
+                    wasLive = g_injection.active;
+                }
+                PushAll();
+
+                StatusPacket status{kMagic, kProtocolVersion, StatusFlags()};
+                sendto(g_socket, reinterpret_cast<const char *>(&status), sizeof(status), 0,
+                       reinterpret_cast<const sockaddr *>(&from), fromLength);
+                continue;
+            }
+
+            // Timed out or ignored a stray datagram: hand the stick back once FitOSC goes quiet.
+            bool live;
+            {
+                std::lock_guard lock(g_mutex);
+                live = InjectionLive(Clock::now());
+            }
+            if (wasLive && !live)
+            {
+                wasLive = false;
+                PushAll();
+                Log("FitOSC went quiet; restored the real thumbstick");
+            }
+        }
+    }
+
+    bool StartNetwork()
+    {
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        {
+            Log("WSAStartup failed");
+            return false;
+        }
+
+        g_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (g_socket == INVALID_SOCKET)
+        {
+            Log("Could not create the UDP socket");
+            WSACleanup();
+            return false;
+        }
+
+        DWORD timeoutMs = 50;
+        setsockopt(g_socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char *>(&timeoutMs), sizeof(timeoutMs));
+
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_port = htons(kPort);
+        inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+        if (bind(g_socket, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) == SOCKET_ERROR)
+        {
+            Log("Could not listen on 127.0.0.1:" + std::to_string(kPort) + " (error " + std::to_string(WSAGetLastError()) + ")");
+            closesocket(g_socket);
+            g_socket = INVALID_SOCKET;
+            WSACleanup();
+            return false;
+        }
+
+        g_running = true;
+        g_networkThread = std::thread(NetworkLoop);
+        return true;
+    }
+
+    void StopNetwork()
+    {
+        if (!g_running)
+            return;
+        g_running = false;
+        if (g_networkThread.joinable())
+            g_networkThread.join();
+        closesocket(g_socket);
+        g_socket = INVALID_SOCKET;
+        WSACleanup();
+    }
+
+    struct HookPair
+    {
+        void *create;
+        void *update;
+    };
+
+    template <size_t... V> std::array<HookPair, sizeof...(V)> MakeHookPairs(std::index_sequence<V...>)
+    {
+        return {HookPair{reinterpret_cast<void *>(&HookCreateScalar<V>), reinterpret_cast<void *>(&HookUpdateScalar<V>)}...};
+    }
+
+    bool StartsWith(const void *code, const std::vector<uint8_t> &prologue)
+    {
+        return std::memcmp(code, prologue.data(), prologue.size()) == 0;
+    }
+
+    bool IsKnownInput005(const void *create, const void *update)
+    {
+        return std::any_of(std::begin(kKnownInput005), std::end(kKnownInput005), [&](const KnownPrologues &known) {
+            return StartsWith(create, known.create) && StartsWith(update, known.update);
+        });
+    }
+
+    bool InstallHooks(vr::IVRDriverContext *context)
+    {
+        if (MH_Initialize() != MH_OK)
+        {
+            Log("MinHook failed to initialize");
+            return false;
+        }
+
+        const auto hooks = MakeHookPairs(std::make_index_sequence<kInputVersionCount>{});
+        std::vector<void *> hookedTargets;
+        std::string summary;
+        for (size_t v = 0; v < kInputVersionCount; ++v)
+        {
+            summary += std::string(" ") + kInputVersions[v];
+            vr::EVRInitError error = vr::VRInitError_None;
+            void *input = context->GetGenericInterface(kInputVersions[v], &error);
+            if (input == nullptr || error != vr::VRInitError_None)
+            {
+                summary += " unavailable;";
+                continue;
+            }
+
+            void **vtable = *reinterpret_cast<void ***>(input);
+            void *create = vtable[kCreateScalarSlot];
+            void *update = vtable[kUpdateScalarSlot];
+            if (std::strcmp(kInputVersions[v], kUndocumentedInputVersion) == 0 && !IsKnownInput005(create, update))
+            {
+                g_unknownInputLayout = true;
+                summary += " unknown layout, skipped;";
+                continue;
+            }
+            bool createHooked = std::find(hookedTargets.begin(), hookedTargets.end(), create) != hookedTargets.end();
+            bool updateHooked = std::find(hookedTargets.begin(), hookedTargets.end(), update) != hookedTargets.end();
+            if (createHooked || updateHooked)
+            {
+                summary += createHooked && updateHooked ? " shared;" : " partly shared, skipped;";
+                continue;
+            }
+
+            if (MH_CreateHook(create, hooks[v].create, reinterpret_cast<void **>(&g_originals[v].create)) != MH_OK ||
+                MH_CreateHook(update, hooks[v].update, reinterpret_cast<void **>(&g_originals[v].update)) != MH_OK)
+            {
+                Log(std::string("Could not hook ") + kInputVersions[v]);
+                MH_Uninitialize();
+                return false;
+            }
+            hookedTargets.push_back(create);
+            hookedTargets.push_back(update);
+            summary += " hooked;";
+        }
+
+        if (hookedTargets.empty() || MH_EnableHook(MH_ALL_HOOKS) != MH_OK)
+        {
+            Log("Could not hook IVRDriverInput:" + summary);
+            MH_Uninitialize();
+            return false;
+        }
+        Log("Input hooks:" + summary);
+        return true;
+    }
+
+    void RemoveHooks()
+    {
+        MH_DisableHook(MH_ALL_HOOKS);
+        MH_Uninitialize();
+    }
+
+    class Provider final : public vr::IServerTrackedDeviceProvider
+    {
+    public:
+        vr::EVRInitError Init(vr::IVRDriverContext *context) override
+        {
+            VR_INIT_SERVER_DRIVER_CONTEXT(context);
+
+            // Failing here would get the driver blocked by SteamVR, so stay loaded and inert instead.
+            m_hooked = InstallHooks(context);
+            if (m_hooked && StartNetwork())
+                Log("Ready on 127.0.0.1:" + std::to_string(kPort));
+            return vr::VRInitError_None;
+        }
+
+        void Cleanup() override
+        {
+            StopNetwork();
+            if (m_hooked)
+                RemoveHooks();
+            m_hooked = false;
+            VR_CLEANUP_SERVER_DRIVER_CONTEXT();
+        }
+
+        const char *const *GetInterfaceVersions() override { return vr::k_InterfaceVersions; }
+        void RunFrame() override {}
+        bool ShouldBlockStandbyMode() override { return false; }
+        void EnterStandby() override {}
+        void LeaveStandby() override {}
+
+    private:
+        bool m_hooked = false;
+    };
+
+    Provider g_provider;
+}
+
+extern "C" __declspec(dllexport) void *HmdDriverFactory(const char *interfaceName, int *returnCode)
+{
+    if (std::strcmp(interfaceName, vr::IServerTrackedDeviceProvider_Version) == 0)
+        return &g_provider;
+
+    if (returnCode)
+        *returnCode = vr::VRInitError_Init_InterfaceNotFound;
+    return nullptr;
+}

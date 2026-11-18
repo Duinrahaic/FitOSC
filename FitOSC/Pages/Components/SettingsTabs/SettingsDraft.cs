@@ -48,6 +48,7 @@ public sealed class SettingsDraft
         {
             DefaultMode = config.WalkingMode.DefaultMode,
             Steering = config.WalkingMode.Steering,
+            Output = config.WalkingMode.Output,
             MaxSpeedKph = config.WalkingMode.MaxSpeed,
             DefaultTrim = config.WalkingMode.DefaultTrim,
             SmoothingFactor = config.WalkingMode.SmoothingFactor,
@@ -150,6 +151,7 @@ public sealed class SettingsDraft
         public decimal MaxSpeedKph { get; set; } = 8.0m;
         public WalkingMode DefaultMode { get; set; } = WalkingMode.Dynamic;
         public WalkingSteering Steering { get; set; } = WalkingSteering.Locked;
+        public LocomotionOutput Output { get; set; } = LocomotionOutput.Osc;
         public float DefaultTrim { get; set; } = 0.80f;
         public float SmoothingFactor { get; set; } = 0.8f;
         public float MaxTurnAngle { get; set; } = 90f;

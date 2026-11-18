@@ -275,7 +275,9 @@ public class OpenVRService(IServiceProvider services) : IHostedService, IDisposa
         _waistIndex = OpenVR.k_unTrackedDeviceIndexInvalid;
         _nextWaistScan = DateTime.MinValue;
 
-        OpenVR.Init(ref _initError, EVRApplicationType.VRApplication_Overlay);
+        // Background attaches only to a running SteamVR. Overlay would launch SteamVR on every reconnect attempt,
+        // which keeps it from being quit and races a user-started SteamVR into a critical error.
+        OpenVR.Init(ref _initError, EVRApplicationType.VRApplication_Background);
         if (_initError != EVRInitError.None)
         {
             var errorMessage = _initError switch

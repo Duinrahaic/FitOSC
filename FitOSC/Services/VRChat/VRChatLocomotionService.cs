@@ -2,6 +2,7 @@ using FitOSC.Models;
 using FitOSC.Services.OpenVR;
 using FitOSC.Services.OSC;
 using FitOSC.Services.State;
+using FitOSC.Services.SteamVRDriver;
 using FitOSC.Services.Treadmill;
 using FitOSC.Utilities;
 using Valve.VR;
@@ -19,12 +20,16 @@ public class VRChatLocomotionService : IHostedService, IDisposable
     private readonly IOscService _oscService;
     private readonly OpenVRService _openVRService;
     private readonly TreadmillManager _treadmillManager;
+    private readonly SteamVRDriverService _steamVRDriver;
 
     // Latest data from treadmill and OpenVR
     private TreadmillTelemetry? _latestTelemetry;
     private OpenVRDataEvent? _latestOpenVRData;
     private WalkingMode _currentMode = WalkingMode.Disabled;
     private WalkingModeConfiguration _modeConfig = new();
+
+    // Output the last tick was sent to, so switching away can release the previous one
+    private LocomotionOutput _activeOutput = LocomotionOutput.Osc;
 
     // Initial direction when walking is enabled
     private float? _initialYaw = null;
@@ -50,6 +55,10 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
     // Periodic update timer
     private Timer? _updateTimer;
+    // Timer callbacks can overlap when one runs long; a tick that finds the previous one still running is skipped.
+    private readonly object _tickLock = new();
+    // Zeroes still owed to VRChat's OSC axes after leaving OSC output, kept until OSC is connected to receive them.
+    private bool _oscResetPending;
 
 
     public VRChatLocomotionService(
@@ -57,13 +66,15 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         AppStateService appState,
         IOscService oscService,
         OpenVRService openVRService,
-        TreadmillManager treadmillManager)
+        TreadmillManager treadmillManager,
+        SteamVRDriverService steamVRDriver)
     {
         _logger = logger;
         _appState = appState;
         _oscService = oscService;
         _openVRService = openVRService;
         _treadmillManager = treadmillManager;
+        _steamVRDriver = steamVRDriver;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -354,11 +365,17 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
     private void PeriodicUpdate(object? state)
     {
+        if (!Monitor.TryEnter(_tickLock))
+            return;
         try
         {
             // Check for manual override (left thumbstick active)
-            _isManualOverride = _latestOpenVRData != null &&
-                (MathF.Abs(_latestOpenVRData.LeftThumbstickX) > 0.1f || MathF.Abs(_latestOpenVRData.LeftThumbstickY) > 0.1f);
+            // With joystick output the left thumbstick carries FitOSC's own movement, so the driver,
+            // which sees the real stick, reports when the user takes over.
+            _isManualOverride = _modeConfig.Output == LocomotionOutput.Joystick
+                ? _steamVRDriver.UserOverride
+                : _latestOpenVRData != null &&
+                  (MathF.Abs(_latestOpenVRData.LeftThumbstickX) > 0.1f || MathF.Abs(_latestOpenVRData.LeftThumbstickY) > 0.1f);
 
             // Calculate target velocity based on walking mode
             float targetSpeed = CalculateVelocity();
@@ -379,6 +396,10 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in periodic VRChat locomotion update");
+        }
+        finally
+        {
+            Monitor.Exit(_tickLock);
         }
     }
 
@@ -510,9 +531,41 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         _smoothedVertical = Lerp(_smoothedVertical, vertical, _modeConfig.SmoothingFactor);
         _smoothedStrafe = Lerp(_smoothedStrafe, horizontal, _modeConfig.SmoothingFactor);
 
-        // Locomotion inputs must be sent every tick — VRChat resets them to 0 if they stop arriving
-        _oscService.SendMessage("/input/Vertical", _smoothedVertical);
-        _oscService.SendMessage("/input/Horizontal", _smoothedStrafe);
+        SendMovement(_smoothedVertical, _smoothedStrafe);
+    }
+
+    private void SendMovement(float vertical, float horizontal)
+    {
+        var output = _modeConfig.Output;
+        if (output != _activeOutput)
+        {
+            if (_activeOutput == LocomotionOutput.Joystick)
+                _steamVRDriver.Release();
+            else
+                _oscResetPending = true; // VRChat keeps the last OSC movement until it is told otherwise.
+            _activeOutput = output;
+            _logger.LogInformation($"Walking output switched to {output}");
+        }
+
+        if (output != LocomotionOutput.Osc && _oscResetPending && _oscService.IsConnected)
+        {
+            _oscService.SendMessage("/input/Vertical", 0f);
+            _oscService.SendMessage("/input/Horizontal", 0f);
+            // A send that finds no connection marks OSC disconnected; the reset is then retried after it reconnects.
+            _oscResetPending = !_oscService.IsConnected;
+        }
+
+        switch (output)
+        {
+            case LocomotionOutput.Joystick:
+                _steamVRDriver.Send(vertical, horizontal, active: _currentMode != WalkingMode.Disabled);
+                break;
+            default:
+                // Sent every tick so VRChat always has the current movement.
+                _oscService.SendMessage("/input/Vertical", vertical);
+                _oscService.SendMessage("/input/Horizontal", horizontal);
+                break;
+        }
     }
 
     private static float Lerp(float a, float b, float t)
@@ -528,6 +581,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
 
         // Walking Mode
         output.AppendLine($"\n📋 Walking Mode: {_currentMode}");
+        output.AppendLine($"   Output: {_activeOutput}");
         output.AppendLine($"   Max Speed: {_modeConfig.MaxSpeed:F2} km/h");
         output.AppendLine($"   Walking Trim: {_modeConfig.WalkingTrim:F2}");
         output.AppendLine($"   Steering: {_steering}");

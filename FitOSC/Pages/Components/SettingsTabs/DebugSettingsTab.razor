@@ -7,6 +7,7 @@
 @inject AppStateService AppStateService
 @inject ConfigurationService ConfigService
 @inject OpenVRService OpenVRService
+@inject FitOSC.Services.SteamVRDriver.SteamVRDriverService SteamVRDriver
 @implements IDisposable
 
 <section class="page" aria-labelledby="settings-diagnostics-heading">
@@ -30,6 +31,7 @@
     <div class="group">
         <dl>
             <dt>Mode</dt><dd>@(_appState?.Walking.Mode.ToString() ?? "Unknown")</dd>
+            <dt>Output</dt><dd class="@OutputStatusClass">@OutputDescription</dd>
             <dt>Max speed</dt><dd>@($"{_appState?.Walking.Config.MaxSpeed:F2} km/h")</dd>
             <dt>Trim</dt><dd>@($"{_appState?.Walking.Config.WalkingTrim:F2}")</dd>
             <dt>Manual override</dt><dd>@(_appState?.Walking.IsManualOverride == true ? "Active" : "Inactive")</dd>
@@ -177,6 +179,12 @@
         }
         return 0f;
     }
+
+    private bool IsJoystickOutput => _appState?.Walking.Config.Output == LocomotionOutput.Joystick;
+
+    private string OutputDescription => IsJoystickOutput ? $"Joystick ({SteamVRDriver.Status})" : "OSC";
+
+    private string? OutputStatusClass => IsJoystickOutput ? StatusClass(AppInterface.SteamVRDriver) : null;
 
     private ConnectionStatus GetStatus(AppInterface interfaceType) =>
         _appState?.ConnectionStates.TryGetValue(interfaceType, out var status) == true ? status : ConnectionStatus.Disconnected;
