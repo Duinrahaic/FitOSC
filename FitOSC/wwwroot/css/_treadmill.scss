@@ -317,7 +317,7 @@
 	  width: 50%;
 	  transition: all 0.2s ease;
 
-	  &:disabled {
+	  &[aria-disabled="true"] {
 		border-color: $color-border;
 		color: $color-text-muted;
 		cursor: default;
@@ -502,6 +502,7 @@
 			  gap: 8px;
 			  user-select: none;
 			  
+			  // The lit row glows; the others are dark. Toggling walking fades the glow from one row to the other.
 			  .led{
 				display: flex;
 				flex-direction: row;
@@ -509,59 +510,39 @@
 				align-items: center;
 				justify-content: start;
 				width: 100%;
-				
-				&:not(.led-disabled)
-				{
-				  color: darken($color-success, 20%);
-				  .led-text{
-					color: $color-text-muted;
-				  }
-				  &.active
-				  {
-					
-					.led-indicator{
-					  color: $color-success;
-					  text-shadow:  glow($color-success,0, 4px);
-					  
-					  
-					}
-					
-					.led-text{
-					  color: $color-text;
-					}
-					
-					
-					
-				  }
-				  
+
+				.led-indicator{
+				  color: darken($color-success, 30%);
+				  text-shadow: 0 0 0 transparent, 0 0 0 transparent;
+				  transition: color 0.3s ease, text-shadow 0.3s ease;
 				}
-				
+
+				.led-text{
+				  color: $color-text-muted;
+				  transition: color 0.3s ease;
+				}
+
+				&.active{
+				  .led-indicator{
+					color: $color-success;
+					text-shadow: glow($color-success, 0, 4px);
+				  }
+
+				  .led-text{
+					color: $color-text;
+				  }
+				}
 
 				&.led-disabled{
-				  color: darken($color-error, 20%);
-				  .led-text{
-					color: $color-text-muted;
+				  .led-indicator{
+					color: darken($color-error, 40%);
 				  }
-				  &.active
-				  {
-					
-					.led-indicator{
-					  color: $color-error;
-					  text-shadow:  glow($color-error,0, 4px);
-					  
-					  
-					}
-					
-					.led-text{
-					  color: $color-text;
-					}
-					
-					
-					
+
+				  &.active .led-indicator{
+					color: $color-error;
+					text-shadow: glow($color-error, 0, 4px);
 				  }
 				}
-			
-				
 			  }
 			}
 			
@@ -574,6 +555,7 @@
 			letter-spacing: 4px;
 			font-size: 18px;
 			user-select: none;
+			transition: color 0.3s ease;
 
 			&.disabled {
 			  color: $color-text-muted;
@@ -599,7 +581,7 @@
 
 			$control-border-radius: 8px;
 
-			&:disabled {
+			&[aria-disabled="true"] {
 			  border-color: $color-border;
 			  color: $color-text-muted;
 			  cursor: default;
@@ -640,10 +622,12 @@
 				outline: 2px solid $color-border;
 				padding: 0 4px;
 				border-radius: $control-border-radius;
+				transition: outline-color 0.3s ease;
 				
 				.led-text{
 				  font-size: 30px;
 				  color: $color-border;
+				  transition: color 0.3s ease;
 				}
 				
 				.led-indicator{
@@ -651,6 +635,8 @@
 				  width: 8px;
 				  height: 24px;
 				  border-radius: 4px;
+				  box-shadow: 0 0 0 transparent, 0 0 0 transparent;
+				  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 				}
 				
 				&:not(.led-disabled)
@@ -843,5 +829,39 @@
 		font-size: 18px;
 	  }
 	}
+  }
+}
+
+// This control was just pressed, on screen or from SteamVR. Disabled controls stay unlit.
+.treadmill-interaction {
+  .treadmill-control-row button.control-glow:not([aria-disabled="true"]),
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.control-glow:not([aria-disabled="true"]) {
+    border-color: $color-accent;
+    color: $color-accent;
+    filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));
+  }
+
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster-indicator-row {
+    transition: outline-color 0.2s ease, filter 0.2s ease;
+  }
+
+  .treadmill-controls .treadmill-control-adjuster-container:not(.disabled) > .treadmill-control-adjuster-indicator-row.control-glow {
+    outline-color: $color-accent;
+    filter: drop-shadow(0 0 4px rgba($color-accent, 0.9));
+
+    .treadmill-control-adjuster-indicator-value,
+    .treadmill-control-adjuster-indicator-title,
+    .treadmill-control-adjuster-indicator-led .led .led-text {
+      color: $color-accent;
+    }
+  }
+
+  // A preset box's frame is its light's outline, so the picked preset's glow goes there.
+  .treadmill-controls .treadmill-control-adjuster-container .treadmill-control-adjuster.walking.control-glow:not([aria-disabled="true"]) .led.active {
+    outline-color: $color-accent;
+
+    .led-text {
+      color: $color-accent;
+    }
   }
 }

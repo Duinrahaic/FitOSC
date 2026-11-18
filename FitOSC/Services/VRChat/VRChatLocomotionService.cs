@@ -198,25 +198,6 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         _logger.LogInformation($"Preset {preset} activated via SteamVR action");
     }
 
-    /// <summary>Steps the override preset in Override mode, otherwise the walking trim.</summary>
-    private void StepSpeed(int direction)
-    {
-        // Matches the on-screen +/- buttons, which are disabled while walking is off.
-        if (_currentMode == WalkingMode.Disabled)
-            return;
-        if (_currentMode == WalkingMode.Override)
-        {
-            var newIndex = Math.Clamp(_modeConfig.CurrentOverrideIndex + direction, 0, _modeConfig.OverrideSpeeds.Count - 1);
-            _appState.SetOverrideSpeedIndex(newIndex);
-            _logger.LogInformation($"Override preset stepped to index {newIndex} via SteamVR action");
-        }
-        else
-        {
-            _appState.AdjustWalkingTrim(0.05f * direction);
-            _logger.LogInformation($"Walking trim stepped {(direction > 0 ? "up" : "down")} via SteamVR action");
-        }
-    }
-
     private void OnYawResetRequested()
     {
         if (_latestOpenVRData != null)
@@ -232,7 +213,7 @@ public class VRChatLocomotionService : IHostedService, IDisposable
         try
         {
             // Handle toggle walking action
-            if (action.ToggleWalkingPressed)
+            if (action.ToggleWalkingPressed && _appState.PressControl(RemoteControl.WalkingToggle))
             {
                 if (_currentMode == WalkingMode.Disabled)
                 {
@@ -279,50 +260,45 @@ public class VRChatLocomotionService : IHostedService, IDisposable
             {
                 if (_appState.LatestState == TreadmillState.Running)
                 {
-                    _ = _treadmillManager.StopAsync();
-                    _logger.LogInformation("Treadmill stopped via SteamVR action");
+                    if (_appState.PressControl(RemoteControl.TreadmillStop))
+                    {
+                        _ = _treadmillManager.StopAsync();
+                        _logger.LogInformation("Treadmill stopped via SteamVR action");
+                    }
                 }
-                else
+                else if (_appState.PressControl(RemoteControl.TreadmillStart))
                 {
                     _ = _treadmillManager.StartAsync();
                     _logger.LogInformation("Treadmill started via SteamVR action");
                 }
             }
 
-            if (action.TreadmillSpeedUpPressed)
+            if (action.TreadmillSpeedUpPressed && _appState.PressControl(RemoteControl.TreadmillSpeedIncrease))
             {
                 var currentSpeed = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
                 _ = _treadmillManager.SetSpeedAsync(currentSpeed + 0.2m * 1.609344m);
                 _logger.LogInformation("Treadmill speed up via SteamVR action");
             }
 
-            if (action.TreadmillSlowDownPressed)
+            if (action.TreadmillSlowDownPressed && _appState.PressControl(RemoteControl.TreadmillSpeedDecrease))
             {
                 var currentSpeed = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.InstantaneousSpeed)?.Value ?? 0m;
                 _ = _treadmillManager.SetSpeedAsync(Math.Max(0m, currentSpeed - 0.2m * 1.609344m));
                 _logger.LogInformation("Treadmill slow down via SteamVR action");
             }
 
-            if (action.TreadmillInclineUpPressed)
+            if (action.TreadmillInclineUpPressed && _appState.PressControl(RemoteControl.TreadmillInclineIncrease))
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
-                var config = _appState.LatestConfiguration;
-                if (config is { SupportsIncline: true })
-                {
-                    _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline + config.InclineIncrement, config.MinIncline, config.MaxIncline));
-                    _logger.LogInformation("Treadmill incline up via SteamVR action");
-                }
+                _ = _treadmillManager.SetInclineAsync(currentIncline + _appState.LatestConfiguration!.InclineIncrement);
+                _logger.LogInformation("Treadmill incline up via SteamVR action");
             }
 
-            if (action.TreadmillInclineDownPressed)
+            if (action.TreadmillInclineDownPressed && _appState.PressControl(RemoteControl.TreadmillInclineDecrease))
             {
                 var currentIncline = _appState.LatestData?.GetTelemetryValue(TreadmillTelemetryProperty.Incline)?.Value ?? 0m;
-                var config = _appState.LatestConfiguration;
-                if (config is { SupportsIncline: true })
-                {
-                    _ = _treadmillManager.SetInclineAsync(Math.Clamp(currentIncline - config.InclineIncrement, config.MinIncline, config.MaxIncline));
-                    _logger.LogInformation("Treadmill incline down via SteamVR action");
-                }
+                _ = _treadmillManager.SetInclineAsync(currentIncline - _appState.LatestConfiguration!.InclineIncrement);
+                _logger.LogInformation("Treadmill incline down via SteamVR action");
             }
 
             // Handle mode selection
@@ -344,14 +320,16 @@ public class VRChatLocomotionService : IHostedService, IDisposable
                 _logger.LogInformation("Walking speed down via SteamVR action");
             }
 
-            if (action.SpeedStepUpPressed)
+            if (action.SpeedStepUpPressed && _appState.PressControl(RemoteControl.WalkingIncrease))
             {
-                StepSpeed(1);
+                _appState.StepWalkingSpeed(1);
+                _logger.LogInformation("Walking speed stepped up via SteamVR action");
             }
 
-            if (action.SpeedStepDownPressed)
+            if (action.SpeedStepDownPressed && _appState.PressControl(RemoteControl.WalkingDecrease))
             {
-                StepSpeed(-1);
+                _appState.StepWalkingSpeed(-1);
+                _logger.LogInformation("Walking speed stepped down via SteamVR action");
             }
 
             if (action.EnableOverridePressed)

@@ -7,7 +7,7 @@ namespace FitOSC.Services.State;
 /// <summary>
 /// Global app state service for settings, treadmill telemetry, and state publishing.
 /// </summary>
-public class AppStateService
+public partial class AppStateService
 {
     public AppStateService(ConfigurationService configService)
     {
@@ -369,7 +369,7 @@ public class AppStateService
     /// </summary>
     public void AdjustWalkingTrim(float delta)
     {
-        var newTrim = Math.Clamp(WalkingModeConfig.WalkingTrim + delta, 0.0f, 2.0f);
+        var newTrim = Math.Clamp(WalkingModeConfig.WalkingTrim + delta, 0.0f, MaxWalkingTrim);
         WalkingModeConfig.WalkingTrim = newTrim;
         NotifyAppStateUpdated();
     }

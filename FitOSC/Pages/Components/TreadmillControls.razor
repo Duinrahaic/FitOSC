@@ -31,13 +31,13 @@
         <img src="images/FitOSC-Bunny.svg" alt="fitosc-logo"/>
 
         <div class="treadmill-control-row">
-            <StateButton OnClick="Treadmill.StartAsync" Enabled="@Accepts(TreadmillCommands.Start)" Icon="fa fa-play" Title="START"/>
-            <StateButton OnClick="Treadmill.PauseAsync" Enabled="@Accepts(TreadmillCommands.Pause)" Icon="fa fa-pause" Title="PAUSE"/>
-            <StateButton OnClick="Treadmill.StopAsync" Enabled="@Accepts(TreadmillCommands.Stop)" Icon="fa fa-square" Title="STOP"/>
+            <StateButton OnClick="Treadmill.StartAsync" Control="RemoteControl.TreadmillStart" Enabled="@AppState.IsEnabled(RemoteControl.TreadmillStart)" Icon="fa fa-play" Title="START"/>
+            <StateButton OnClick="Treadmill.PauseAsync" Control="RemoteControl.TreadmillPause" Enabled="@AppState.IsEnabled(RemoteControl.TreadmillPause)" Icon="fa fa-pause" Title="PAUSE"/>
+            <StateButton OnClick="Treadmill.StopAsync" Control="RemoteControl.TreadmillStop" Enabled="@AppState.IsEnabled(RemoteControl.TreadmillStop)" Icon="fa fa-square" Title="STOP"/>
         </div>
     </div>
 
-    <WalkingButtonAdjuster Enabled="true" />
+    <WalkingButtonAdjuster />
 
 </div>
 
@@ -56,8 +56,6 @@
     // The buttons the connected treadmill takes; its configuration can change after it connects.
     private TreadmillCommands AvailableCommands =>
         IsBluetoothConnected ? _treadmillData!.TreadmillConfiguration.Commands : TreadmillCommands.None;
-
-    private bool Accepts(TreadmillCommands command) => AvailableCommands.HasFlag(command);
 
     protected override void OnInitialized()
     {
