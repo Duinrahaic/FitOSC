@@ -49,6 +49,11 @@
       "requirement": "optional"
     },
     {
+      "name": "/actions/fitosc/in/SpeedStepHold",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
       "name": "/actions/fitosc/in/TempSpeedUp",
       "type": "boolean",
       "requirement": "optional"
@@ -145,6 +150,7 @@
       "/actions/fitosc/in/OverrideSpeedUp": "Override Speed Up",
       "/actions/fitosc/in/OverrideSpeedDown": "Override Speed Down",
       "/actions/fitosc/in/ManualMovement": "Manual Movement",
+      "/actions/fitosc/in/SpeedStepHold": "Hold to Step Speed",
       "/actions/fitosc/in/TempSpeedUp": "Temp Speed Up",
       "/actions/fitosc/in/TempSpeedDown": "Temp Speed Down",
       "/actions/fitosc/in/TreadmillEnable": "Treadmill Enable",

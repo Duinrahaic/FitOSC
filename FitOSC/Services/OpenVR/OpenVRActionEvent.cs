@@ -70,6 +70,13 @@ public class OpenVRActionEvent
     public bool WalkingSpeedDownPressed { get; set; } = false;
 
     /// <summary>
+    /// True on the frame the speed stick was flicked forward/back while the speed step button is held.
+    /// Steps the override preset in Override mode, otherwise the walking trim.
+    /// </summary>
+    public bool SpeedStepUpPressed { get; set; } = false;
+    public bool SpeedStepDownPressed { get; set; } = false;
+
+    /// <summary>
     /// True on the frame when enable override mode button was pressed.
     /// </summary>
     public bool EnableOverridePressed { get; set; } = false;
